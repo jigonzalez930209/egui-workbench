@@ -1,0 +1,50 @@
+[package]
+name = "egui-workbench"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+description = "A desktop workbench shell for egui: themes, custom title bar, menus, tabs, explorer tree, dialogs, command palette, toasts, interactive plots, and a shadcn-style component layer."
+readme = "README.md"
+repository = "https://github.com/jigonzalez930209/egui-workbench"
+homepage = "https://jigonzalez930209.github.io/egui-workbench/"
+documentation = "https://docs.rs/egui-workbench"
+keywords = ["egui", "gui", "desktop", "workbench", "widgets"]
+categories = ["gui"]
+# Only the library and its embedded icons; examples, tests, and the docs site stay in git.
+include = ["/src/**", "/assets/**", "/README.md", "/CHANGELOG.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
+
+[workspace]
+members = ["xtask"]
+resolver = "3"
+
+[features]
+default = ["material-icons", "lucide-icons"]
+# The VS Code Material Icon Theme (MIT, ~5 MB of SVG) for file and folder icons.
+material-icons = ["dep:serde", "dep:serde_json"]
+# The Lucide icon set (ISC, ~1 MB of SVG) available by name to every component.
+lucide-icons = []
+
+[dependencies]
+egui = "=0.37"
+eframe = { version = "0.37", default-features = false, features = ["glow", "x11", "wayland", "default_fonts", "clipboard"] }
+resvg = "=0.48.1"
+usvg = "=0.48.1"
+rust-embed = "8"
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+
+[dev-dependencies]
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
