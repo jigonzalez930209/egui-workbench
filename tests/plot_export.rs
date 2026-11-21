@@ -53,13 +53,12 @@ fn svg_is_a_complete_escaped_document() {
     assert!(svg.contains("<polyline"));
     assert!(svg.contains("rotate(-90"), "the y label is rotated");
     assert!(svg.contains("stroke-dasharray"), "the fit is dashed");
-    std::fs::write("/tmp/claude-1000/-home-lestad-github-egui-workbench/ae9a5e2d-03f1-49c3-b987-043e039d8115/scratchpad/plot/export.svg", &svg).unwrap();
 }
 
 #[test]
 fn png_renders_at_the_requested_scale() {
     let (line, dots) = data();
-    for (id, name) in [(ThemeId::GithubLight, "light"), (ThemeId::GithubDark, "dark")] {
+    for id in [ThemeId::GithubLight, ThemeId::GithubDark] {
         let ctx = context(id);
         let options = ExportOptions {
             width: 800.0,
@@ -75,6 +74,5 @@ fn png_renders_at_the_requested_scale() {
         let width = u32::from_be_bytes([png[16], png[17], png[18], png[19]]);
         let height = u32::from_be_bytes([png[20], png[21], png[22], png[23]]);
         assert_eq!((width, height), (1600, 900));
-        std::fs::write(format!("/tmp/claude-1000/-home-lestad-github-egui-workbench/ae9a5e2d-03f1-49c3-b987-043e039d8115/scratchpad/plot/export-{name}.png"), &png).unwrap();
     }
 }
