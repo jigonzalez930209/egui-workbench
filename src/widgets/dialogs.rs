@@ -204,7 +204,7 @@ pub fn show_confirm_prompt(ctx: &Context, prompt: &ConfirmPrompt<'_>) -> Option<
 }
 
 /// A three-way choice for closing unsaved work. Returns the index of the clicked button
-/// in `buttons` (Save, Discard, Cancel in MD View); Esc returns the last one.
+/// in `buttons` (for example Save, Discard, Cancel); Esc returns the last one.
 pub fn show_choice_window(
     ctx: &Context,
     title: &str,
