@@ -130,7 +130,7 @@ impl Icons {
         true
     }
 
-    /// Place a glyph as a widget at `center` with `ui.put`, like MD View's title-bar and
+    /// Place a glyph as a widget at `center` with `ui.put`, like the workbench's title-bar and
     /// tab-strip buttons. Unlike [`Self::paint`], this moves the layout cursor to the
     /// glyph's edge, so the next button in the row starts there and overlaps the previous
     /// cell. That gives the workbench its compact button pitch (see `metrics`).
