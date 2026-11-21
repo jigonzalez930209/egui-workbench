@@ -34,6 +34,10 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --no-deps
       - name: Test
+        # One test thread: the software Vulkan driver (lavapipe) can crash when several
+        # wgpu snapshot harnesses create devices at the same time.
+        env:
+          RUST_TEST_THREADS: 1
         run: xvfb-run -a cargo test --workspace
       - name: Template
         run: cargo xtask template-check
