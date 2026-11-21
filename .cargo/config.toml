@@ -1,2 +1,9 @@
 [alias]
 xtask = "run --package xtask --"
+
+[env]
+# Snapshot tests create one wgpu device per harness, in parallel. wgpu's debug object
+# labels (VK_EXT_debug_utils, on in debug builds) crash the Vulkan loader when devices
+# are created concurrently (SIGSEGV in set_debug_utils_object_name). Labels are only a
+# debugging aid; switch them off for every cargo-run process.
+WGPU_DEBUG = "0"
