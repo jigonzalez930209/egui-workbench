@@ -200,7 +200,7 @@ fn flat_menu_style(ui: &mut Ui) {
 }
 
 /// A text menu in the title bar ("File", "Edit", …). The dropdown uses the compact
-/// menu typography at `min_width` (200–230 pt in MD View).
+/// menu typography at `min_width` (200–230 pt in the reference shell).
 pub fn title_menu(ui: &mut Ui, label: &str, min_width: f32, add: impl FnOnce(&mut Ui)) {
     ui.menu_button(label, |ui| {
         crate::compact_menu(ui);
