@@ -1,0 +1,19 @@
+/target
+**/target
+**/*.rs.bk
+.DS_Store
+
+# Docs site: dependencies, VitePress cache and build, and the generated wasm bundle
+# (built by CI; run `npm run build:demo` locally).
+node_modules/
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/
+docs-site/public/demo/pkg/
+
+# Snapshot test output: only the reference PNGs are tracked.
+*.new.png
+*.diff.png
+*.old.png
+
+# Pasted screenshots
+Pasted image*.png
