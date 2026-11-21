@@ -1,0 +1,316 @@
+//! The data a plot draws: lines, scatter, bars, areas, steps, and reference lines.
+
+use std::borrow::Cow;
+
+use egui::Color32;
+
+use super::axis::{Bounds, Scale};
+
+/// Point markers for scatter series and line vertices.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Marker {
+    /// Filled circle.
+    #[default]
+    Circle,
+    /// Filled square.
+    Square,
+    /// Filled diamond.
+    Diamond,
+    /// Filled upward triangle.
+    Triangle,
+    /// Diagonal cross (stroke only).
+    Cross,
+    /// Plus sign (stroke only).
+    Plus,
+    /// Circle outline.
+    Ring,
+}
+
+/// How a line is stroked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LineStyle {
+    /// Continuous.
+    #[default]
+    Solid,
+    /// 6 pt dashes, 4 pt gaps.
+    Dashed,
+    /// 1.5 pt dots, 3 pt gaps.
+    Dotted,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Kind {
+    Line {
+        width: f32,
+        style: LineStyle,
+        fill_to: Option<f64>,
+        step: bool,
+        markers: Option<Marker>,
+    },
+    Scatter {
+        marker: Marker,
+        radius: f32,
+    },
+    Bars {
+        width: Option<f64>,
+        base: f64,
+    },
+    HLine(f64),
+    VLine(f64),
+}
+
+/// One named data series. Build it with [`Series::line`], [`Series::scatter`],
+/// [`Series::bars`], [`Series::area`], [`Series::step`], [`Series::function`],
+/// [`Series::hline`], or [`Series::vline`], then add it to a [`super::Plot`].
+///
+/// Data is borrowed when possible (`&[[f64; 2]]`), so a million-point buffer is not
+/// copied every frame. Non-finite points break a line into segments.
+#[derive(Clone, Debug)]
+pub struct Series<'a> {
+    pub(super) name: String,
+    pub(super) data: Cow<'a, [[f64; 2]]>,
+    pub(super) kind: Kind,
+    pub(super) color: Option<Color32>,
+    pub(super) y_errors: Option<Cow<'a, [f64]>>,
+    pub(super) legend: bool,
+}
+
+impl<'a> Series<'a> {
+    fn new(name: impl Into<String>, data: Cow<'a, [[f64; 2]]>, kind: Kind) -> Self {
+        Self {
+            name: name.into(),
+            data,
+            kind,
+            color: None,
+            y_errors: None,
+            legend: true,
+        }
+    }
+
+    /// A 1.5 pt polyline through the points, in order.
+    pub fn line(name: impl Into<String>, data: impl Into<Cow<'a, [[f64; 2]]>>) -> Self {
+        Self::new(
+            name,
+            data.into(),
+            Kind::Line {
+                width: 1.5,
+                style: LineStyle::Solid,
+                fill_to: None,
+                step: false,
+                markers: None,
+            },
+        )
+    }
+
+    /// A line filled down to `y = 0` with 18 % of its color.
+    pub fn area(name: impl Into<String>, data: impl Into<Cow<'a, [[f64; 2]]>>) -> Self {
+        Self::line(name, data).fill_to(0.0)
+    }
+
+    /// A staircase line: each value holds until the next x.
+    pub fn step(name: impl Into<String>, data: impl Into<Cow<'a, [[f64; 2]]>>) -> Self {
+        let mut series = Self::line(name, data);
+        if let Kind::Line { step, .. } = &mut series.kind {
+            *step = true;
+        }
+        series
+    }
+
+    /// Unconnected markers (3 pt radius circles by default).
+    pub fn scatter(name: impl Into<String>, data: impl Into<Cow<'a, [[f64; 2]]>>) -> Self {
+        Self::new(
+            name,
+            data.into(),
+            Kind::Scatter {
+                marker: Marker::Circle,
+                radius: 3.0,
+            },
+        )
+    }
+
+    /// Vertical bars from `y = 0` to each point; the width defaults to 80 % of the
+    /// smallest x spacing.
+    pub fn bars(name: impl Into<String>, data: impl Into<Cow<'a, [[f64; 2]]>>) -> Self {
+        Self::new(name, data.into(), Kind::Bars { width: None, base: 0.0 })
+    }
+
+    /// `f(x)` sampled `samples` times over `x_range`.
+    pub fn function(
+        name: impl Into<String>,
+        x_range: std::ops::RangeInclusive<f64>,
+        samples: usize,
+        f: impl Fn(f64) -> f64,
+    ) -> Series<'static> {
+        let samples = samples.max(2);
+        let (start, end) = (*x_range.start(), *x_range.end());
+        let data: Vec<[f64; 2]> = (0..samples)
+            .map(|index| {
+                let x = start + (end - start) * index as f64 / (samples - 1) as f64;
+                [x, f(x)]
+            })
+            .collect();
+        Series::line(name, data)
+    }
+
+    /// A horizontal reference line across the whole plot.
+    pub fn hline(name: impl Into<String>, y: f64) -> Series<'static> {
+        Series::new(name, Cow::Owned(Vec::new()), Kind::HLine(y))
+    }
+
+    /// A vertical reference line across the whole plot.
+    pub fn vline(name: impl Into<String>, x: f64) -> Series<'static> {
+        Series::new(name, Cow::Owned(Vec::new()), Kind::VLine(x))
+    }
+
+    /// Explicit color; the theme palette is used in order otherwise.
+    pub fn color(mut self, color: Color32) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    /// Line width in points (lines, steps, areas, reference lines).
+    pub fn width(mut self, new_width: f32) -> Self {
+        if let Kind::Line { width, .. } = &mut self.kind {
+            *width = new_width.max(0.5);
+        }
+        self
+    }
+
+    /// Dashed or dotted lines.
+    pub fn style(mut self, new_style: LineStyle) -> Self {
+        if let Kind::Line { style, .. } = &mut self.kind {
+            *style = new_style;
+        }
+        self
+    }
+
+    /// Fill between the line and `y = base`.
+    pub fn fill_to(mut self, base: f64) -> Self {
+        if let Kind::Line { fill_to, .. } = &mut self.kind {
+            *fill_to = Some(base);
+        }
+        self
+    }
+
+    /// Draw a marker on every vertex of a line, or change the scatter marker.
+    pub fn marker(mut self, new_marker: Marker) -> Self {
+        match &mut self.kind {
+            Kind::Line { markers, .. } => *markers = Some(new_marker),
+            Kind::Scatter { marker, .. } => *marker = new_marker,
+            _ => {}
+        }
+        self
+    }
+
+    /// Marker radius in points (scatter).
+    pub fn radius(mut self, new_radius: f32) -> Self {
+        if let Kind::Scatter { radius, .. } = &mut self.kind {
+            *radius = new_radius.max(1.0);
+        }
+        self
+    }
+
+    /// Bar width in data units.
+    pub fn bar_width(mut self, new_width: f64) -> Self {
+        if let Kind::Bars { width, .. } = &mut self.kind {
+            *width = Some(new_width);
+        }
+        self
+    }
+
+    /// Where bars start (default 0).
+    pub fn base(mut self, new_base: f64) -> Self {
+        if let Kind::Bars { base, .. } = &mut self.kind {
+            *base = new_base;
+        }
+        self
+    }
+
+    /// Symmetric ±error per point, drawn as whiskers.
+    pub fn y_errors(mut self, errors: impl Into<Cow<'a, [f64]>>) -> Self {
+        self.y_errors = Some(errors.into());
+        self
+    }
+
+    /// Leave the series out of the legend.
+    pub fn hide_from_legend(mut self) -> Self {
+        self.legend = false;
+        self
+    }
+
+    /// The series name (also the legend label).
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The points.
+    pub fn data(&self) -> &[[f64; 2]] {
+        &self.data
+    }
+
+    pub(super) fn is_reference(&self) -> bool {
+        matches!(self.kind, Kind::HLine(_) | Kind::VLine(_))
+    }
+
+    /// Data extent in scaled space (log axes ignore values ≤ 0).
+    pub(super) fn bounds(&self, x_scale: Scale, y_scale: Scale) -> Bounds {
+        let mut bounds = Bounds::NOTHING;
+        let error = |index: usize| self.y_errors.as_ref().and_then(|errors| errors.get(index)).copied();
+        for (index, point) in self.data.iter().enumerate() {
+            let x = x_scale.forward(point[0]);
+            match error(index) {
+                Some(error) => {
+                    bounds.extend([x, y_scale.forward(point[1] - error)]);
+                    bounds.extend([x, y_scale.forward(point[1] + error)]);
+                }
+                None => bounds.extend([x, y_scale.forward(point[1])]),
+            }
+        }
+        if !bounds.is_valid() {
+            return bounds;
+        }
+        match self.kind {
+            Kind::Bars { base, width } => {
+                bounds.extend([bounds.min_x, y_scale.forward(base)]);
+                let half = width.unwrap_or_else(|| self.min_spacing() * 0.8) * 0.5;
+                if x_scale == Scale::Linear {
+                    bounds.min_x -= half;
+                    bounds.max_x += half;
+                }
+            }
+            Kind::Line {
+                fill_to: Some(base), ..
+            } => bounds.extend([bounds.min_x, y_scale.forward(base)]),
+            _ => {}
+        }
+        bounds
+    }
+
+    /// The smallest positive x step (1 for a single point).
+    pub(super) fn min_spacing(&self) -> f64 {
+        let mut spacing = f64::INFINITY;
+        for pair in self.data.windows(2) {
+            let delta = (pair[1][0] - pair[0][0]).abs();
+            if delta > 0.0 {
+                spacing = spacing.min(delta);
+            }
+        }
+        if spacing.is_finite() { spacing } else { 1.0 }
+    }
+
+    /// Whether x never decreases (enables binary search and decimation).
+    pub(super) fn sorted_x(&self) -> bool {
+        self.data
+            .windows(2)
+            .all(|pair| pair[1][0] >= pair[0][0] || pair[1][0].is_nan() || pair[0][0].is_nan())
+    }
+}
+
+/// Indices of the points of `data` inside `bounds` (data space), for selections.
+pub fn points_in(data: &[[f64; 2]], bounds: &Bounds) -> Vec<usize> {
+    data.iter()
+        .enumerate()
+        .filter(|(_, point)| bounds.contains(**point))
+        .map(|(index, _)| index)
+        .collect()
+}
