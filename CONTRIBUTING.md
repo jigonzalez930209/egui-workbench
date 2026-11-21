@@ -102,10 +102,16 @@ Review every changed snapshot, and bump this crate's minor version in `Cargo.tom
 
 ## Releasing
 
-1. Update `CHANGELOG.md` (move *Unreleased* under the new version) and `version` in
-   `Cargo.toml`.
+1. Move the *Unreleased* entries of `CHANGELOG.md` under a new `## [X.Y.Z] - date`
+   heading (and update the compare links at the bottom); set `version` in `Cargo.toml`.
 2. `cargo xtask check`, `cargo xtask template-check`, and `cargo publish --dry-run`.
-3. Commit, tag `vX.Y.Z`, push the tag, then `cargo publish`.
+3. Commit, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. The
+   `Release` workflow publishes to crates.io (Trusted Publishing, no stored token) and
+   creates the GitHub release with that version's changelog section.
+
+The first release (0.1.0) is published by hand, because Trusted Publishing is
+configured on an existing crate: `cargo login`, `cargo publish`, then enable Trusted
+Publishing for `jigonzalez930209/egui-workbench` / `release.yml` on crates.io.
 
 ## Commits
 
