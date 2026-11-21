@@ -1,0 +1,224 @@
+/**
+ * Colors mirror the GitHub Light / GitHub Dark workbench themes, so the site and the
+ * screenshots read as one product.
+ */
+
+:root {
+  --vp-c-brand-1: #0969da;
+  --vp-c-brand-2: #0550ae;
+  --vp-c-brand-3: #033d8b;
+  --vp-c-brand-soft: rgba(9, 105, 218, 0.14);
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #f6f8fa;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #f6f8fa;
+  --vp-c-border: #d0d7de;
+  --vp-c-divider: #d8dee4;
+  --vp-c-gutter: #d8dee4;
+  --vp-c-text-1: #1f2328;
+  --vp-c-text-2: #596069;
+  --vp-c-text-3: #6e7781;
+  --vp-code-color: #0550ae;
+  --vp-code-bg: #f6f8fa;
+}
+
+.dark {
+  --vp-c-brand-1: #58a6ff;
+  --vp-c-brand-2: #79c0ff;
+  --vp-c-brand-3: #a5d6ff;
+  --vp-c-brand-soft: rgba(88, 166, 255, 0.16);
+  --vp-c-bg: #0d1117;
+  --vp-c-bg-alt: #161b22;
+  --vp-c-bg-elv: #21262d;
+  --vp-c-bg-soft: #161b22;
+  --vp-c-border: #30363d;
+  --vp-c-divider: #21262d;
+  --vp-c-gutter: #21262d;
+  --vp-c-text-1: #e6edf3;
+  --vp-c-text-2: #8b949e;
+  --vp-c-text-3: #6e7681;
+  --vp-code-color: #79c0ff;
+  --vp-code-bg: #161b22;
+}
+
+.wb-preview {
+  margin: 20px 0;
+}
+
+.wb-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 8px;
+  background: var(--vp-c-bg-alt);
+}
+
+.wb-preview figcaption {
+  margin-top: 8px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+}
+
+.wb-live {
+  margin: 20px 0;
+}
+
+.wb-live-stage {
+  position: relative;
+  width: 100%;
+  height: min(var(--wb-live-height, 420px), 78vh);
+  overflow: hidden;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 8px;
+  /* The scene's own background (GitHub Light/Dark), so nothing flashes when it appears. */
+  background: #ffffff;
+}
+
+.wb-live-stage.dark {
+  background: #0d1117;
+}
+
+.wb-live-stage iframe {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.wb-live-stage.ready iframe {
+  opacity: 1;
+}
+
+.wb-live-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  color: #59636e;
+  font-size: 13px;
+  text-align: center;
+}
+
+.wb-live-stage.dark .wb-live-status {
+  color: #9198a1;
+}
+
+.wb-live-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.7;
+  animation: wb-live-spin 0.8s linear infinite;
+}
+
+@keyframes wb-live-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-live-spinner {
+    animation: none;
+  }
+}
+
+.wb-live figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-top: 8px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+}
+
+.wb-live-actions {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.wb-live-actions a {
+  color: var(--vp-c-brand-1);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.wb-api-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.wb-api-table th,
+.wb-api-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--vp-c-divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+.wb-api-table th {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+}
+
+.wb-api-table td:first-child code {
+  white-space: nowrap;
+}
+
+.wb-api-table td:nth-child(2) code,
+.wb-api-table td:nth-child(3) code {
+  color: var(--vp-c-text-2);
+}
+
+.wb-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.wb-swatch i {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 4px;
+}
+
+.wb-swatch code {
+  font-size: 12px;
+}
+
+.wb-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.wb-feature {
+  padding: 18px;
+  border: 1px solid var(--vp-c-border);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+}
+
+.wb-feature h3 {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
