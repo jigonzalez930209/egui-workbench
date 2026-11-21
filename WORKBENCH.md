@@ -1,9 +1,9 @@
-# Workbench UI Guide — the MD View shell, reusable
+# Workbench UI Guide — a reusable desktop shell
 
-This guide specifies the visual core of MD View: the window, title bar, menus, tabs,
+This guide specifies the visual core of the workbench: the window, title bar, menus, tabs,
 explorer tree, dialogs, settings, palette, status bar, icons, themes, and the rules that
-tie them together. It leaves out everything about content: file formats, the Markdown
-renderer, the editor internals, media, and file loading.
+tie them together. It leaves out everything about content: file formats, document
+renderers, the editor internals, media, and file loading.
 
 The shell is packaged as a Rust crate, **`egui-workbench`** ([GitHub](https://github.com/jigonzalez930209/egui-workbench), [crates.io](https://crates.io/crates/egui-workbench)).
 Use the crate to lay out a new application. Use this document as the specification: it
@@ -11,8 +11,8 @@ gives every size, color, order, and behavior. You need it to extend the shell wi
 drifting from the look, or to rebuild it on another toolkit.
 
 - Crate: the library, `examples/showcase`, and `templates/app` in this repository.
-- Source of truth: MD View `1.0.0-rc.9` (`crates/mdview-theme`, `crates/mdview-ui`,
-  `crates/mdview-app/src/{ui_shell,tab_bar,sidebar*}.rs`).
+- Origin: the shell of a production Markdown desktop editor, extracted and generalized;
+  the numbers below are the ones that application ships with.
 - Units: egui points (1 pt = 1 px at 100 % scale). Colors are sRGB hex.
 
 ---
@@ -107,10 +107,10 @@ my-app/
     └── ui-icons/           # extra 24×24 white glyphs
 ```
 
-Grow into a workspace only when a piece earns it. MD View splits the same boundaries
-into crates (`mdview-theme`, `mdview-ui`, `mdview-app`) once the model, renderer, and
-workspace need their own test cycles. The runtime in [`src/app`](src/app) replaces the
-generic half of `mdview-ui`; the workbench crate replaces `mdview-theme`.
+Grow into a workspace only when a piece earns it: split the theme, the UI, and the
+application into crates once the model, renderer, and workspace need their own test
+cycles. The runtime in [`src/app`](src/app) and the theme module are the generic halves
+of that split, already extracted.
 
 ---
 
@@ -263,8 +263,8 @@ identical:
 | Heading | proportional 20 |
 
 The UI font is egui's bundled default (Ubuntu-Light based), so no system font is needed.
-MD View also registers a lowest-priority CJK fallback found on a background thread, and
-Noto Sans faces for its reading view. Those faces are content, not shell.
+Applications may add a lowest-priority CJK fallback (found on a background thread) and
+faces for their own content views. Those faces are content, not shell.
 
 ---
 
@@ -323,8 +323,8 @@ use `Icons::put` in those buttons; use `Icons::paint` elsewhere.
 
 Left, left-to-right, vertically centered:
 
-1. A 10 pt gap, then the **product mark**: a 20 pt full-color `logo` glyph. MD View's
-   mark is a 24×24 rounded square (`rx 5`, `#4c8df6`) with a white "M".
+1. A 10 pt gap, then the **product mark**: a 20 pt full-color `logo` glyph. The bundled
+   placeholder mark is a 24×24 rounded square (`rx 5`, `#4c8df6`) with a white "M".
 2. An 8 pt gap, then the **text menus** `File Edit View Go Help`. They are flat buttons
    with 13 pt labels, 9 × 4 padding, and 3 pt spacing; transparent at rest, with no
    borders in any state, and the hover fill on hover.
@@ -369,7 +369,7 @@ Every dropdown calls `compact_menu`: 12 pt rows, 1 pt vertical gaps, 8 × 2 padd
 `selectable_label` rows (`menu_toggle`), drawn selected when on. Unavailable items are
 disabled, not hidden. Separators group the items.
 
-| Menu | Min width | Items (MD View) |
+| Menu | Min width | Items (a document editor, for example) |
 |---|---|---|
 | File | 230 | New · Open… · Open Folder… ─ Save · Save As… · Reopen with Encoding ▸ ─ Rename File… · Delete File… ─ Close Tab · Close Folder ─ Quit |
 | Edit | 220 | Find · Search in Workspace… · Replace · Go to Line · (content inserts) ─ Command Palette… |
@@ -587,7 +587,7 @@ separated by thin vertical rules.
   stepper, or secondary buttons.
 - **Footer:** after an 8 pt gap, a separator, and an 8 pt gap: the small weak
   "App x.y.z" on the left and the primary **Done** on the right.
-- MD View's tabs:
+- A document editor's tabs, for example:
   - **Appearance:** theme, follow system, language, text scale 80–200 %.
   - **Editor:** font, size, wrap, line numbers, sync scroll.
   - **Reading.**
@@ -850,7 +850,7 @@ Components are generic over your command type (`PaletteItem<T>`, `MenuGroup<T>`,
 
 ## 15. Testing the shell
 
-The crate has 142 tests (`cargo test`, including doctests). Each component is driven through `egui_kittest`
+The crate has over 200 tests (`cargo test`, including doctests). Each component is driven through `egui_kittest`
 (0.37, features `wgpu` and `snapshot`). Tests find widgets by their AccessKit
 role and name, click them, press keys, drag, and assert both the events returned and
 the geometry.
@@ -889,7 +889,7 @@ the geometry.
     If the press and the first moves arrive in one frame, egui hit-tests the moved
     position, and the wrong widget takes the drag.
   - Kill only the PIDs you started.
-- **Visual parity:** compare captures with MD View pixel by pixel at the same window size.
+- **Visual parity:** compare captures with the snapshot references pixel by pixel at the same window size.
   The title-bar and tab-strip button centers must match (§5, compact pitch).
 
 ---
