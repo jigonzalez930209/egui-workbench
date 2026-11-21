@@ -70,7 +70,7 @@ pub enum TabEvent {
 /// It paints its whole `ui.max_rect()` as the strip surface, so call it inside a
 /// fixed-height panel (or a sized container), never in a scrolling page.
 ///
-/// `controls` runs right-to-left in the last `controls_width` points (276 in MD View:
+/// `controls` runs right-to-left in the last `controls_width` points (276 in the reference shell:
 /// the segmented mode switch, "+", "…", and history). `close_label` ("Close") is the
 /// tooltip of the close buttons; each is announced as `Close <tab label>`.
 pub fn show_tab_strip(
