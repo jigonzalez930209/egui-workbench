@@ -1,15 +1,41 @@
-//! The MD View desktop workbench as reusable egui components.
+//! A desktop workbench shell for [egui](https://github.com/emilk/egui).
 //!
 //! The crate holds the shell, not the content: nine themes, the size tokens, the
 //! undecorated window with a custom title bar and menus, the document tab strip, the
 //! explorer tree, modal prompts, the settings scaffold, the command palette, the
-//! keyboard menu, the status bar, icon buttons, form controls, and the icon cache.
+//! keyboard menu, the status bar, toasts, interactive plots, icon buttons, form controls,
+//! and the icon cache.
 //!
 //! Components never translate text or own application state: they take translated
-//! strings and return events. The `components` builders additionally share variants and
-//! sizes; the original functions remain for existing code. See `WORKBENCH.md` for the
-//! layout rules, `docs/COMPONENTS.md` for the component guide, and
-//! `examples/showcase` for a complete application skeleton.
+//! strings and return events. The [`components`] builders share variants and sizes; the
+//! original functions remain for existing code.
+//!
+//! - Guide and live demos: <https://jigonzalez930209.github.io/egui-workbench/>
+//! - Layout specification, component guide, examples, and the application template:
+//!   <https://github.com/jigonzalez930209/egui-workbench>
+//!
+//! ```no_run
+//! use egui_workbench::{ThemeId, eframe, theme};
+//!
+//! fn main() -> eframe::Result {
+//!     eframe::run_native(
+//!         "My App",
+//!         egui_workbench::native_options("My App"),
+//!         Box::new(|cc| {
+//!             theme::apply_theme(&cc.egui_ctx, ThemeId::GithubLight, false);
+//!             Ok(Box::new(MyApp))
+//!         }),
+//!     )
+//! }
+//!
+//! struct MyApp;
+//!
+//! impl eframe::App for MyApp {
+//!     fn ui(&mut self, ui: &mut egui_workbench::egui::Ui, _frame: &mut eframe::Frame) {
+//!         ui.label("Hello, workbench");
+//!     }
+//! }
+//! ```
 //!
 //! # Layout of the source
 //!
@@ -22,6 +48,9 @@
 //! - [`app`]: optional runtime helpers ([`ThemeState`](app::ThemeState),
 //!   [`Documents`](app::Documents), [`Keymap`](app::Keymap), [`CloseGuard`](app::CloseGuard),
 //!   and [`show_workbench`](app::show_workbench)).
+
+// docs.rs: label items that need an optional feature.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod app;
 pub mod components;
