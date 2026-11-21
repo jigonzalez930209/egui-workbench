@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>egui-workbench — live demo</title>
+    <link rel="icon" href="../logo.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0d1117;
+      }
+      #canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        outline: none;
+        touch-action: none;
+      }
+      :root[data-mode='light'] {
+        color-scheme: light;
+      }
+      :root[data-mode='light'] body,
+      :root[data-mode='light'] #loading {
+        background: #ffffff;
+        color: #1f2328;
+      }
+      #loading,
+      #error {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: #e6edf3;
+        background: #0d1117;
+        text-align: center;
+      }
+      #error {
+        display: none;
+        color: #ff7b72;
+        white-space: pre-wrap;
+        font-family: ui-monospace, monospace;
+        font-size: 13px;
+      }
+      .spinner {
+        width: 22px;
+        height: 22px;
+        margin-right: 10px;
+        border: 2px solid #30363d;
+        border-top-color: #58a6ff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" tabindex="0"></canvas>
+    <div id="loading">
+      <div class="row"><span class="spinner"></span><span>Loading the workbench…</span></div>
+    </div>
+    <pre id="error"></pre>
+
+    <script type="module">
+      import init, { WebHandle } from './pkg/egui_workbench_web.js'
+
+      const loading = document.getElementById('loading')
+      const error = document.getElementById('error')
+      const canvas = document.getElementById('canvas')
+      const query = new URLSearchParams(location.search)
+
+      // Match the page to the scene's theme so loading never flashes the wrong color.
+      function paint(theme) {
+        const light = /light|alucard/.test(theme || '')
+        document.documentElement.dataset.mode = light ? 'light' : 'dark'
+      }
+      paint(query.get('theme') || 'github-dark')
+
+      // Tell the embedding docs page (LiveDemo.vue) when the scene is up, or why not.
+      function notify(type, message) {
+        if (window.parent !== window) window.parent.postMessage({ type, message }, '*')
+      }
+
+      function fail(message) {
+        loading.style.display = 'none'
+        error.style.display = 'block'
+        error.textContent = message
+        notify('egui-workbench:error', message)
+      }
+
+      try {
+        await init()
+        const handle = new WebHandle()
+        // The docs site posts the reader's light/dark switch; the scene keeps its state.
+        window.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'egui-workbench:theme') {
+            paint(event.data.theme)
+            handle.set_theme(String(event.data.theme))
+          }
+        })
+        // Embedded in a docs page: the wheel scrolls the page until the demo is clicked.
+        const embedded = window.parent !== window ? '&embedded=1' : ''
+        await handle.start(canvas, location.search + embedded)
+        loading.style.display = 'none'
+
+        if (handle.has_panicked()) {
+          fail(handle.panic_message() || 'The app panicked.')
+        } else {
+          // Let the first frame paint before the page fades the demo in.
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              // An embedded demo starts unfocused: the reader's first click gives it the
+              // keyboard and the wheel; until then the page keeps both.
+              if (embedded && document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur()
+              }
+              notify('egui-workbench:ready')
+            }),
+          )
+        }
+      } catch (exception) {
+        fail(String(exception))
+      }
+    </script>
+  </body>
+</html>
