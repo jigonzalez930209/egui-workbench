@@ -1,0 +1,43 @@
+[package]
+name = "egui-workbench-web"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "WebAssembly entry point for the egui-workbench documentation scenes and catalog."
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Standalone workspace: the native crate's workspace must not try to build the web target.
+[workspace]
+
+[dependencies]
+# Lucide is needed by toasts and the icon browser; the ~5 MB Material file-icon pack is
+# skipped (the scenes use the bundled glyphs for file rows).
+egui-workbench = { path = "..", default-features = false, features = ["lucide-icons"] }
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+wasm-bindgen = "0.2.126"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3.103", features = [
+  "Blob",
+  "BlobPropertyBag",
+  "Document",
+  "Element",
+  "HtmlAnchorElement",
+  "HtmlElement",
+  "HtmlCanvasElement",
+  "Url",
+  "Window",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+
+# The wasm-pack-bundled wasm-opt is older than Rust's bulk-memory output. `cargo`
+# already optimizes and strips the module; skip the extra pass.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
