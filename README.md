@@ -81,6 +81,21 @@ The tests drive every component through `egui_kittest`. They click widgets found
 their accessible name, press keys, drag, and compare PNG references in
 `tests/snapshots/`. WORKBENCH.md §15 lists what each file covers.
 
+## Use it with AI agents
+
+[`skills/egui-workbench`](skills/egui-workbench/SKILL.md) is an
+[agent skill](https://agentskills.io) that teaches coding agents to build apps with this
+crate: setup, the `WorkbenchApp`/`Command` model, a compiling minimal app, the design
+rules, and the whole guide as Markdown.
+
+```text
+/plugin install egui-workbench --marketplace jigonzalez930209/egui-workbench   # Claude Code
+npx skills add jigonzalez930209/egui-workbench                                 # Codex, Cursor, Gemini, Copilot…
+```
+
+Claude.ai: upload `egui-workbench-skill.zip` from the latest release. More options:
+[Use with AI agents](https://jigonzalez930209.github.io/egui-workbench/guide/ai-agents.html).
+
 ## Start a new application
 
 ```bash
