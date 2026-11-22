@@ -76,9 +76,16 @@ pub(super) fn layout(
     };
     let mut size = size;
     let mut min = min;
+    if let Some([fx, fy]) = state.legend_position() {
+        // Dragged: the same fraction of the free room, so it stays put across resizes
+        // and lands in the same place in an export.
+        let room = (frame.size() - size).max(vec2(0.0, 0.0));
+        min = frame.min + vec2(fx * room.x, fy * room.y);
+    }
     // On screen, keep clear of the toolbar: elide names when enough room is left beside
-    // it, otherwise move the legend below it.
+    // it, otherwise move the legend below it. A dragged legend goes where it was put.
     if include_hidden
+        && state.legend_position().is_none()
         && let Some(toolbar) = super::widgets::toolbar_rect(plot, frame)
         && Rect::from_min_size(min, size).intersects(toolbar.expand(4.0))
     {
