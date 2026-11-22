@@ -66,22 +66,29 @@ pub(super) struct Scene {
     pub under: Vec<Prim>,
     pub data: Vec<Prim>,
     pub over: Vec<Prim>,
+    /// Per series (by index), the points drawn when the series was thinned; `None` for
+    /// hidden series and those drawn in full.
+    pub drawn: Vec<Option<Vec<usize>>>,
 }
 
 /// Paint a scene: `clipped` is the same painter clipped to the data frame.
-pub(super) fn paint(painter: &Painter, clipped: &Painter, scene: &Scene) {
-    for prim in &scene.under {
-        paint_prim(painter, prim);
-    }
-    for prim in &scene.data {
-        paint_prim(clipped, prim);
-    }
-    for prim in &scene.over {
-        paint_prim(painter, prim);
-    }
+///
+/// The scene is consumed: its point lists move into the shapes instead of being
+/// copied, and each layer reaches egui in one batch (one lock, not one per marker).
+pub(super) fn paint(painter: &Painter, clipped: &Painter, scene: Scene) {
+    let layer = |painter: &Painter, prims: Vec<Prim>| {
+        let mut shapes = Vec::with_capacity(prims.len());
+        for prim in prims {
+            push_shapes(painter, prim, &mut shapes);
+        }
+        painter.extend(shapes);
+    };
+    layer(painter, scene.under);
+    layer(clipped, scene.data);
+    layer(painter, scene.over);
 }
 
-fn paint_prim(painter: &Painter, prim: &Prim) {
+fn push_shapes(painter: &Painter, prim: Prim, out: &mut Vec<Shape>) {
     match prim {
         Prim::Line {
             points,
@@ -89,28 +96,16 @@ fn paint_prim(painter: &Painter, prim: &Prim) {
             color,
             dash,
         } => {
-            let stroke = Stroke::new(*width, *color);
+            let stroke = Stroke::new(width, color);
             match dash {
-                Dash::Solid if points.len() == 2 => {
-                    painter.line_segment([points[0], points[1]], stroke);
-                }
-                Dash::Solid => {
-                    painter.add(PathShape::line(points.clone(), PathStroke::from(stroke)));
-                }
-                Dash::Dashed(dash, gap) => {
-                    painter.extend(Shape::dashed_line(points, stroke, *dash, *gap));
-                }
-                Dash::Dotted(spacing) => {
-                    painter.extend(Shape::dotted_line(points, *color, *spacing, width * 0.5));
-                }
+                Dash::Solid if points.len() == 2 => out.push(Shape::line_segment([points[0], points[1]], stroke)),
+                Dash::Solid => out.push(Shape::Path(PathShape::line(points, PathStroke::from(stroke)))),
+                Dash::Dashed(dash, gap) => out.extend(Shape::dashed_line(&points, stroke, dash, gap)),
+                Dash::Dotted(spacing) => out.extend(Shape::dotted_line(&points, color, spacing, width * 0.5)),
             }
         }
-        Prim::Area { points, base_y, color } => {
-            painter.add(area_mesh(points, *base_y, *color));
-        }
-        Prim::Polygon { points, color } => {
-            painter.add(Shape::convex_polygon(points.clone(), *color, Stroke::NONE));
-        }
+        Prim::Area { points, base_y, color } => out.push(Shape::mesh(area_mesh(&points, base_y, color))),
+        Prim::Polygon { points, color } => out.push(Shape::convex_polygon(points, color, Stroke::NONE)),
         Prim::Rect {
             rect,
             radius,
@@ -118,7 +113,10 @@ fn paint_prim(painter: &Painter, prim: &Prim) {
             stroke,
         } => {
             let stroke = stroke.map_or(Stroke::NONE, |(width, color)| Stroke::new(width, color));
-            painter.rect(*rect, *radius, *fill, stroke, StrokeKind::Inside);
+            out.push(Shape::rect_filled(rect, radius, fill));
+            if stroke.width > 0.0 {
+                out.push(Shape::rect_stroke(rect, radius, stroke, StrokeKind::Inside));
+            }
         }
         Prim::Circle {
             center,
@@ -127,7 +125,10 @@ fn paint_prim(painter: &Painter, prim: &Prim) {
             stroke,
         } => {
             let stroke = stroke.map_or(Stroke::NONE, |(width, color)| Stroke::new(width, color));
-            painter.circle(*center, *radius, *fill, stroke);
+            out.push(Shape::circle_filled(center, radius, fill));
+            if stroke.width > 0.0 {
+                out.push(Shape::circle_stroke(center, radius, stroke));
+            }
         }
         Prim::Text {
             pos,
@@ -137,12 +138,8 @@ fn paint_prim(painter: &Painter, prim: &Prim) {
             angle,
             ..
         } => {
-            let galley = painter.layout_no_wrap(text.clone(), FontId::proportional(*size), *color);
-            if *angle == 0.0 {
-                painter.galley(*pos, galley, *color);
-            } else {
-                painter.add(TextShape::new(*pos, galley, *color).with_angle(*angle));
-            }
+            let galley = painter.layout_no_wrap(text, FontId::proportional(size), color);
+            out.push(Shape::Text(TextShape::new(pos, galley, color).with_angle(angle)));
         }
     }
 }
