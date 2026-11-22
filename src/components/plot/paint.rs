@@ -3,6 +3,7 @@
 use egui::{Color32, Pos2, Rect, pos2, vec2};
 
 use super::axis::Transform;
+use super::decimate::{LINE_SPACING, MARKER_SPACING, SIMPLIFY_TOLERANCE, one_per_cell, simplify, thin};
 use super::scene::{Dash, Measure, Prim};
 use super::series::{Kind, LineStyle, Marker, Series, Smoothing};
 
@@ -10,12 +11,18 @@ use super::series::{Kind, LineStyle, Marker, Series, Smoothing};
 /// first/min/max/last point of every pixel column (M4), which is visually lossless.
 const DECIMATE_PER_PIXEL: usize = 4;
 
-/// The indices to draw for a sorted series: the visible range, decimated per pixel
-/// column when dense. Unsorted series draw every point.
-pub(super) fn visible_indices(transform: &Transform, series: &Series<'_>, sorted: bool) -> Vec<usize> {
+/// The indices to draw: for a sorted series the visible range, decimated per pixel
+/// column when dense; for an unsorted one (a voltammogram, a Nyquist arc, a loop)
+/// every point at least half a pixel from the last one drawn, which looks the same
+/// and keeps a 50 000-point loop to the few thousand points the screen can show.
+pub(super) fn visible_indices(transform: &Transform, series: &Series<'_>, sorted: bool, radius: f32) -> Vec<usize> {
     let data = series.data();
     if !sorted {
-        return (0..data.len()).collect();
+        return match series.kind {
+            Kind::Line { .. } => thin(transform, data, LINE_SPACING),
+            Kind::Scatter { .. } => one_per_cell(transform, data, (radius * MARKER_SPACING).max(1.0)),
+            _ => (0..data.len()).collect(),
+        };
     }
     let min_x = transform.x_scale.inverse(transform.view.min_x);
     let max_x = transform.x_scale.inverse(transform.view.max_x);
@@ -104,7 +111,11 @@ pub(super) fn series_prims(
         Kind::Line { fill_to, step, .. } => {
             let smoothing = if step { Smoothing::None } else { look.smoothing };
             for run in runs(transform, data, indices, step) {
-                let run = super::smooth::smooth(run, smoothing, frame.width());
+                let run = if smoothing == Smoothing::None {
+                    simplify(run, SIMPLIFY_TOLERANCE)
+                } else {
+                    super::smooth::smooth(run, smoothing, frame.width())
+                };
                 if let Some(base) = fill_to {
                     // A base a log axis cannot show (≤ 0) fills to the bottom edge.
                     let base_y = transform.to_screen([data[indices[0]][0], base]).y;
@@ -323,6 +334,7 @@ pub(super) fn nearest(
     pointer: Pos2,
     radius: f32,
     sorted: bool,
+    drawn: Option<&[usize]>,
 ) -> Option<(usize, Pos2, f32)> {
     let data = series.data();
     if let Kind::Bars { width, base } = series.kind {
@@ -336,23 +348,41 @@ pub(super) fn nearest(
     if series.is_reference() {
         return None;
     }
-    let range = if sorted {
-        let low = transform.to_data(pointer - vec2(radius, 0.0))[0];
-        let high = transform.to_data(pointer + vec2(radius, 0.0))[0];
-        data.partition_point(|point| point[0] < low)..data.partition_point(|point| point[0] <= high)
-    } else {
-        0..data.len()
-    };
     let mut best: Option<(usize, Pos2, f32)> = None;
-    for index in range {
+    let mut consider = |index: usize| {
         let position = transform.to_screen(data[index]);
         if !position.is_finite() {
-            continue;
+            return;
         }
         let distance = position.distance(pointer);
         if distance <= radius && best.is_none_or(|(_, _, current)| distance < current) {
             best = Some((index, position, distance));
         }
+    };
+    if sorted {
+        let low = transform.to_data(pointer - vec2(radius, 0.0))[0];
+        let high = transform.to_data(pointer + vec2(radius, 0.0))[0];
+        let range = data.partition_point(|point| point[0] < low)..data.partition_point(|point| point[0] <= high);
+        range.for_each(&mut consider);
+        return best;
+    }
+    match (drawn, &series.kind) {
+        // Scatter: the markers on screen are the ones to hover.
+        (Some(drawn), Kind::Scatter { .. }) => drawn.iter().for_each(|&index| consider(index)),
+        // Line: a skipped point lies within LINE_SPACING of the drawn point before it,
+        // so only the stretches after drawn points near the pointer are searched, and
+        // the result is the exact nearest point.
+        (Some(drawn), Kind::Line { .. }) => {
+            for (position, &index) in drawn.iter().enumerate() {
+                let screen = transform.to_screen(data[index]);
+                if !screen.is_finite() || screen.distance(pointer) > radius + LINE_SPACING {
+                    continue;
+                }
+                let end = drawn.get(position + 1).copied().unwrap_or(index + 1);
+                (index..end).for_each(&mut consider);
+            }
+        }
+        _ => (0..data.len()).for_each(&mut consider),
     }
     best
 }
