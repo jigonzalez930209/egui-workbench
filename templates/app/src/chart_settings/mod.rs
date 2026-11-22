@@ -5,6 +5,8 @@ use egui_workbench::components::plot::{ExportOptions, PlotConfig};
 use egui_workbench::components::prelude::*;
 use egui_workbench::egui;
 
+mod axes;
+pub mod chart;
 mod sections;
 
 use super::charts::{Chart, ChartsDemo};
@@ -62,6 +64,7 @@ pub struct ExportedFile {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Section {
     General,
+    Titles,
     Axes,
     Grid,
     Colors,
@@ -69,8 +72,9 @@ enum Section {
     Export,
 }
 
-const SECTIONS: [(Section, &str); 6] = [
+const SECTIONS: [(Section, &str); 7] = [
     (Section::General, "General"),
+    (Section::Titles, "Titles"),
     (Section::Axes, "Axes"),
     (Section::Grid, "Grid & ticks"),
     (Section::Colors, "Colors"),
@@ -101,6 +105,7 @@ pub(super) enum Action {
     Done,
     Cancel,
     Defaults,
+    ResetLegend,
     Switch(Chart),
     Export(egui_workbench::components::plot::ExportFormat),
 }
@@ -112,6 +117,7 @@ pub fn show(ctx: &egui::Context, demo: &mut ChartsDemo, toasts: &mut Toasts) {
     };
     let series = demo.plot(dialog.chart).series_names();
     let view = demo.current_view(dialog.chart);
+    let y2_view = demo.current_y2_view(dialog.chart);
     let visuals = ctx.style_of(ctx.theme()).visuals.clone();
     let title = format!("Chart settings · {}", dialog.chart.label());
     let mut open = true;
@@ -131,8 +137,9 @@ pub fn show(ctx: &egui::Context, demo: &mut ChartsDemo, toasts: &mut Toasts) {
                     ui.set_width(ui.available_width());
                     let draft = &mut dialog.draft;
                     match dialog.section {
-                        Section::General => sections::general(ui, draft),
-                        Section::Axes => sections::axes(ui, draft, view),
+                        Section::General => sections::general(ui, draft, &mut action),
+                        Section::Titles => axes::titles(ui, draft, &visuals),
+                        Section::Axes => axes::axes(ui, draft, view, y2_view, &visuals),
                         Section::Grid => sections::grid(ui, draft),
                         Section::Colors => sections::colors(ui, draft, &visuals),
                         Section::Series => sections::series_section(ui, draft, &series, &visuals),
@@ -155,6 +162,7 @@ pub fn show(ctx: &egui::Context, demo: &mut ChartsDemo, toasts: &mut Toasts) {
         }
         Some(Action::Cancel) => return,
         Some(Action::Defaults) => dialog.draft = dialog.chart.default_config(),
+        Some(Action::ResetLegend) => demo.reset_legend(dialog.chart),
         Some(Action::Switch(chart)) => {
             dialog = SettingsDialog {
                 section: dialog.section,
@@ -170,22 +178,28 @@ pub fn show(ctx: &egui::Context, demo: &mut ChartsDemo, toasts: &mut Toasts) {
 fn apply(demo: &mut ChartsDemo, dialog: &mut SettingsDialog) {
     dialog.draft.sanitize();
     let index = dialog.chart.index();
-    let limits_changed = {
-        let old = &demo.configs[index];
-        (old.x.min, old.x.max, old.y.min, old.y.max, old.x.scale, old.y.scale)
-            != (
-                dialog.draft.x.min,
-                dialog.draft.x.max,
-                dialog.draft.y.min,
-                dialog.draft.y.max,
-                dialog.draft.x.scale,
-                dialog.draft.y.scale,
-            )
+    let old = &demo.configs[index];
+    let new = &dialog.draft;
+    let range = |axis: &egui_workbench::components::plot::AxisConfig| (axis.min, axis.max, axis.scale);
+    // Moving a series to the other axis changes both ranges too.
+    let axes = |config: &PlotConfig| {
+        config
+            .series
+            .iter()
+            .map(|style| (style.name.clone(), style.y_axis))
+            .collect::<Vec<_>>()
     };
+    let limits_changed = (range(&old.x), range(&old.y), range(&old.y2), axes(old))
+        != (range(&new.x), range(&new.y), range(&new.y2), axes(new));
+    let legend_moved = old.legend != new.legend;
     demo.configs[index] = dialog.draft.clone();
     if limits_changed {
         // New limits or scales only show in the automatic view.
         demo.reset_view(dialog.chart);
+    }
+    if legend_moved {
+        // A new corner replaces a dragged position.
+        demo.reset_legend(dialog.chart);
     }
 }
 
