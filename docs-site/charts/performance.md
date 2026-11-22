@@ -25,21 +25,31 @@ points.
 
 Consequences:
 
-- **Sort x ascending.** Sorted series use binary search for the visible range and the
-  four-point reduction. Unsorted series are drawn point by point.
-- **Scatter is not decimated.** Every marker is a shape; for a million points, use a line
-  or aggregate first.
+- **Sort x ascending when you can.** Sorted series use binary search for the visible
+  range and the four-point reduction.
+- **Unsorted lines** (a voltammogram, a Nyquist arc, any loop) keep each point that is
+  at least half a pixel from the last one drawn: a 50 000-point loop becomes the few
+  thousand points the screen can show.
+- **Every line** is then simplified on screen with Ramer–Douglas–Peucker at 0.3 pt: a
+  vertex closer than that to the straight path between its neighbors is dropped. A
+  smooth curve of thousands of samples tessellates as a few hundred vertices.
+- **Unsorted scatter** draws one marker per screen cell three quarters of a radius wide:
+  a curve that retraces itself (the cycles of a voltammogram) draws its markers once,
+  and a dense band of markers keeps its outline to within 7 % of the radius.
 - **Bars are not decimated.** Aggregate or filter before building the series.
-- **The hover lookup is cheap for sorted data**; it binary-searches the visible range and
-  checks a small neighborhood.
+- **The hover lookup is cheap**: sorted data binary-searches the visible range, and
+  unsorted data searches the points it drew, refined to the exact nearest point.
+- **Extents are cached** in the `PlotState`: the automatic view does not walk every
+  point each frame. A series is re-measured when its buffer, length, or sampled values
+  change.
 
 ## What costs a frame
 
 | Work | Cost |
 |---|---|
 | Line with sorted x | O(pixels) after the range search |
-| Line with unsorted x | O(points) |
-| Scatter | O(points) markers |
+| Line with unsorted x | O(points) screen transforms, O(pixels) vertices |
+| Scatter with unsorted x | O(points) screen transforms, O(occupied cells) markers |
 | Bars | O(points) rectangles |
 | Fit curve | O(samples) after the fit |
 | Fit itself | O(points · degree²) |
