@@ -38,6 +38,30 @@ pub enum LineStyle {
     Dotted,
 }
 
+/// Which vertical axis a series is measured against.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum YAxis {
+    /// The primary axis on the left.
+    #[default]
+    Left,
+    /// The secondary axis on the right; it appears as soon as one series uses it.
+    Right,
+}
+
+/// How a line passes through its points.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Smoothing {
+    /// Straight segments between points.
+    #[default]
+    None,
+    /// A centripetal Catmull–Rom spline through every point: smooth, no loops or
+    /// cusps, works in any point order.
+    Spline,
+    /// A monotone cubic (Fritsch–Carlson): never overshoots between points, so peaks
+    /// stay at the data. Needs increasing x; falls back to [`Smoothing::Spline`].
+    Monotone,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Kind {
     Line {
@@ -46,6 +70,7 @@ pub(super) enum Kind {
         fill_to: Option<f64>,
         step: bool,
         markers: Option<Marker>,
+        smoothing: Smoothing,
     },
     Scatter {
         marker: Marker,
@@ -73,6 +98,7 @@ pub struct Series<'a> {
     pub(super) color: Option<Color32>,
     pub(super) y_errors: Option<Cow<'a, [f64]>>,
     pub(super) legend: bool,
+    pub(super) axis: YAxis,
 }
 
 impl<'a> Series<'a> {
@@ -84,6 +110,7 @@ impl<'a> Series<'a> {
             color: None,
             y_errors: None,
             legend: true,
+            axis: YAxis::Left,
         }
     }
 
@@ -98,8 +125,14 @@ impl<'a> Series<'a> {
                 fill_to: None,
                 step: false,
                 markers: None,
+                smoothing: Smoothing::None,
             },
         )
+    }
+
+    /// A line drawn as a smooth spline through the points (see [`Series::smooth`]).
+    pub fn spline(name: impl Into<String>, data: impl Into<Cow<'a, [[f64; 2]]>>) -> Self {
+        Self::line(name, data).smooth(Smoothing::Spline)
     }
 
     /// A line filled down to `y = 0` with 18 % of its color.
@@ -189,6 +222,22 @@ impl<'a> Series<'a> {
         if let Kind::Line { fill_to, .. } = &mut self.kind {
             *fill_to = Some(base);
         }
+        self
+    }
+
+    /// Smooth the line through its points (lines and areas; steps stay square).
+    /// Dense lines (more than one point per 2 pt) are drawn straight: a spline would
+    /// not change what you see.
+    pub fn smooth(mut self, new_smoothing: Smoothing) -> Self {
+        if let Kind::Line { smoothing, .. } = &mut self.kind {
+            *smoothing = new_smoothing;
+        }
+        self
+    }
+
+    /// Measure the series against the left (default) or the right y axis.
+    pub fn y_axis(mut self, axis: YAxis) -> Self {
+        self.axis = axis;
         self
     }
 
