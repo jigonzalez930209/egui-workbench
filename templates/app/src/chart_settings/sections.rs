@@ -1,6 +1,6 @@
 //! The form sections of the chart settings dialog.
 
-use egui_workbench::components::plot::{LegendPosition, LineStyle, Marker, Minor, PlotConfig, Scale};
+use egui_workbench::components::plot::{LegendPosition, LineStyle, Marker, Minor, PlotConfig, Scale, Smoothing, YAxis};
 use egui_workbench::components::prelude::*;
 use egui_workbench::egui::{self, Color32, RichText};
 
@@ -8,7 +8,7 @@ use super::super::charts::ChartsDemo;
 use super::Action;
 
 /// A two-column form with aligned labels.
-fn form(ui: &mut egui::Ui, id: &str, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn form(ui: &mut egui::Ui, id: &str, add: impl FnOnce(&mut egui::Ui)) {
     egui::Grid::new(id)
         .num_columns(2)
         .spacing([18.0, 8.0])
@@ -16,7 +16,7 @@ fn form(ui: &mut egui::Ui, id: &str, add: impl FnOnce(&mut egui::Ui)) {
         .show(ui, add);
 }
 
-fn row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
     // Both cells share one control-height row, centered, so labels sit on the
     // control's midline.
     let height = Size::Md.height();
@@ -31,13 +31,13 @@ fn row(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui)) {
     ui.end_row();
 }
 
-fn heading(ui: &mut egui::Ui, text: &str) {
+pub(super) fn heading(ui: &mut egui::Ui, text: &str) {
     ui.add_space(10.0);
     Label::new(text).strong().show(ui);
     ui.add_space(6.0);
 }
 
-fn optional_text(ui: &mut egui::Ui, value: &mut Option<String>, placeholder: &str) {
+pub(super) fn optional_text(ui: &mut egui::Ui, value: &mut Option<String>, placeholder: &str) {
     let mut shown = value.is_some();
     if Checkbox::new(&mut shown).show(ui) {
         *value = shown.then(|| placeholder.to_owned());
@@ -47,12 +47,18 @@ fn optional_text(ui: &mut egui::Ui, value: &mut Option<String>, placeholder: &st
     }
 }
 
-fn number(ui: &mut egui::Ui, value: &mut f32, range: std::ops::RangeInclusive<f32>, speed: f64, suffix: &str) {
+pub(super) fn number(
+    ui: &mut egui::Ui,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    speed: f64,
+    suffix: &str,
+) {
     ui.add(egui::DragValue::new(value).range(range).speed(speed).suffix(suffix));
 }
 
 /// "Auto" or a number; the placeholder is what auto currently means.
-fn optional_number(ui: &mut egui::Ui, value: &mut Option<f64>, placeholder: f64, speed: f64) {
+pub(super) fn optional_number(ui: &mut egui::Ui, value: &mut Option<f64>, placeholder: f64, speed: f64) {
     let mut auto = value.is_none();
     if Checkbox::new(&mut auto).label("Auto").show(ui) {
         *value = if auto { None } else { Some(placeholder) };
@@ -67,18 +73,9 @@ fn optional_number(ui: &mut egui::Ui, value: &mut Option<f64>, placeholder: f64,
     }
 }
 
-pub(super) fn general(ui: &mut egui::Ui, draft: &mut PlotConfig) {
+pub(super) fn general(ui: &mut egui::Ui, draft: &mut PlotConfig, action: &mut Option<Action>) {
     heading(ui, "Text");
     form(ui, "chart_general_text", |ui| {
-        row(ui, "Title", |ui| optional_text(ui, &mut draft.title, "Chart"));
-        row(ui, "X axis title", |ui| optional_text(ui, &mut draft.x.label, "x"));
-        row(ui, "Y axis title", |ui| optional_text(ui, &mut draft.y.label, "y"));
-        row(ui, "Title size", |ui| {
-            number(ui, &mut draft.title_size, 6.0..=48.0, 0.25, " pt")
-        });
-        row(ui, "Axis title size", |ui| {
-            number(ui, &mut draft.label_size, 6.0..=36.0, 0.25, " pt")
-        });
         row(ui, "Tick label size", |ui| {
             number(ui, &mut draft.tick_size, 6.0..=30.0, 0.25, " pt")
         });
@@ -86,6 +83,11 @@ pub(super) fn general(ui: &mut egui::Ui, draft: &mut PlotConfig) {
             number(ui, &mut draft.legend_size, 6.0..=30.0, 0.25, " pt")
         });
     });
+    ui.label(
+        RichText::new("The chart title and the axis titles are in Titles.")
+            .small()
+            .weak(),
+    );
     heading(ui, "Lines and markers");
     form(ui, "chart_general_lines", |ui| {
         row(ui, "Line width ×", |ui| {
@@ -116,6 +118,17 @@ pub(super) fn general(ui: &mut egui::Ui, draft: &mut PlotConfig) {
             }
             Checkbox::new(&mut draft.legend_frame).label("Box").show(ui);
         });
+        row(ui, "Dragged legend", |ui| {
+            if Button::new("Back to its corner")
+                .size(Size::Sm)
+                .variant(ButtonVariant::Outline)
+                .show(ui)
+                .clicked()
+            {
+                *action = Some(Action::ResetLegend);
+            }
+            ui.label(RichText::new("drag the legend on the chart to move it").small().weak());
+        });
         row(ui, "Toolbar", |ui| {
             Switch::new(&mut draft.toolbar).show(ui);
         });
@@ -128,71 +141,11 @@ pub(super) fn general(ui: &mut egui::Ui, draft: &mut PlotConfig) {
     });
 }
 
-pub(super) fn axes(ui: &mut egui::Ui, draft: &mut PlotConfig, view: Option<egui_workbench::components::plot::Bounds>) {
-    let view = view.unwrap_or(egui_workbench::components::plot::Bounds::from_corners(
-        [0.0, 0.0],
-        [1.0, 1.0],
-    ));
-    for (name, axis, (low, high)) in [
-        ("X axis", &mut draft.x, (view.min_x, view.max_x)),
-        ("Y axis", &mut draft.y, (view.min_y, view.max_y)),
-    ] {
-        heading(ui, name);
-        form(ui, &format!("chart_axis_{name}"), |ui| {
-            row(ui, "Scale", |ui| {
-                let options = [(0, "Linear".to_owned()), (1, "Log10".to_owned())];
-                let mut index = usize::from(axis.scale == Scale::Log10);
-                if Select::new(&format!("{name} scale"), &mut index, &options)
-                    .width(120.0)
-                    .show(ui)
-                {
-                    axis.scale = if index == 1 { Scale::Log10 } else { Scale::Linear };
-                }
-            });
-            row(ui, "Minimum", |ui| {
-                optional_number(ui, &mut axis.min, low, (high - low).abs() / 200.0)
-            });
-            row(ui, "Maximum", |ui| {
-                optional_number(ui, &mut axis.max, high, (high - low).abs() / 200.0)
-            });
-            row(ui, "", |ui| {
-                if Button::new("Use current view")
-                    .size(Size::Sm)
-                    .variant(ButtonVariant::Outline)
-                    .show(ui)
-                    .clicked()
-                {
-                    (axis.min, axis.max) = (Some(low), Some(high));
-                }
-                if Button::new("Automatic")
-                    .size(Size::Sm)
-                    .variant(ButtonVariant::Ghost)
-                    .show(ui)
-                    .clicked()
-                {
-                    (axis.min, axis.max) = (None, None);
-                }
-            });
-            row(ui, "Tick labels", |ui| {
-                Switch::new(&mut axis.tick_labels).show(ui);
-            });
-            row(ui, "Label decimals", |ui| {
-                let mut auto = axis.decimals.is_none();
-                if Checkbox::new(&mut auto).label("Auto").show(ui) {
-                    axis.decimals = if auto { None } else { Some(2) };
-                }
-                if let Some(decimals) = &mut axis.decimals {
-                    ui.add(egui::DragValue::new(decimals).range(0..=10));
-                }
-            });
-        });
-    }
-}
-
 pub(super) fn grid(ui: &mut egui::Ui, draft: &mut PlotConfig) {
     for (name, axis) in [
         ("Vertical lines (x)", &mut draft.x),
-        ("Horizontal lines (y)", &mut draft.y),
+        ("Horizontal lines (left y)", &mut draft.y),
+        ("Horizontal lines (right y)", &mut draft.y2),
     ] {
         heading(ui, name);
         form(ui, &format!("chart_grid_{name}"), |ui| {
@@ -258,7 +211,7 @@ pub(super) fn grid(ui: &mut egui::Ui, draft: &mut PlotConfig) {
     });
 }
 
-fn color_row(ui: &mut egui::Ui, label: &str, value: &mut Option<Color32>, theme: Color32) {
+pub(super) fn color_row(ui: &mut egui::Ui, label: &str, value: &mut Option<Color32>, theme: Color32) {
     row(ui, label, |ui| {
         let mut custom = value.is_some();
         if Checkbox::new(&mut custom).label("Custom").show(ui) {
@@ -375,17 +328,42 @@ pub(super) fn series_section(ui: &mut egui::Ui, draft: &mut PlotConfig, names: &
                 optional_number(ui, &mut value, 0.2, 0.01);
                 style.fill_opacity = value.map(|value| value.clamp(0.0, 1.0) as f32);
             });
+            row(ui, "Smoothing", |ui| {
+                let choices = [
+                    None,
+                    Some(Smoothing::None),
+                    Some(Smoothing::Spline),
+                    Some(Smoothing::Monotone),
+                ];
+                let options = [
+                    (0, "Auto".to_owned()),
+                    (1, "Straight".to_owned()),
+                    (2, "Spline".to_owned()),
+                    (3, "Monotone".to_owned()),
+                ];
+                let mut index = choices.iter().position(|c| *c == style.smoothing).unwrap_or(0);
+                if Select::new(&format!("{name} smoothing"), &mut index, &options)
+                    .width(120.0)
+                    .show(ui)
+                {
+                    style.smoothing = choices[index];
+                }
+            });
+            row(ui, "Y axis", |ui| {
+                let choices = [None, Some(YAxis::Left), Some(YAxis::Right)];
+                let options = [(0, "Auto".to_owned()), (1, "Left".to_owned()), (2, "Right".to_owned())];
+                let mut index = choices.iter().position(|c| *c == style.y_axis).unwrap_or(0);
+                if Select::new(&format!("{name} axis"), &mut index, &options)
+                    .width(120.0)
+                    .show(ui)
+                {
+                    style.y_axis = choices[index];
+                }
+            });
         });
     }
     // Drop empty overrides so the config stays small.
-    draft.series.retain(|style| {
-        style.color.is_some()
-            || style.width.is_some()
-            || style.line_style.is_some()
-            || style.marker.is_some()
-            || style.marker_size.is_some()
-            || style.fill_opacity.is_some()
-    });
+    draft.series.retain(|style| !style.is_empty());
 }
 
 pub(super) fn export(ui: &mut egui::Ui, demo: &mut ChartsDemo, action: &mut Option<Action>) {
