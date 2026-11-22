@@ -3,11 +3,16 @@
 //! - Series: lines, areas, steps, scatter with seven markers, bars, error bars,
 //!   functions, and horizontal/vertical reference lines.
 //! - Axes: linear or log10 scales, 1-2-5 ticks that never overlap, minor log ticks,
-//!   grid, title, and axis labels; every line is snapped to the pixel grid.
+//!   grid, and a title and axis titles with their own size, color, and alignment; every line is snapped to the pixel grid.
+//! - Two y axes: series marked [`YAxis::Right`] get their own axis on the right, with
+//!   its own range, scale, ticks, and title.
 //! - Interaction: drag to pan, wheel to zoom around the cursor (Shift: x only, Alt: y
-//!   only), right-drag or the zoom tool to zoom to a box, Shift-drag or the select tool
+//!   only; with two y axes, Alt zooms the left axis over the left half of the frame and
+//!   the right axis over the right half), right-drag or the zoom tool to zoom to a box, Shift-drag or the select tool
 //!   to select an area, double-click to fit the data again, and a hover popup with the
-//!   nearest point. A small toolbar switches tools; the legend toggles series.
+//!   nearest point. A small toolbar switches tools; the legend toggles series and can be
+//!   dragged anywhere inside the frame (the position lives in the [`PlotState`]).
+//! - Lines can be smoothed with a spline or a monotone cubic ([`Smoothing`]).
 //! - Analysis: least-squares fits ([`Fit`]) with their equation and R².
 //! - Speed: dense sorted lines are decimated per pixel column, so a million points
 //!   draw in a few milliseconds; nothing repaints while idle.
@@ -16,6 +21,7 @@
 //! [`PlotState`] the caller owns, like every other component.
 
 mod axis;
+mod builder;
 mod config;
 mod export;
 mod fit;
@@ -25,19 +31,21 @@ mod overlay;
 mod paint;
 mod scene;
 mod series;
+mod smooth;
+mod transform;
 mod widgets;
 
 use egui::{Color32, Id, Pos2, Rect, Response, Sense, Ui, vec2};
 
 pub use axis::{Bounds, Scale};
-pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, SeriesStyle};
+pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, SeriesStyle, TitleAlign};
 pub use export::ExportOptions;
 pub use fit::{Fit, FitKind};
-pub use series::{LineStyle, Marker, Series, points_in};
+pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
 
 use crate::Icons;
 use crate::components::IconComponent;
-use axis::Transform;
+use axis::{SecondAxis, Transform};
 use scene::Measure;
 
 /// A file format the toolbar's export menu asked for.
@@ -78,12 +86,17 @@ pub struct PlotState {
     hidden: Vec<String>,
     drag: Option<Drag>,
     export_menu: bool,
+    /// The right axis range in scaled units, once zoomed or panned.
+    y2_view: Option<[f64; 2]>,
+    /// Where the dragged legend sits: 0–1 across the room left in the frame.
+    legend_pos: Option<[f32; 2]>,
 }
 
 impl PlotState {
     /// Fit the view to the data again (also bound to double-click and the toolbar).
     pub fn reset_view(&mut self) {
         self.view = None;
+        self.y2_view = None;
     }
 
     /// Whether the view follows the data (no zoom or pan since the last reset).
@@ -91,9 +104,25 @@ impl PlotState {
         self.view.is_none()
     }
 
-    /// Show `bounds` (data coordinates, linear axes).
+    /// Show `bounds` (data coordinates, linear axes) on the x and left y axes.
     pub fn set_view(&mut self, bounds: Bounds) {
         self.view = Some(bounds);
+    }
+
+    /// Show `min..=max` (data coordinates, linear axis) on the right y axis.
+    pub fn set_y2_view(&mut self, min: f64, max: f64) {
+        self.y2_view = Some([min.min(max), min.max(max)]);
+    }
+
+    /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)
+    /// of the room the frame leaves around it; `None` uses the configured corner.
+    pub fn legend_position(&self) -> Option<[f32; 2]> {
+        self.legend_pos
+    }
+
+    /// Place the legend (see [`Self::legend_position`]); `None` returns it to its corner.
+    pub fn set_legend_position(&mut self, position: Option<[f32; 2]>) {
+        self.legend_pos = position.map(|[x, y]| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)]);
     }
 
     /// Whether the legend has hidden the series called `name`.
@@ -119,6 +148,8 @@ pub struct PlotHover {
     pub index: usize,
     /// The point, in data coordinates.
     pub point: [f64; 2],
+    /// The y axis the series is measured on.
+    pub axis: YAxis,
 }
 
 /// What happened in the plot this frame.
@@ -133,8 +164,10 @@ pub struct PlotResponse {
     pub clicked: Option<PlotHover>,
     /// The selection changed (drawn, or cleared with a click).
     pub selection_changed: bool,
-    /// The visible range in data coordinates.
+    /// The visible range in data coordinates (x and the left y axis).
     pub view: Bounds,
+    /// The visible range of the right y axis in data coordinates, when it is shown.
+    pub y2_view: Option<[f64; 2]>,
     /// The data area on screen (inside the axes).
     pub frame: Rect,
     /// The toolbar's settings button was clicked: open your settings dialog.
@@ -149,6 +182,11 @@ impl PlotResponse {
     /// Where a data point lands on screen this frame, for annotations drawn on top.
     pub fn screen_pos(&self, point: [f64; 2]) -> Pos2 {
         self.transform.to_screen(point)
+    }
+
+    /// Where a point measured on `axis` lands on screen this frame.
+    pub fn screen_pos_on(&self, axis: YAxis, point: [f64; 2]) -> Pos2 {
+        self.transform.for_axis(axis).to_screen(point)
     }
 
     /// The data coordinates of a screen position.
@@ -209,156 +247,35 @@ pub struct Plot<'a> {
 }
 
 impl<'a> Plot<'a> {
-    /// A plot with a stable id.
-    pub fn new(id: impl std::hash::Hash + std::fmt::Debug) -> Self {
-        Self {
-            id: Id::unique(("workbench_plot", id)),
-            series: Vec::new(),
-            config: PlotConfig::default(),
-            width: None,
-            height: None,
-            x_window: None,
-            include: Bounds::NOTHING,
-            settings_button: false,
-            export_button: false,
-        }
-    }
-
-    /// Replace the whole appearance (text, sizes, colors, axes, grid, legend, and
-    /// per-series styles). Call it first; the other builder methods edit it.
-    pub fn config(mut self, config: PlotConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// The current appearance.
-    pub fn current_config(&self) -> &PlotConfig {
-        &self.config
-    }
-
-    /// The names of the series, in drawing order (for a settings dialog).
-    pub fn series_names(&self) -> Vec<String> {
-        self.series.iter().map(|series| series.name.clone()).collect()
-    }
-
-    /// Fixed x limits in data units (`None` keeps that side automatic).
-    pub fn x_limits(mut self, min: Option<f64>, max: Option<f64>) -> Self {
-        (self.config.x.min, self.config.x.max) = (min, max);
-        self
-    }
-
-    /// Fixed y limits in data units (`None` keeps that side automatic).
-    pub fn y_limits(mut self, min: Option<f64>, max: Option<f64>) -> Self {
-        (self.config.y.min, self.config.y.max) = (min, max);
-        self
-    }
-
-    /// Show a settings button in the toolbar; see [`PlotResponse::settings_requested`].
-    pub fn settings_button(mut self, show: bool) -> Self {
-        self.settings_button = show;
-        self
-    }
-
-    /// Show an SVG/PNG export menu in the toolbar; see
-    /// [`PlotResponse::export_requested`].
-    pub fn export_button(mut self, show: bool) -> Self {
-        self.export_button = show;
-        self
-    }
-
-    /// Add a series. Series draw in order; the palette color follows the order too.
-    pub fn series(mut self, series: Series<'a>) -> Self {
-        self.series.push(series);
-        self
-    }
-
-    /// Fit `kind` to `data` and add the dashed curve, named with its equation and R².
-    /// Nothing is added when the fit fails (too few points, singular system).
-    pub fn fit(mut self, kind: FitKind, data: &[[f64; 2]]) -> Self {
-        if let Some(fit) = Fit::new(kind, data) {
-            self.series.push(fit.series(fit.equation(), 200));
-        }
-        self
-    }
-
-    /// A title above the frame.
-    pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.config.title = Some(title.into());
-        self
-    }
-
-    /// The x axis label (also used in the hover popup).
-    pub fn x_label(mut self, label: impl Into<String>) -> Self {
-        self.config.x.label = Some(label.into());
-        self
-    }
-
-    /// The y axis label, drawn vertically.
-    pub fn y_label(mut self, label: impl Into<String>) -> Self {
-        self.config.y.label = Some(label.into());
-        self
-    }
-
-    /// Linear or log10 x axis.
-    pub fn x_scale(mut self, scale: Scale) -> Self {
-        self.config.x.scale = scale;
-        self
-    }
-
-    /// Linear or log10 y axis.
-    pub fn y_scale(mut self, scale: Scale) -> Self {
-        self.config.y.scale = scale;
-        self
-    }
-
-    /// Fixed width; fills the available width otherwise.
-    pub fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
-        self
-    }
-
-    /// Fixed height; fills the available height otherwise (320 pt in scroll areas).
-    pub fn height(mut self, height: f32) -> Self {
-        self.height = Some(height);
-        self
-    }
-
-    /// Legend corner, or [`LegendPosition::Hidden`].
-    pub fn legend(mut self, legend: LegendPosition) -> Self {
-        self.config.legend = legend;
-        self
-    }
-
-    /// Draw the grid (on by default).
-    pub fn grid(mut self, grid: bool) -> Self {
-        for axis in [&mut self.config.x, &mut self.config.y] {
-            axis.grid_major = grid;
-            axis.grid_minor = grid;
-        }
-        self
-    }
-
-    /// Show the tool buttons in the top-right corner (on by default).
-    pub fn toolbar(mut self, toolbar: bool) -> Self {
-        self.config.toolbar = toolbar;
-        self
-    }
-
-    /// For streaming data: while the view is automatic, show only the last `width`
-    /// x units.
-    pub fn x_window(mut self, width: f64) -> Self {
-        self.x_window = Some(width);
-        self
-    }
-
-    /// Keep `point` inside the automatic view (for example `[0.0, 0.0]`).
-    pub fn include(mut self, point: [f64; 2]) -> Self {
-        self.include.extend(point);
-        self
-    }
-
     pub(super) fn visible<'s>(&'s self, state: &'s PlotState) -> impl Iterator<Item = &'s Series<'a>> {
         self.series.iter().filter(|series| !state.is_hidden(&series.name))
+    }
+
+    /// The axis series `index` is measured on, after the config override.
+    fn axis_of(&self, series: &Series<'_>) -> YAxis {
+        self.config
+            .series_style(&series.name)
+            .and_then(|style| style.y_axis)
+            .unwrap_or(series.axis)
+    }
+
+    /// Whether the right axis is shown (hidden series keep it, so the layout holds
+    /// still while toggling them).
+    fn has_y2(&self) -> bool {
+        self.series.iter().any(|series| self.axis_of(series) == YAxis::Right)
+    }
+
+    /// The right axis for this frame: the state's range, or the automatic one.
+    fn second_axis(&self, state: &PlotState) -> Option<SecondAxis> {
+        if !self.has_y2() {
+            return None;
+        }
+        let [min, max] = state.y2_view.unwrap_or_else(|| self.auto_y2(state));
+        Some(SecondAxis {
+            min,
+            max,
+            scale: self.config.y2.scale,
+        })
     }
 }
 
@@ -381,12 +298,14 @@ impl Plot<'_> {
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
         let view = state.view.unwrap_or_else(|| self.auto_bounds(state));
-        let layout = overlay::layout(&measure, &self.config, rect, view);
+        let y2 = self.second_axis(state);
+        let layout = overlay::layout(&measure, &self.config, rect, view, y2);
         let transform = Transform {
             frame: layout.frame,
             view,
             x_scale: self.config.x.scale,
             y_scale: self.config.y.scale,
+            y2,
         };
 
         let mut selection_changed = false;
@@ -394,7 +313,11 @@ impl Plot<'_> {
         self.interact(ui, &response, &transform, state, pointer, &mut selection_changed);
         // The transform may have changed; paint with the new view this same frame.
         let view = state.view.unwrap_or(view);
-        let transform = Transform { view, ..transform };
+        let y2 = y2.map(|axis| match state.y2_view {
+            Some([min, max]) => SecondAxis { min, max, ..axis },
+            None => axis,
+        });
+        let transform = Transform { view, y2, ..transform };
 
         let theme = crate::theme::current(ui.ctx());
         let colors = overlay::Colors::resolve(&self.config, ui.visuals());
@@ -413,11 +336,15 @@ impl Plot<'_> {
         }
 
         let legend = legend::layout(&measure, &self, layout.frame, state, true)
-            .map(|legend| widgets::legend(ui, &self, &legend, state));
+            .map(|legend| widgets::legend(ui, &self, &legend, layout.frame, state));
         let toolbar = widgets::toolbar(ui, icons, &self, layout.frame, &transform, state);
         let blocked = |pos: Pos2| {
             legend.is_some_and(|rect| rect.contains(pos)) || toolbar.rect.is_some_and(|rect| rect.contains(pos))
         };
+        if state.drag.is_none() && toolbar.rect.zip(pointer).is_some_and(|(rect, pos)| rect.contains(pos)) {
+            // Buttons get the ordinary pointer, not the frame's crosshair.
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+        }
         let hovered = pointer
             .filter(|pos| !blocked(*pos) && state.drag.is_none())
             .and_then(|pointer| self.hover(ui, &transform, state, pointer, &theme));
@@ -444,6 +371,7 @@ impl Plot<'_> {
             clicked,
             selection_changed,
             view: data_view,
+            y2_view: y2.map(|axis| [axis.scale.inverse(axis.min), axis.scale.inverse(axis.max)]),
             frame: transform.frame,
             settings_requested: toolbar.settings,
             export_requested: toolbar.export,
