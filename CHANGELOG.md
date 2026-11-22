@@ -7,12 +7,21 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-21
+
 ### Added
 
 - An agent skill, `skills/egui-workbench`, so AI coding agents (Claude, Codex, Cursor,
   Gemini, Copilot) build apps with the crate: setup, the `WorkbenchApp`/`Command` model,
   a compiling minimal app, the design rules, and the guide as Markdown. Installable as a
   Claude Code plugin marketplace, with `npx skills add`, or from the release zip.
+
+### Changed
+
+- The README (also the crates.io page) explains how to use the crate with AI agents.
+- Releases attach `egui-workbench-skill.zip` and check that `.claude-plugin/plugin.json`
+  matches the tag; CI fails when the skill is out of date with the docs.
+- GitHub Actions moved to their Node 24 releases (checkout v7, setup-node v7, Pages v5/v6).
 
 ## [0.1.0] - 2026-11-21
 
@@ -86,5 +95,6 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jigonzalez930209/egui-workbench/releases/tag/v0.1.0
