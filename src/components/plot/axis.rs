@@ -1,6 +1,6 @@
 //! Bounds, axis scales, the data ↔ screen transform, and tick generation.
 
-use egui::{Pos2, Rect, pos2};
+pub(super) use super::transform::{SecondAxis, Transform};
 
 /// An axis-aligned range in data space.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -103,58 +103,6 @@ impl Scale {
             Self::Linear => value,
             Self::Log10 => 10f64.powf(value),
         }
-    }
-}
-
-/// Maps data to screen and back. Works in "scaled" space (log10 already applied), so
-/// zoom and pan are linear in what the user sees.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Transform {
-    pub frame: Rect,
-    /// Visible range in scaled units.
-    pub view: Bounds,
-    pub x_scale: Scale,
-    pub y_scale: Scale,
-}
-
-impl Transform {
-    pub fn to_screen(self, point: [f64; 2]) -> Pos2 {
-        let x = self.x_scale.forward(point[0]);
-        let y = self.y_scale.forward(point[1]);
-        self.scaled_to_screen(x, y)
-    }
-
-    pub fn scaled_to_screen(&self, x: f64, y: f64) -> Pos2 {
-        let tx = (x - self.view.min_x) / self.view.width();
-        let ty = (y - self.view.min_y) / self.view.height();
-        pos2(
-            self.frame.left() + (tx * self.frame.width() as f64) as f32,
-            self.frame.bottom() - (ty * self.frame.height() as f64) as f32,
-        )
-    }
-
-    /// Screen position → scaled coordinates.
-    pub fn to_scaled(self, pos: Pos2) -> [f64; 2] {
-        let tx = f64::from((pos.x - self.frame.left()) / self.frame.width());
-        let ty = f64::from((self.frame.bottom() - pos.y) / self.frame.height());
-        [
-            self.view.min_x + tx * self.view.width(),
-            self.view.min_y + ty * self.view.height(),
-        ]
-    }
-
-    /// Screen position → data coordinates.
-    pub fn to_data(self, pos: Pos2) -> [f64; 2] {
-        let [x, y] = self.to_scaled(pos);
-        [self.x_scale.inverse(x), self.y_scale.inverse(y)]
-    }
-
-    /// Data units per screen point, in scaled space.
-    pub fn units_per_point(&self) -> [f64; 2] {
-        [
-            self.view.width() / f64::from(self.frame.width().max(1.0)),
-            self.view.height() / f64::from(self.frame.height().max(1.0)),
-        ]
     }
 }
 
@@ -370,6 +318,7 @@ pub(super) fn format_readout(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use egui::{Rect, pos2};
 
     #[test]
     fn nice_steps_are_one_two_five() {
@@ -453,7 +402,14 @@ mod tests {
             view: Bounds::from_corners([0.0, -1.0], [4.0, 1.0]),
             x_scale: Scale::Linear,
             y_scale: Scale::Linear,
+            y2: Some(SecondAxis {
+                min: 0.0,
+                max: 100.0,
+                scale: Scale::Linear,
+            }),
         };
+        let right = transform.for_axis(super::super::series::YAxis::Right);
+        assert_eq!(right.to_screen([1.0, 75.0]), pos2(110.0, 60.0));
         let screen = transform.to_screen([1.0, 0.5]);
         assert_eq!(screen, pos2(110.0, 60.0));
         let back = transform.to_data(screen);
