@@ -275,12 +275,14 @@ impl Plot<'_> {
             Vec2::new(options.width.max(120.0), options.height.max(120.0)),
         );
         let view = state.view.unwrap_or_else(|| self.auto_bounds(state));
-        let layout = overlay::layout(&measure, &self.config, rect, view);
+        let y2 = self.second_axis(state);
+        let layout = overlay::layout(&measure, &self.config, rect, view, y2);
         let transform = Transform {
             frame: layout.frame,
             view,
             x_scale: self.config.x.scale,
             y_scale: self.config.y.scale,
+            y2,
         };
         let visuals = ctx.style_of(ctx.theme()).visuals.clone();
         let mut colors = overlay::Colors::resolve(&self.config, &visuals);
