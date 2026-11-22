@@ -3,26 +3,67 @@
 use egui::{CursorIcon, Pos2, Rect, Response, Ui, Vec2};
 
 use super::axis::{Bounds, Scale, Transform};
-use super::series;
+use super::series::{self, YAxis};
 use super::{Drag, Plot, PlotHover, PlotState, PlotTool, overlay, paint, widgets};
 
 impl Plot<'_> {
-    /// The automatic view: every visible series plus 5 % margins, in scaled space,
-    /// with the fixed axis limits of the config applied on top.
-    pub(super) fn auto_bounds(&self, state: &PlotState) -> Bounds {
-        let (x_scale, y_scale) = (self.config.x.scale, self.config.y.scale);
-        let mut bounds = Bounds::NOTHING;
+    /// The extents of the visible series in scaled space, split by y axis: (left, right).
+    fn extents(&self, state: &PlotState) -> (Bounds, Bounds) {
+        let x_scale = self.config.x.scale;
+        let scale_of = |axis: YAxis| match axis {
+            YAxis::Left => self.config.y.scale,
+            YAxis::Right => self.config.y2.scale,
+        };
+        let (mut left, mut right) = (Bounds::NOTHING, Bounds::NOTHING);
         for series in self.visible(state) {
-            bounds.union(&series.bounds(x_scale, y_scale));
+            let axis = self.axis_of(series);
+            let bounds = series.bounds(x_scale, scale_of(axis));
+            match axis {
+                YAxis::Left => left.union(&bounds),
+                YAxis::Right => right.union(&bounds),
+            }
         }
         if self.include.is_valid() {
-            bounds.extend([x_scale.forward(self.include.min_x), y_scale.forward(self.include.min_y)]);
+            left.extend([
+                x_scale.forward(self.include.min_x),
+                self.config.y.scale.forward(self.include.min_y),
+            ]);
         }
         for series in self.visible(state) {
+            let axis = self.axis_of(series);
+            let target = match axis {
+                YAxis::Left => &mut left,
+                YAxis::Right => &mut right,
+            };
             match series.kind {
-                series::Kind::HLine(y) if bounds.is_valid() => bounds.extend([bounds.min_x, y_scale.forward(y)]),
-                series::Kind::VLine(x) if bounds.is_valid() => bounds.extend([x_scale.forward(x), bounds.min_y]),
+                series::Kind::HLine(y) if target.is_valid() => {
+                    target.extend([target.min_x, scale_of(axis).forward(y)]);
+                }
+                series::Kind::VLine(x) if target.is_valid() => {
+                    target.extend([x_scale.forward(x), target.min_y]);
+                }
                 _ => {}
+            }
+        }
+        (left, right)
+    }
+
+    /// The automatic view: every visible series plus 5 % margins, in scaled space,
+    /// with the fixed axis limits of the config applied on top. The x range spans the
+    /// series of both y axes; the y range only those on the left.
+    pub(super) fn auto_bounds(&self, state: &PlotState) -> Bounds {
+        let (x_scale, y_scale) = (self.config.x.scale, self.config.y.scale);
+        let (mut bounds, right) = self.extents(state);
+        if right.is_valid() {
+            if bounds.is_valid() {
+                bounds.min_x = bounds.min_x.min(right.min_x);
+                bounds.max_x = bounds.max_x.max(right.max_x);
+            } else {
+                bounds = Bounds {
+                    min_y: 0.0,
+                    max_y: 1.0,
+                    ..right
+                };
             }
         }
         if !bounds.is_valid() {
@@ -33,17 +74,8 @@ impl Plot<'_> {
         {
             bounds.min_x = bounds.min_x.max(bounds.max_x - window);
         }
-        let pad = |min: &mut f64, max: &mut f64| {
-            let span = *max - *min;
-            let span = if span > 0.0 { span } else { min.abs().max(1.0) * 0.2 };
-            let margin = span * 0.05;
-            *min -= margin;
-            *max += margin;
-        };
         pad(&mut bounds.min_x, &mut bounds.max_x);
         pad(&mut bounds.min_y, &mut bounds.max_y);
-        let limit =
-            |value: Option<f64>, scale: Scale| value.map(|value| scale.forward(value)).filter(|v| v.is_finite());
         if let Some(min) = limit(self.config.x.min, x_scale) {
             bounds.min_x = min;
         }
@@ -65,6 +97,29 @@ impl Plot<'_> {
         bounds
     }
 
+    /// The automatic range of the right axis in scaled space: its series plus 5 %
+    /// margins, with its fixed limits on top.
+    pub(super) fn auto_y2(&self, state: &PlotState) -> [f64; 2] {
+        let (_, right) = self.extents(state);
+        let (mut min, mut max) = if right.is_valid() {
+            (right.min_y, right.max_y)
+        } else {
+            (0.0, 1.0)
+        };
+        pad(&mut min, &mut max);
+        let scale = self.config.y2.scale;
+        if let Some(fixed) = limit(self.config.y2.min, scale) {
+            min = fixed;
+        }
+        if let Some(fixed) = limit(self.config.y2.max, scale) {
+            max = fixed;
+        }
+        if max <= min {
+            max = min + 1.0;
+        }
+        [min, max]
+    }
+
     /// The nearest point over every visible series, highlighted with its popup.
     pub(super) fn hover(
         &self,
@@ -79,8 +134,9 @@ impl Plot<'_> {
             if state.is_hidden(&series.name) {
                 continue;
             }
+            let transform = transform.for_axis(self.axis_of(series));
             if let Some((index, position, distance)) =
-                paint::nearest(transform, series, pointer, 12.0, series.sorted_x())
+                paint::nearest(&transform, series, pointer, 12.0, series.sorted_x())
                 && best.is_none_or(|(_, _, _, current)| distance < current)
             {
                 best = Some((series_index, index, position, distance));
@@ -88,6 +144,7 @@ impl Plot<'_> {
         }
         let (series_index, index, position, _) = best?;
         let series = &self.series[series_index];
+        let axis = self.axis_of(series);
         let look = overlay::look(self, series_index, theme);
         let point = series.data()[index];
         let visuals = ui.visuals();
@@ -100,14 +157,16 @@ impl Plot<'_> {
             look.color,
             visuals.extreme_bg_color,
             guide,
+            axis == YAxis::Right,
         );
         if self.config.hover_popup {
-            widgets::tooltip(ui, self, series.name(), look.color, point, position);
+            widgets::tooltip(ui, self, series.name(), look.color, point, position, axis);
         }
         Some(PlotHover {
             series: series.name.clone(),
             index,
             point,
+            axis,
         })
     }
 
@@ -122,7 +181,7 @@ impl Plot<'_> {
     ) {
         let frame = transform.frame;
         if response.double_clicked() {
-            state.view = None;
+            state.reset_view();
             state.drag = None;
             return;
         }
@@ -148,6 +207,11 @@ impl Plot<'_> {
                 view.min_y += f64::from(delta.y) * uy;
                 view.max_y += f64::from(delta.y) * uy;
                 state.view = Some(view);
+                if let Some(y2) = transform.y2 {
+                    let per_point = (y2.max - y2.min) / f64::from(frame.height().max(1.0));
+                    let shift = f64::from(delta.y) * per_point;
+                    state.y2_view = Some([y2.min + shift, y2.max + shift]);
+                }
                 ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
             }
             Some(Drag::Box { start, select }) if response.drag_stopped() => {
@@ -168,11 +232,41 @@ impl Plot<'_> {
             Some(_) if !response.dragged() && !response.drag_stopped() => state.drag = None,
             _ => {}
         }
-        if let Some(pointer) = pointer {
-            if state.drag.is_none() {
-                ui.ctx().set_cursor_icon(match state.tool {
-                    PlotTool::Pan => CursorIcon::Grab,
-                    PlotTool::Zoom | PlotTool::Select => CursorIcon::Crosshair,
+        // Inside the frame the cursor is a crosshair; pressing to pan turns it into a
+        // closed hand until the button is released.
+        let pressed = response.is_pointer_button_down_on() || response.dragged();
+        if pointer.is_some() || state.drag.is_some() {
+            let panning = match state.drag {
+                Some(Drag::Pan) => true,
+                Some(Drag::Box { .. }) => false,
+                None => {
+                    pressed
+                        && state.tool == PlotTool::Pan
+                        && !shift
+                        && !ui.input(|input| input.pointer.secondary_down())
+                }
+            };
+            ui.ctx().set_cursor_icon(if panning {
+                CursorIcon::Grabbing
+            } else {
+                CursorIcon::Crosshair
+            });
+        }
+        // Over the frame the wheel follows the modifiers; over an axis's ticks (outside
+        // the frame, inside the plot) it zooms that axis alone, like Shift/Alt do.
+        let target = match pointer {
+            Some(pointer) => Some((pointer, wheel_axes(transform, pointer, shift, alt))),
+            None if state.drag.is_none() => response
+                .hover_pos()
+                .and_then(|pos| axis_under(transform, pos).map(|axes| (pos, axes))),
+            None => None,
+        };
+        if let Some((pointer, axes)) = target {
+            if !frame.contains(pointer) {
+                ui.ctx().set_cursor_icon(if axes.x {
+                    CursorIcon::ResizeHorizontal
+                } else {
+                    CursorIcon::ResizeVertical
                 });
             }
             let (scroll, zoom) = ui.input(|input| (input.smooth_scroll_delta, input.zoom_delta()));
@@ -187,27 +281,107 @@ impl Plot<'_> {
             if (factor - 1.0).abs() > f32::EPSILON {
                 // Consume the wheel so an enclosing scroll area does not scroll too.
                 ui.ctx().input_mut(|input| input.smooth_scroll_delta = Vec2::ZERO);
-                let horizontal = !alt;
-                let vertical = !shift;
-                zoom_at(state, transform, pointer, f64::from(factor), horizontal, vertical);
+                zoom_at(state, transform, pointer, f64::from(factor), axes);
             }
         }
     }
 }
 
-pub(super) fn zoom_at(state: &mut PlotState, transform: &Transform, pointer: Pos2, factor: f64, x: bool, y: bool) {
+/// The axis whose tick band is under `pos`: below the frame is x, left of it the left
+/// y axis, right of it the right y axis (when shown). Corners belong to no axis.
+pub(super) fn axis_under(transform: &Transform, pos: Pos2) -> Option<ZoomAxes> {
+    let frame = transform.frame;
+    let within_x = (frame.left()..=frame.right()).contains(&pos.x);
+    let within_y = (frame.top()..=frame.bottom()).contains(&pos.y);
+    let only = |x, y, y2| ZoomAxes { x, y, y2 };
+    if pos.y > frame.bottom() && within_x {
+        Some(only(true, false, false))
+    } else if pos.x < frame.left() && within_y {
+        Some(only(false, true, false))
+    } else if pos.x > frame.right() && within_y && transform.y2.is_some() {
+        Some(only(false, false, true))
+    } else {
+        None
+    }
+}
+
+/// The span every automatic range is padded by on both sides.
+fn pad(min: &mut f64, max: &mut f64) {
+    let span = *max - *min;
+    let span = if span > 0.0 { span } else { min.abs().max(1.0) * 0.2 };
+    let margin = span * 0.05;
+    *min -= margin;
+    *max += margin;
+}
+
+/// A fixed limit in scaled units, when it can be shown on `scale`.
+fn limit(value: Option<f64>, scale: Scale) -> Option<f64> {
+    value.map(|value| scale.forward(value)).filter(|v| v.is_finite())
+}
+
+/// Which axes a zoom acts on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ZoomAxes {
+    pub x: bool,
+    pub y: bool,
+    pub y2: bool,
+}
+
+impl ZoomAxes {
+    pub const ALL: Self = Self {
+        x: true,
+        y: true,
+        y2: true,
+    };
+}
+
+/// The wheel zooms every axis; Shift only x; Alt only y: the left axis over the left
+/// half of the frame and the right axis over the right half when there are two.
+pub(super) fn wheel_axes(transform: &Transform, pointer: Pos2, shift: bool, alt: bool) -> ZoomAxes {
+    if shift {
+        return ZoomAxes {
+            x: true,
+            y: false,
+            y2: false,
+        };
+    }
+    if alt {
+        let right = transform.y2.is_some() && pointer.x > transform.frame.center().x;
+        return ZoomAxes {
+            x: false,
+            y: !right,
+            y2: right,
+        };
+    }
+    ZoomAxes::ALL
+}
+
+pub(super) fn zoom_at(state: &mut PlotState, transform: &Transform, pointer: Pos2, factor: f64, axes: ZoomAxes) {
     let [cx, cy] = transform.to_scaled(pointer);
     let mut view = transform.view;
-    if x {
+    if axes.x {
         view.min_x = cx - (cx - view.min_x) / factor;
         view.max_x = cx + (view.max_x - cx) / factor;
     }
-    if y {
+    if axes.y {
         view.min_y = cy - (cy - view.min_y) / factor;
         view.max_y = cy + (view.max_y - cy) / factor;
     }
-    if view.width() > 1e-12 && view.height() > 1e-12 && view.width() < 1e15 && view.height() < 1e15 {
+    let y2 = transform.y2.map(|axis| {
+        let (mut min, mut max) = (axis.min, axis.max);
+        if axes.y2 {
+            let center = transform.for_axis(YAxis::Right).to_scaled(pointer)[1];
+            min = center - (center - min) / factor;
+            max = center + (max - center) / factor;
+        }
+        [min, max]
+    });
+    let sane = |span: f64| span > 1e-12 && span < 1e15;
+    if sane(view.width()) && sane(view.height()) && y2.is_none_or(|[min, max]| sane(max - min)) {
         state.view = Some(view);
+        if y2.is_some() {
+            state.y2_view = y2;
+        }
     }
 }
 
@@ -224,5 +398,17 @@ fn zoom_to_box(state: &mut PlotState, transform: &Transform, rect: Rect) {
     }
     if (rect.width() >= 4.0 || rect.height() >= 4.0) && view.width() > 1e-12 && view.height() > 1e-12 {
         state.view = Some(view);
+        if let Some(axis) = transform.y2 {
+            let right = transform.for_axis(YAxis::Right);
+            let (low, high) = (
+                right.to_scaled(rect.left_bottom())[1],
+                right.to_scaled(rect.right_top())[1],
+            );
+            state.y2_view = Some(if rect.height() >= 4.0 && high - low > 1e-12 {
+                [low, high]
+            } else {
+                [axis.min, axis.max]
+            });
+        }
     }
 }
