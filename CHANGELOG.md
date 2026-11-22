@@ -7,6 +7,13 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+### Added
+
+- An agent skill, `skills/egui-workbench`, so AI coding agents (Claude, Codex, Cursor,
+  Gemini, Copilot) build apps with the crate: setup, the `WorkbenchApp`/`Command` model,
+  a compiling minimal app, the design rules, and the guide as Markdown. Installable as a
+  Claude Code plugin marketplace, with `npx skills add`, or from the release zip.
+
 ## [0.1.0] - 2026-11-21
 
 First release. egui-workbench builds on `egui` and `eframe` 0.37 from crates.io and
