@@ -23,7 +23,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-egui-workbench = "0.1"
+egui-workbench = "0.2"
 ```
 
 ## 2. The model
