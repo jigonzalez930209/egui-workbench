@@ -7,96 +7,22 @@
 
 use egui_workbench::Icons;
 use egui_workbench::components::plot::{
-    Bounds, ExportFormat, FitKind, LegendPosition, Marker, Plot, PlotConfig, PlotState, PlotTool, Scale, Series,
-    points_in,
+    Bounds, ExportFormat, FitKind, Marker, Plot, PlotConfig, PlotState, PlotTool, Series, Smoothing, YAxis, points_in,
 };
 use egui_workbench::components::prelude::*;
 use egui_workbench::egui::{self, RichText};
 
+pub use super::chart_settings::chart::Chart;
 use super::chart_settings::{ExportSettings, ExportedFile, SettingsDialog};
-
-/// The four demo charts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Chart {
-    /// Signal, samples with error bars, and a fit.
-    Signal,
-    /// The live stream.
-    Live,
-    /// The histogram.
-    Histogram,
-    /// The log–log response.
-    Bode,
-}
-
-impl Chart {
-    /// Every chart, in page order.
-    pub const ALL: [Self; 4] = [Self::Signal, Self::Live, Self::Histogram, Self::Bode];
-
-    /// A short name for dialogs and file names.
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Signal => "Signal",
-            Self::Live => "Live stream",
-            Self::Histogram => "Histogram",
-            Self::Bode => "Low-pass response",
-        }
-    }
-
-    fn file_stem(self) -> &'static str {
-        match self {
-            Self::Signal => "signal",
-            Self::Live => "live-stream",
-            Self::Histogram => "histogram",
-            Self::Bode => "low-pass-response",
-        }
-    }
-
-    /// Position in [`Self::ALL`].
-    pub fn index(self) -> usize {
-        self as usize
-    }
-
-    /// The default appearance of this chart.
-    pub fn default_config(self) -> PlotConfig {
-        let mut config = PlotConfig::default();
-        match self {
-            Self::Signal => {
-                config.title = Some("Signal, samples, and a least-squares fit".to_owned());
-                config.x.label = Some("Time (s)".to_owned());
-                config.y.label = Some("Amplitude (V)".to_owned());
-            }
-            Self::Live => {
-                config.title = Some("Live stream (last 10 s)".to_owned());
-                config.x.label = Some("t (s)".to_owned());
-                config.y.label = Some("Value".to_owned());
-                config.legend = LegendPosition::BottomLeft;
-            }
-            Self::Histogram => {
-                config.title = Some("Histogram".to_owned());
-                config.x.label = Some("Bin".to_owned());
-                config.y.label = Some("Count".to_owned());
-            }
-            Self::Bode => {
-                config.title = Some("Low-pass response (log–log)".to_owned());
-                config.x.label = Some("Frequency (Hz)".to_owned());
-                config.y.label = Some("Gain".to_owned());
-                config.x.scale = Scale::Log10;
-                config.y.scale = Scale::Log10;
-                config.legend = LegendPosition::BottomLeft;
-            }
-        }
-        config
-    }
-}
 
 /// The state of the Charts section.
 pub struct ChartsDemo {
     /// When set, exports are collected here instead of written to the export folder (a
     /// web build hands them to the browser as downloads).
     pub collected: Option<Vec<ExportedFile>>,
-    states: [PlotState; 4],
+    states: [PlotState; 5],
     /// The appearance of each chart, edited by the settings dialog.
-    pub configs: [PlotConfig; 4],
+    pub configs: [PlotConfig; 5],
     /// The settings dialog, while open.
     pub settings: Option<SettingsDialog>,
     /// Export size, scale, background, and folder.
@@ -108,13 +34,17 @@ pub struct ChartsDemo {
     errors: Vec<f64>,
     histogram: Vec<[f64; 2]>,
     response: Vec<[f64; 2]>,
+    temperature: Vec<[f64; 2]>,
+    rainfall: Vec<[f64; 2]>,
     stream: Vec<[f64; 2]>,
     stream_clock: Option<f64>,
     seed: u64,
     /// The last on-screen size of each chart (the default export size).
-    sizes: [egui::Vec2; 4],
+    sizes: [egui::Vec2; 5],
     /// The last on-screen data range of each chart.
-    views: [Option<Bounds>; 4],
+    views: [Option<Bounds>; 5],
+    /// The last on-screen range of each chart's right axis, when it has one.
+    y2_views: [Option<[f64; 2]>; 5],
 }
 
 impl Default for ChartsDemo {
@@ -155,6 +85,19 @@ impl Default for ChartsDemo {
                 [frequency, 1.0 / (1.0 + ratio.powi(4)).sqrt()]
             })
             .collect();
+        // Twelve months: a warm summer and a wet autumn.
+        let temperature = (1..=12)
+            .map(|month| {
+                let phase = (f64::from(month) - 7.0) * std::f64::consts::TAU / 12.0;
+                [f64::from(month), (14.0 + 11.0 * phase.cos() + noise() * 2.0).round()]
+            })
+            .collect();
+        let rainfall = (1..=12)
+            .map(|month| {
+                let phase = (f64::from(month) - 10.0) * std::f64::consts::TAU / 12.0;
+                [f64::from(month), (70.0 + 45.0 * phase.cos() + noise() * 20.0).round()]
+            })
+            .collect();
         Self {
             collected: None,
             states: Default::default(),
@@ -168,11 +111,14 @@ impl Default for ChartsDemo {
             errors,
             histogram,
             response,
+            temperature,
+            rainfall,
             stream: Vec::new(),
             stream_clock: None,
             seed: 7,
-            sizes: [egui::vec2(960.0, 540.0); 4],
-            views: [None; 4],
+            sizes: [egui::vec2(960.0, 540.0); 5],
+            views: [None; 5],
+            y2_views: [None; 5],
         }
     }
 }
@@ -216,6 +162,18 @@ impl ChartsDemo {
             Chart::Bode => base
                 .series(Series::area("|H(f)|", &self.response))
                 .series(Series::vline("cutoff", 1_000.0)),
+            Chart::Climate => base
+                .series(
+                    Series::bars("rainfall", &self.rainfall)
+                        .bar_width(0.6)
+                        .y_axis(YAxis::Right),
+                )
+                .series(
+                    Series::line("temperature", &self.temperature)
+                        .smooth(Smoothing::Monotone)
+                        .marker(Marker::Circle)
+                        .width(2.0),
+                ),
         }
     }
 
@@ -229,9 +187,19 @@ impl ChartsDemo {
         self.views[chart.index()]
     }
 
+    /// The right-axis range currently on screen for `chart`, when it has one.
+    pub fn current_y2_view(&self, chart: Chart) -> Option<[f64; 2]> {
+        self.y2_views[chart.index()]
+    }
+
     /// Reset a chart's view (after its limits changed).
     pub fn reset_view(&mut self, chart: Chart) {
         self.states[chart.index()].reset_view();
+    }
+
+    /// Return a dragged legend to its configured corner.
+    pub fn reset_legend(&mut self, chart: Chart) {
+        self.states[chart.index()].set_legend_position(None);
     }
 
     /// Export a chart to the export folder (or [`Self::collected`]) and report the result
@@ -290,6 +258,7 @@ pub fn show(ui: &mut egui::Ui, icons: &mut Icons, demo: &mut ChartsDemo, toasts:
         demo.states[chart.index()] = state;
         demo.sizes[chart.index()] = response.response.rect.size();
         demo.views[chart.index()] = Some(response.view);
+        demo.y2_views[chart.index()] = response.y2_view;
         if response.settings_requested {
             requests.push((chart, None));
         }
@@ -313,7 +282,16 @@ pub fn show(ui: &mut egui::Ui, icons: &mut Icons, demo: &mut ChartsDemo, toasts:
         draw(ui, demo, Chart::Histogram, height);
     }
     ui.add_space(12.0);
-    draw(ui, demo, Chart::Bode, height);
+    if ui.available_width() >= 900.0 {
+        ui.columns(2, |columns| {
+            draw(&mut columns[0], demo, Chart::Bode, height);
+            draw(&mut columns[1], demo, Chart::Climate, height);
+        });
+    } else {
+        draw(ui, demo, Chart::Bode, height);
+        ui.add_space(12.0);
+        draw(ui, demo, Chart::Climate, height);
+    }
 
     for (chart, format) in requests {
         match format {
@@ -394,8 +372,10 @@ fn controls(ui: &mut egui::Ui, demo: &mut ChartsDemo) {
     });
     ui.label(
         RichText::new(
-            "Drag to pan · wheel zooms (Shift: x, Alt: y) · right-drag zooms to a box · Shift-drag selects · \
-             double-click fits · the legend hides series · the gear edits a chart · the arrow exports it",
+            "Drag to pan · wheel zooms (Shift: x, Alt: y — with two y axes, the left half zooms the left axis \
+             and the right half the right one) · right-drag zooms to a box · Shift-drag selects · double-click \
+             fits · click the legend to hide series, drag it to move it · the gear edits a chart · the arrow \
+             exports it",
         )
         .small()
         .weak(),
