@@ -140,4 +140,4 @@ be a flagship.
 the API; `CHANGELOG.md` says how to migrate). It depends on `egui`/`eframe` 0.37 from
 crates.io; moving to a new egui minor is a breaking release of this crate. Projects
 generated from a checkout use a path dependency, so the repository revision is their
-version until they switch to `egui-workbench = "0.1"`.
+version until they switch to `egui-workbench = "0.2"`.
