@@ -17,7 +17,7 @@ impl Plot<'_> {
         let (mut left, mut right) = (Bounds::NOTHING, Bounds::NOTHING);
         for series in self.visible(state) {
             let axis = self.axis_of(series);
-            let bounds = series.bounds(x_scale, scale_of(axis));
+            let bounds = state.cached_bounds(series, x_scale, scale_of(axis));
             match axis {
                 YAxis::Left => left.union(&bounds),
                 YAxis::Right => right.union(&bounds),
@@ -128,6 +128,7 @@ impl Plot<'_> {
         state: &PlotState,
         pointer: Pos2,
         theme: &crate::theme::Theme,
+        drawn: &[Option<Vec<usize>>],
     ) -> Option<PlotHover> {
         let mut best: Option<(usize, usize, Pos2, f32)> = None;
         for (series_index, series) in self.series.iter().enumerate() {
@@ -135,9 +136,14 @@ impl Plot<'_> {
                 continue;
             }
             let transform = transform.for_axis(self.axis_of(series));
-            if let Some((index, position, distance)) =
-                paint::nearest(&transform, series, pointer, 12.0, series.sorted_x())
-                && best.is_none_or(|(_, _, _, current)| distance < current)
+            if let Some((index, position, distance)) = paint::nearest(
+                &transform,
+                series,
+                pointer,
+                12.0,
+                series.sorted_x(),
+                drawn.get(series_index).and_then(Option::as_deref),
+            ) && best.is_none_or(|(_, _, _, current)| distance < current)
             {
                 best = Some((series_index, index, position, distance));
             }
