@@ -17,7 +17,7 @@
 
 ```toml
 [dependencies]
-egui-workbench = "0.1"
+egui-workbench = "0.2"
 ```
 
 Or follow the repository's `main` branch:
@@ -42,7 +42,7 @@ Disable Material when the application never shows files:
 
 ```toml
 [dependencies]
-egui-workbench = { version = "0.1", default-features = false, features = ["lucide-icons"] }
+egui-workbench = { version = "0.2", default-features = false, features = ["lucide-icons"] }
 ```
 
 ## One copy of egui
