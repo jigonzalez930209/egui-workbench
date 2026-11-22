@@ -6,7 +6,19 @@ use egui::Color32;
 
 use super::LegendPosition;
 use super::axis::Scale;
-use super::series::{LineStyle, Marker};
+use super::series::{LineStyle, Marker, Smoothing, YAxis};
+
+/// Where the chart title sits along the top.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TitleAlign {
+    /// Over the left edge of the data area.
+    Left,
+    /// Centered over the data area.
+    #[default]
+    Center,
+    /// Over the right edge of the data area.
+    Right,
+}
 
 /// How many minor ticks sit between two major ticks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -44,6 +56,13 @@ pub struct AxisConfig {
     pub decimals: Option<u8>,
     /// Draw the tick labels.
     pub tick_labels: bool,
+    /// Axis title size in points; [`PlotConfig::label_size`] when `None`.
+    pub label_size: Option<f32>,
+    /// Axis title color; [`PlotColors::text`] (or the theme) when `None`.
+    pub label_color: Option<Color32>,
+    /// Tick labels and tick marks; the theme when `None`. Coloring the right axis like
+    /// its series tells the two axes apart.
+    pub tick_color: Option<Color32>,
 }
 
 impl Default for AxisConfig {
@@ -59,6 +78,9 @@ impl Default for AxisConfig {
             grid_minor: true,
             decimals: None,
             tick_labels: true,
+            label_size: None,
+            label_color: None,
+            tick_color: None,
         }
     }
 }
@@ -99,6 +121,24 @@ pub struct SeriesStyle {
     pub marker_size: Option<f32>,
     /// Opacity of area and bar fills, 0–1.
     pub fill_opacity: Option<f32>,
+    /// Straight, spline, or monotone segments (lines and areas).
+    pub smoothing: Option<Smoothing>,
+    /// Move the series to the left or the right y axis.
+    pub y_axis: Option<YAxis>,
+}
+
+impl SeriesStyle {
+    /// Whether nothing is overridden (a settings dialog can drop it).
+    pub fn is_empty(&self) -> bool {
+        self.color.is_none()
+            && self.width.is_none()
+            && self.line_style.is_none()
+            && self.marker.is_none()
+            && self.marker_size.is_none()
+            && self.fill_opacity.is_none()
+            && self.smoothing.is_none()
+            && self.y_axis.is_none()
+    }
 }
 
 /// The complete appearance of a plot.
@@ -108,10 +148,17 @@ pub struct PlotConfig {
     pub title: Option<String>,
     /// The horizontal axis.
     pub x: AxisConfig,
-    /// The vertical axis.
+    /// The vertical axis on the left.
     pub y: AxisConfig,
+    /// The secondary vertical axis on the right, shown when a series uses
+    /// [`YAxis::Right`]. Its grid is off by default.
+    pub y2: AxisConfig,
     /// Title size in points.
     pub title_size: f32,
+    /// Title color; [`PlotColors::text`] (or the theme) when `None`.
+    pub title_color: Option<Color32>,
+    /// Title alignment over the data area.
+    pub title_align: TitleAlign,
     /// Axis title size in points.
     pub label_size: f32,
     /// Tick label size in points.
@@ -154,7 +201,14 @@ impl Default for PlotConfig {
             title: None,
             x: AxisConfig::default(),
             y: AxisConfig::default(),
+            y2: AxisConfig {
+                grid_major: false,
+                grid_minor: false,
+                ..AxisConfig::default()
+            },
             title_size: 14.0,
+            title_color: None,
+            title_align: TitleAlign::Center,
             label_size: 12.0,
             tick_size: 11.0,
             legend_size: 11.5,
@@ -208,7 +262,8 @@ impl PlotConfig {
         self.tick_length = self.tick_length.clamp(0.0, 16.0);
         self.line_scale = self.line_scale.clamp(0.25, 8.0);
         self.marker_scale = self.marker_scale.clamp(0.25, 8.0);
-        for axis in [&mut self.x, &mut self.y] {
+        for axis in [&mut self.x, &mut self.y, &mut self.y2] {
+            axis.label_size = axis.label_size.map(|size| size.clamp(6.0, 36.0));
             if let (Some(min), Some(max)) = (axis.min, axis.max)
                 && min >= max
             {
