@@ -7,6 +7,18 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+### Changed
+
+- Plots draw large unsorted series much faster. A hundred cyclic voltammograms
+  (450 000 points) went from 165 ms to 13 ms per frame in a release build:
+  - unsorted lines skip points within half a pixel of the last one drawn;
+  - every line is simplified on screen (Ramer–Douglas–Peucker, 0.3 pt);
+  - unsorted scatter draws one marker per screen cell (¾ of the radius), so retraced
+    curves draw their markers once;
+  - series extents for the automatic view are cached in `PlotState`;
+  - hover on unsorted series searches the drawn points, refined to the exact one;
+  - a frame's shapes reach egui in one batch, without copying the point lists.
+
 ## [0.2.0] - 2026-11-22
 
 ### Added
