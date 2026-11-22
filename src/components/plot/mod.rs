@@ -23,6 +23,7 @@
 mod axis;
 mod builder;
 mod config;
+mod decimate;
 mod export;
 mod fit;
 mod interact;
@@ -90,6 +91,20 @@ pub struct PlotState {
     y2_view: Option<[f64; 2]>,
     /// Where the dragged legend sits: 0–1 across the room left in the frame.
     legend_pos: Option<[f32; 2]>,
+    /// Series extents by [`Series::fingerprint`], so the automatic view does not walk
+    /// every point of every series each frame.
+    extents: Vec<(u64, Bounds)>,
+}
+
+impl PlotState {
+    /// The cached extent of `series`, if it is current.
+    fn cached_bounds(&self, series: &Series<'_>, x_scale: Scale, y_scale: Scale) -> Bounds {
+        let key = series.fingerprint(x_scale, y_scale);
+        self.extents
+            .iter()
+            .find(|(cached, _)| *cached == key)
+            .map_or_else(|| series.bounds(x_scale, y_scale), |(_, bounds)| *bounds)
+    }
 }
 
 impl PlotState {
@@ -266,6 +281,25 @@ impl<'a> Plot<'a> {
     }
 
     /// The right axis for this frame: the state's range, or the automatic one.
+    /// Keep `state.extents` to one current entry per series, computing only new ones.
+    fn refresh_extents(&self, state: &mut PlotState) {
+        let mut extents = Vec::with_capacity(self.series.len());
+        for series in &self.series {
+            let y_scale = match self.axis_of(series) {
+                YAxis::Left => self.config.y.scale,
+                YAxis::Right => self.config.y2.scale,
+            };
+            let key = series.fingerprint(self.config.x.scale, y_scale);
+            let bounds = state
+                .extents
+                .iter()
+                .find(|(cached, _)| *cached == key)
+                .map_or_else(|| series.bounds(self.config.x.scale, y_scale), |(_, bounds)| *bounds);
+            extents.push((key, bounds));
+        }
+        state.extents = extents;
+    }
+
     fn second_axis(&self, state: &PlotState) -> Option<SecondAxis> {
         if !self.has_y2() {
             return None;
@@ -297,6 +331,7 @@ impl Plot<'_> {
             ctx: ui.ctx(),
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
+        self.refresh_extents(state);
         let view = state.view.unwrap_or_else(|| self.auto_bounds(state));
         let y2 = self.second_axis(state);
         let layout = overlay::layout(&measure, &self.config, rect, view, y2);
@@ -321,9 +356,11 @@ impl Plot<'_> {
 
         let theme = crate::theme::current(ui.ctx());
         let colors = overlay::Colors::resolve(&self.config, ui.visuals());
-        let scene = overlay::build_scene(&measure, &self, &layout, &transform, state, &colors, &theme, false);
+        let mut scene = overlay::build_scene(&measure, &self, &layout, &transform, state, &colors, &theme, false);
+        // The points each series drew; hover searches these instead of every point.
+        let drawn = std::mem::take(&mut scene.drawn);
         let painter = ui.painter_at(rect);
-        scene::paint(&painter, &painter.with_clip_rect(layout.frame), &scene);
+        scene::paint(&painter, &painter.with_clip_rect(layout.frame), scene);
         if let (Some(Drag::Box { start, select }), Some(current)) = (state.drag, response.interact_pointer_pos()) {
             let fill = colors.selection.gamma_multiply(if select { 0.12 } else { 0.06 });
             painter.with_clip_rect(layout.frame).rect(
@@ -347,7 +384,7 @@ impl Plot<'_> {
         }
         let hovered = pointer
             .filter(|pos| !blocked(*pos) && state.drag.is_none())
-            .and_then(|pointer| self.hover(ui, &transform, state, pointer, &theme));
+            .and_then(|pointer| self.hover(ui, &transform, state, pointer, &theme, &drawn));
 
         let clicked = if response.clicked() && state.drag.is_none() {
             hovered.clone()
