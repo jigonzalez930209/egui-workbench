@@ -15,6 +15,8 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-22
+
 ### Changed
 
 - Plots draw large unsorted series much faster. A hundred cyclic voltammograms
@@ -148,7 +150,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jigonzalez930209/egui-workbench/releases/tag/v0.1.0
