@@ -41,6 +41,12 @@ jobs:
         run: cargo xtask template-check
       - name: Package
         run: cargo package --locked
+      - name: Agent skill
+        # references/ is generated from docs-site; the SKILL.md program and the docs'
+        # complete programs must compile against this checkout.
+        run: |
+          python3 docs-site/scripts/build-skill.py --check
+          bash docs-site/scripts/check-examples.sh
 
   msrv:
     # The oldest Rust that `rust-version` in Cargo.toml promises (egui 0.37 needs 1.95).
