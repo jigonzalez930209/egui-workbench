@@ -6,19 +6,53 @@ use egui::{Align2, Color32, LayerId, Order, Painter, Pos2, Rect, Sense, Shape, S
 
 use super::axis::{Transform, format_readout};
 use super::legend::LegendLayout;
-use super::{ExportFormat, Plot, PlotState, PlotTool};
+use super::{ExportFormat, Plot, PlotState, PlotTool, YAxis};
 use crate::Icons;
 
-/// Toggle series from legend rows. Returns the legend rectangle (blocks hover).
-pub(super) fn legend(ui: &mut Ui, plot: &Plot<'_>, legend: &LegendLayout, state: &mut PlotState) -> Rect {
+/// Toggle series from legend rows and move the legend by dragging it. Returns the
+/// legend rectangle (blocks hover).
+pub(super) fn legend(ui: &mut Ui, plot: &Plot<'_>, legend: &LegendLayout, frame: Rect, state: &mut PlotState) -> Rect {
+    // Under the rows: rows take clicks, this takes drags (egui hit-tests the two apart).
+    let handle = ui.interact(legend.rect, plot.id.with("legend_drag"), Sense::drag());
+    let mut over = handle.hovered();
+    if handle.dragged() {
+        let room = (frame.size() - legend.rect.size()).max(vec2(1.0, 1.0));
+        let min = legend.rect.min + handle.drag_delta() - frame.min;
+        state.set_legend_position(Some([min.x / room.x, min.y / room.y]));
+        ui.ctx().request_repaint();
+    }
+    let painter = ui.painter_at(frame);
+    let visuals = ui.visuals();
     for row in &legend.rows {
         let name = &plot.series[row.series].name;
         let response = ui.interact(row.rect, plot.id.with(("legend", row.series)), Sense::click());
+        if response.hovered() && !handle.dragged() {
+            over = true;
+            // A soft shade and outline mark the row under the pointer.
+            let shade = visuals.text_color().gamma_multiply(0.08);
+            painter.rect(
+                row.rect.shrink2(vec2(1.0, 0.5)),
+                crate::style::get(ui.ctx()).inner(),
+                shade,
+                Stroke::new(1.0, visuals.text_color().gamma_multiply(0.18)),
+                StrokeKind::Inside,
+            );
+        }
         if response.clicked() {
             let hidden = state.is_hidden(name);
             state.set_hidden(name, !hidden);
         }
-        response.on_hover_text(if row.hidden { "Show series" } else { "Hide series" });
+        response.on_hover_text(if row.hidden {
+            "Show series (drag to move the legend)"
+        } else {
+            "Hide series (drag to move the legend)"
+        });
+    }
+    // An ordinary pointer over the legend, a closed hand while moving it.
+    if handle.dragged() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    } else if over {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
     }
     legend.rect
 }
@@ -134,8 +168,12 @@ pub(super) fn toolbar(
         if response.clicked() {
             match (*icon, tool) {
                 (_, Some(tool)) => state.tool = *tool,
-                ("lucide-zoom-in", _) => super::interact::zoom_at(state, transform, frame.center(), 1.25, true, true),
-                ("lucide-zoom-out", _) => super::interact::zoom_at(state, transform, frame.center(), 0.8, true, true),
+                ("lucide-zoom-in", _) => {
+                    super::interact::zoom_at(state, transform, frame.center(), 1.25, super::interact::ZoomAxes::ALL);
+                }
+                ("lucide-zoom-out", _) => {
+                    super::interact::zoom_at(state, transform, frame.center(), 0.8, super::interact::ZoomAxes::ALL);
+                }
                 ("lucide-settings-2", _) => output.settings = true,
                 ("lucide-download", _) => state.export_menu = !state.export_menu,
                 _ => state.reset_view(),
@@ -248,6 +286,7 @@ pub(super) fn highlight(
     color: Color32,
     fill: Color32,
     guide: Option<Color32>,
+    right_axis: bool,
 ) {
     let x = painter.round_to_pixel_center(position.x);
     let y = painter.round_to_pixel_center(position.y);
@@ -259,18 +298,22 @@ pub(super) fn highlight(
             3.0,
             3.0,
         ));
-        painter.extend(Shape::dashed_line(
-            &[pos2(frame.left(), y), pos2(x, y)],
-            stroke,
-            3.0,
-            3.0,
-        ));
+        let edge = if right_axis { frame.right() } else { frame.left() };
+        painter.extend(Shape::dashed_line(&[pos2(edge, y), pos2(x, y)], stroke, 3.0, 3.0));
     }
     painter.circle(pos2(x, y), 5.0, fill, Stroke::new(2.0, color));
 }
 
 /// The popup next to the hovered point: series name, then x and y.
-pub(super) fn tooltip(ui: &Ui, plot: &Plot<'_>, name: &str, color: Color32, point: [f64; 2], anchor: Pos2) {
+pub(super) fn tooltip(
+    ui: &Ui,
+    plot: &Plot<'_>,
+    name: &str,
+    color: Color32,
+    point: [f64; 2],
+    anchor: Pos2,
+    axis: YAxis,
+) {
     const PAD: f32 = 8.0;
     let visuals = ui.visuals();
     let painter = ui
@@ -281,7 +324,10 @@ pub(super) fn tooltip(ui: &Ui, plot: &Plot<'_>, name: &str, color: Color32, poin
     };
     let title = label(name.to_owned(), 12.0, visuals.text_color());
     let x_name = plot.config.x.label.clone().unwrap_or_else(|| "x".to_owned());
-    let y_name = plot.config.y.label.clone().unwrap_or_else(|| "y".to_owned());
+    let y_name = match axis {
+        YAxis::Left => plot.config.y.label.clone().unwrap_or_else(|| "y".to_owned()),
+        YAxis::Right => plot.config.y2.label.clone().unwrap_or_else(|| "y₂".to_owned()),
+    };
     let rows = [
         (
             label(x_name, 11.5, visuals.weak_text_color()),
