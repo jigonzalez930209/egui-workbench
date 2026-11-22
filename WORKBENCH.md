@@ -73,7 +73,7 @@ Applications add one dependency; egui and eframe come from crates.io and are re-
 
 ```toml
 [dependencies]
-egui-workbench = "0.1"
+egui-workbench = "0.2"
 ```
 
 egui 0.37's API differs from older egui releases in a few places you will meet:
