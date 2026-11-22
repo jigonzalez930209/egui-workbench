@@ -35,15 +35,18 @@ and `.x_scale(...)` edit the config afterwards, so call `.config` first.
 | Field | Default | Controls |
 |---|---|---|
 | `title` | `None` | Title above the data area |
-| `x.label`, `y.label` | `None` | Axis titles |
+| `x.label`, `y.label`, `y2.label` | `None` | Axis titles |
 | `title_size` | 14.0 | Title points |
-| `label_size` | 12.0 | Axis title points |
+| `title_color` | `None` | Title color; `colors.text` or the theme when `None` |
+| `title_align` | `Center` | `TitleAlign::{Left, Center, Right}` over the data area |
+| `label_size` | 12.0 | Axis title points (each axis can override it) |
 | `tick_size` | 11.0 | Tick label points |
 | `legend_size` | 11.5 | Legend points |
 
 ## Axes
 
-Each axis is an `AxisConfig`:
+Each axis is an `AxisConfig`: `x`, `y` (left), and `y2` (right; shown when a series
+uses `YAxis::Right`, grid off by default):
 
 | Field | Default | Controls |
 |---|---|---|
@@ -56,8 +59,12 @@ Each axis is an `AxisConfig`:
 | `grid_minor` | `true` | Grid at minor ticks |
 | `decimals` | `None` | Tick label decimals |
 | `tick_labels` | `true` | Draw labels |
+| `label_size` | `None` | This axis title's points; `PlotConfig::label_size` when `None` |
+| `label_color` | `None` | This axis title's color |
+| `tick_color` | `None` | Tick labels and marks (color the right axis like its series) |
 
-`Plot::x_limits(min, max)` and `y_limits` are shorthands for the limits.
+`Plot::x_limits(min, max)`, `y_limits`, and `y2_limits` are shorthands for the limits;
+`y2_label` and `y2_scale` set up the right axis.
 
 ## Lines and chrome
 
@@ -106,10 +113,13 @@ style.line_style = Some(LineStyle::Dashed);
 style.marker = Some(Marker::Ring);
 style.marker_size = Some(4.0);
 style.fill_opacity = Some(0.2);
+style.smoothing = Some(Smoothing::Spline);
+style.y_axis = Some(YAxis::Right);
 ```
 
 `series_style(name)` reads without creating; `series_style_mut(name)` creates an empty
-override when missing. Styles are matched by series name.
+override when missing. Styles are matched by series name; `SeriesStyle::is_empty()` tells
+a dialog which overrides it can drop.
 
 ## Sanitize
 
