@@ -5,7 +5,7 @@ license: MIT OR Apache-2.0
 compatibility: Rust 1.95+ (edition 2024) with cargo; Linux needs the usual winit/OpenGL development packages.
 metadata:
   crate: egui-workbench
-  version: "0.1"
+  version: "0.2"
   repository: https://github.com/jigonzalez930209/egui-workbench
   docs: https://jigonzalez930209.github.io/egui-workbench/
 ---
@@ -23,7 +23,7 @@ Add the crate and use its re-exports so the project has exactly one copy of egui
 
 ```toml
 [dependencies]
-egui-workbench = "0.1"
+egui-workbench = "0.2"
 ```
 
 ```rust
