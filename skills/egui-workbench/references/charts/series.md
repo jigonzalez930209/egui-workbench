@@ -23,6 +23,7 @@ Plot::new("series")
 | Constructor | Default drawing |
 |---|---|
 | `Series::line(name, data)` | 1.5 pt polyline through the points |
+| `Series::spline(name, data)` | A line drawn as a smooth spline through the points |
 | `Series::area(name, data)` | Line filled down to `y = 0` at 18 % opacity |
 | `Series::step(name, data)` | Staircase: each value holds until the next x |
 | `Series::scatter(name, data)` | Unconnected markers, 3 pt radius circles |
@@ -47,9 +48,38 @@ return `Series<'static>` because they own the sampled points.
 | `.bar_width(f64)` | bars | Bar width in data units |
 | `.base(f64)` | bars | Where bars start (default 0) |
 | `.y_errors(&[f64])` | line, scatter, bars | Symmetric ±error whiskers |
+| `.smooth(Smoothing)` | lines, areas | `None`, `Spline` (centripetal Catmull–Rom), or `Monotone` (no overshoot) |
+| `.y_axis(YAxis)` | all | `Left` (default) or `Right`: measure the series on the right y axis |
 | `.hide_from_legend()` | all | Draw the series without a legend row |
 
 `LineStyle` and `Marker` are re-exported from `components::plot`.
+
+## Smoothing
+
+`Smoothing::Spline` passes a centripetal Catmull–Rom spline through every point: no
+cusps or loops, any point order. `Smoothing::Monotone` (Fritsch–Carlson) never overshoots
+between two points, so a peak in the curve is a peak in the data; it needs increasing x
+and falls back to `Spline` otherwise. The curve is built in screen space, so it is smooth
+on log axes and the SVG matches the screen. Markers and hover stay on the real points,
+step lines stay square, and lines denser than one point per 2 pt are drawn straight.
+
+```rust
+Series::line("temperature", &monthly).smooth(Smoothing::Monotone).marker(Marker::Circle)
+```
+
+## Two y axes
+
+```rust
+Plot::new("climate")
+    .y_label("Temperature (°C)")
+    .y2_label("Rainfall (mm)")
+    .series(Series::bars("rainfall", &rain).y_axis(YAxis::Right))
+    .series(Series::spline("temperature", &temperature))
+```
+
+The right axis appears as soon as one series uses it, with its own range, scale, ticks,
+and title (`PlotConfig::y2`). The x range covers both. A settings dialog can move a series
+with `SeriesStyle::y_axis`.
 
 ## Markers
 
