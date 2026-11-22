@@ -8,6 +8,8 @@
 |---|---|
 | Drag with the pan tool | Move the view |
 | Wheel | Zoom around the cursor; Shift = x only, Alt = y only |
+| Alt + wheel with two y axes | Left half of the frame: the left y axis; right half: the right y axis |
+| Wheel over an axis's ticks | Zoom that axis alone (outside the frame, inside the plot; corners do nothing) |
 | Right-drag | Zoom to a box |
 | Drag with the zoom tool | Zoom to a box; a thin box zooms one axis |
 | Drag with the select tool | Select an area |
@@ -17,7 +19,20 @@
 | Hover | Ring, dashed guides, and a popup with series/x/y |
 
 The wheel is consumed by the plot, so a surrounding scroll area stays put while the
-cursor is over the frame.
+cursor is over the frame or an axis.
+
+## Cursors
+
+The cursor says what a gesture will do:
+
+| Where | Cursor |
+|---|---|
+| Over the data area | Crosshair, whatever the tool |
+| Pressing or dragging to pan | Closed hand |
+| Drawing a zoom or selection box | Crosshair |
+| Over an axis's tick labels | Horizontal (x) or vertical (y) resize arrows: the wheel zooms that axis |
+| Over the legend or the toolbar | The ordinary pointer; the legend row under it is shaded |
+| Moving the legend | Closed hand |
 
 ## Tools
 
@@ -54,6 +69,7 @@ pub struct PlotHover {
     pub series: String,
     pub index: usize,
     pub point: [f64; 2],
+    pub axis: YAxis, // the y axis the series is measured on
 }
 ```
 
@@ -71,6 +87,7 @@ pub struct PlotResponse {
     pub clicked: Option<PlotHover>,
     pub selection_changed: bool,
     pub view: Bounds,
+    pub y2_view: Option<[f64; 2]>, // the right y axis, when shown
     pub frame: egui::Rect,
     pub settings_requested: bool,
     pub export_requested: Option<ExportFormat>,
@@ -78,7 +95,8 @@ pub struct PlotResponse {
 }
 ```
 
-`screen_pos(point)` and `data_pos(pos)` convert for overlays. `view` is the visible range
+`screen_pos(point)` and `data_pos(pos)` convert for overlays (left y axis);
+`screen_pos_on(YAxis::Right, point)` places a point measured on the right axis. `view` is the visible range
 in data coordinates.
 
 ## Annotations
@@ -109,6 +127,11 @@ Clicking a legend row toggles that series. `PlotState::is_hidden(name)` and
 `set_hidden(name, hidden)` read and write the state; the application can persist it.
 `PlotConfig::legend` chooses the corner or hides the legend; `legend_frame` controls its
 background.
+
+Dragging the legend moves it anywhere inside the frame. The position lives in the
+`PlotState` as fractions of the free room (`legend_position()`), so it holds while the
+application runs, survives resizes, and is used by exports too.
+`set_legend_position(None)` returns the legend to its configured corner.
 
 ## Focus and keyboard
 
