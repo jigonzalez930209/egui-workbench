@@ -4,7 +4,7 @@ use egui::{Color32, Pos2, Rect, pos2, vec2};
 
 use super::axis::Transform;
 use super::scene::{Dash, Measure, Prim};
-use super::series::{Kind, LineStyle, Marker, Series};
+use super::series::{Kind, LineStyle, Marker, Series, Smoothing};
 
 /// Lines with more points than this many per horizontal pixel are reduced to the
 /// first/min/max/last point of every pixel column (M4), which is visually lossless.
@@ -76,6 +76,8 @@ pub(super) struct Look {
     pub marker: Option<Marker>,
     pub radius: f32,
     pub fill_opacity: f32,
+    /// How lines pass through their points.
+    pub smoothing: Smoothing,
 }
 
 fn dash(style: LineStyle, width: f32) -> Dash {
@@ -100,7 +102,9 @@ pub(super) fn series_prims(
     let color = look.color;
     match series.kind {
         Kind::Line { fill_to, step, .. } => {
+            let smoothing = if step { Smoothing::None } else { look.smoothing };
             for run in runs(transform, data, indices, step) {
+                let run = super::smooth::smooth(run, smoothing, frame.width());
                 if let Some(base) = fill_to {
                     // A base a log axis cannot show (≤ 0) fills to the bottom edge.
                     let base_y = transform.to_screen([data[indices[0]][0], base]).y;
