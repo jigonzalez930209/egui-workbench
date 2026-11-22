@@ -1,6 +1,6 @@
 {
   "name": "egui-workbench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build native Rust desktop apps with the egui-workbench crate: title bar, menus, tabs, explorer, command palette, dialogs, toasts, themes, and plots.",
   "author": { "name": "jigonzalez930209" },
   "homepage": "https://jigonzalez930209.github.io/egui-workbench/",
