@@ -118,7 +118,7 @@ product seams are `src/model.rs` (`TabData`), `src/content.rs` (the screen), and
 
 ```toml
 [dependencies]
-egui-workbench = "0.1"
+egui-workbench = "0.2"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```
