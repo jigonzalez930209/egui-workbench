@@ -2,11 +2,11 @@
 
 use egui::{Align2, Color32, Pos2, Rect, Visuals, pos2};
 
-use super::axis::{Bounds, Tick, TickRules, Transform, ticks};
-use super::config::PlotConfig;
+use super::axis::{Bounds, SecondAxis, Tick, TickRules, Transform, ticks};
+use super::config::{AxisConfig, PlotConfig, TitleAlign};
 use super::paint::{self, Look};
 use super::scene::{Dash, Measure, Prim, Scene};
-use super::series::{Kind, LineStyle};
+use super::series::{Kind, LineStyle, Smoothing, YAxis};
 use super::{Plot, PlotState, palette};
 
 /// Points between a tick mark and its label.
@@ -50,10 +50,36 @@ impl Colors {
     }
 }
 
-/// Margins from measured text: the y tick labels set the left margin, the x labels the
-/// bottom one, and x ticks are thinned until no two labels are closer than 12 pt.
-pub(super) fn layout(measure: &Measure<'_>, config: &PlotConfig, rect: Rect, view: Bounds) -> Layout {
-    let label_height = measure.text("Ag", config.label_size).1;
+/// The size of an axis title.
+pub(super) fn label_size(config: &PlotConfig, axis: &AxisConfig) -> f32 {
+    axis.label_size.unwrap_or(config.label_size)
+}
+
+/// Room beside the frame for a vertical axis: tick marks, tick labels, and title.
+fn vertical_margin(measure: &Measure<'_>, config: &PlotConfig, axis: &AxisConfig, ticks: &[Tick]) -> f32 {
+    let labels = if axis.tick_labels {
+        widest(measure, ticks, config.tick_size) + TICK_GAP
+    } else {
+        0.0
+    };
+    let title = if axis.label.is_some() {
+        measure.text("Ag", label_size(config, axis)).1 + 6.0
+    } else {
+        0.0
+    };
+    4.0 + labels + config.tick_length + title
+}
+
+/// Margins from measured text: the y tick labels set the left margin (and the right
+/// axis the right one), the x labels the bottom one, and x ticks are thinned until no
+/// two labels are closer than 12 pt.
+pub(super) fn layout(
+    measure: &Measure<'_>,
+    config: &PlotConfig,
+    rect: Rect,
+    view: Bounds,
+    y2: Option<SecondAxis>,
+) -> Layout {
     let tick_height = measure.text("0", config.tick_size).1;
     let mut top = 8.0;
     if let Some(title) = &config.title {
@@ -64,7 +90,7 @@ pub(super) fn layout(measure: &Measure<'_>, config: &PlotConfig, rect: Rect, vie
         bottom += TICK_GAP + tick_height;
     }
     if config.x.label.is_some() {
-        bottom += label_height + 4.0;
+        bottom += measure.text("Ag", label_size(config, &config.x)).1 + 4.0;
     }
     let frame_height = (rect.height() - top - bottom).max(40.0);
     let y_ticks = ticks(
@@ -75,17 +101,20 @@ pub(super) fn layout(measure: &Measure<'_>, config: &PlotConfig, rect: Rect, vie
         36.0,
         TickRules::of(&config.y),
     );
-    let y_width = if config.y.tick_labels {
-        widest(measure, &y_ticks, config.tick_size) + TICK_GAP
-    } else {
-        0.0
-    };
-    let mut left = 4.0 + y_width + config.tick_length;
-    if config.y.label.is_some() {
-        left += label_height + 6.0;
-    }
+    let left = vertical_margin(measure, config, &config.y, &y_ticks);
+    let y2_margin = y2.map(|axis| {
+        let y2_ticks = ticks(
+            axis.scale,
+            axis.min,
+            axis.max,
+            frame_height,
+            36.0,
+            TickRules::of(&config.y2),
+        );
+        vertical_margin(measure, config, &config.y2, &y2_ticks)
+    });
 
-    let frame_width = (rect.width() - left - 12.0).max(40.0);
+    let frame_width = (rect.width() - left - y2_margin.unwrap_or(12.0)).max(40.0);
     let mut spacing = 64.0;
     let mut x_ticks = Vec::new();
     for _ in 0..8 {
@@ -117,7 +146,7 @@ pub(super) fn layout(measure: &Measure<'_>, config: &PlotConfig, rect: Rect, vie
         .rev()
         .find(|tick| tick.major)
         .map_or(0.0, |tick| measure.text(&tick.label, config.tick_size).0);
-    let right = (last_width * 0.5 + 2.0).max(10.0);
+    let right = (last_width * 0.5 + 2.0).max(y2_margin.unwrap_or(10.0));
 
     let frame = Rect::from_min_max(
         pos2(measure.snap(rect.left() + left), measure.snap(rect.top() + top)),
@@ -147,12 +176,13 @@ pub(super) fn look(plot: &Plot<'_>, index: usize, theme: &crate::theme::Theme) -
         .and_then(|style| style.color)
         .or(series.color)
         .unwrap_or_else(|| palette(theme, index));
-    let (width, line_style, marker, radius, fill) = match series.kind {
+    let (width, line_style, marker, radius, fill, smoothing) = match series.kind {
         Kind::Line {
             width,
             style,
             markers,
             fill_to,
+            smoothing,
             ..
         } => (
             width,
@@ -160,10 +190,11 @@ pub(super) fn look(plot: &Plot<'_>, index: usize, theme: &crate::theme::Theme) -
             markers,
             width + 1.5,
             if fill_to.is_some() { 0.18 } else { 1.0 },
+            smoothing,
         ),
-        Kind::Scatter { marker, radius } => (1.5, LineStyle::Solid, Some(marker), radius, 1.0),
-        Kind::Bars { .. } => (1.0, LineStyle::Solid, None, 3.0, 0.85),
-        Kind::HLine(_) | Kind::VLine(_) => (1.0, LineStyle::Solid, None, 3.0, 1.0),
+        Kind::Scatter { marker, radius } => (1.5, LineStyle::Solid, Some(marker), radius, 1.0, Smoothing::None),
+        Kind::Bars { .. } => (1.0, LineStyle::Solid, None, 3.0, 0.85, Smoothing::None),
+        Kind::HLine(_) | Kind::VLine(_) => (1.0, LineStyle::Solid, None, 3.0, 1.0, Smoothing::None),
     };
     Look {
         color,
@@ -172,6 +203,7 @@ pub(super) fn look(plot: &Plot<'_>, index: usize, theme: &crate::theme::Theme) -
         marker: style.and_then(|style| style.marker).or(marker),
         radius: style.and_then(|style| style.marker_size).unwrap_or(radius) * config.marker_scale,
         fill_opacity: style.and_then(|style| style.fill_opacity).unwrap_or(fill),
+        smoothing: style.and_then(|style| style.smoothing).unwrap_or(smoothing),
     }
 }
 
@@ -217,8 +249,9 @@ pub(super) fn build_scene(
             continue;
         }
         let look = look(plot, index, theme);
-        let indices = paint::visible_indices(transform, series, series.sorted_x());
-        paint::series_prims(&mut scene.data, measure, transform, series, &look, &indices);
+        let transform = transform.for_axis(plot.axis_of(series));
+        let indices = paint::visible_indices(&transform, series, series.sorted_x());
+        paint::series_prims(&mut scene.data, measure, &transform, series, &look, &indices);
     }
     if let Some(selection) = state.selection {
         let a = transform.to_screen([selection.min_x, selection.min_y]);
@@ -241,7 +274,7 @@ pub(super) fn build_scene(
             stroke: Some((config.frame_width, colors.frame)),
         });
     }
-    titles(&mut scene, measure, config, layout, colors);
+    titles(&mut scene, measure, config, layout, colors, transform.y2.is_some());
     if let Some(legend) = super::legend::layout(measure, plot, frame, state, !exporting) {
         super::legend::prims(&mut scene, measure, plot, &legend, colors, theme);
     }
@@ -266,28 +299,8 @@ fn axis_prims(
         layout.x_spacing,
         TickRules::of(&config.x),
     );
-    let y_ticks = ticks(
-        config.y.scale,
-        view.min_y,
-        view.max_y,
-        frame.height(),
-        36.0,
-        TickRules::of(&config.y),
-    );
-    let line = |points: Vec<Pos2>, width: f32, color: Color32| Prim::Line {
-        points,
-        width,
-        color,
-        dash: Dash::Solid,
-    };
-    let grid = |major: bool| {
-        let opacity = if major {
-            config.grid_major_opacity
-        } else {
-            config.grid_minor_opacity
-        };
-        colors.grid.gamma_multiply(opacity)
-    };
+    let mark = config.x.tick_color.unwrap_or(colors.frame);
+    let text = config.x.tick_color.unwrap_or(colors.tick_text);
     for tick in &x_ticks {
         let x = measure.center(transform.scaled_to_screen(tick.value, view.min_y).x);
         if x < frame.left() - 0.01 || x > frame.right() + 0.01 {
@@ -302,19 +315,15 @@ fn axis_prims(
             scene.under.push(line(
                 vec![pos2(x, frame.top()), pos2(x, frame.bottom())],
                 config.grid_width,
-                grid(tick.major),
+                grid_color(config, colors, tick.major),
             ));
         }
-        let length = if tick.major {
-            config.tick_length
-        } else {
-            config.tick_length * 0.5
-        };
+        let length = tick_length(config, tick.major);
         if length > 0.0 {
             scene.over.push(line(
                 vec![pos2(x, frame.bottom()), pos2(x, frame.bottom() + length)],
                 1.0,
-                colors.frame,
+                mark,
             ));
         }
         if tick.major && config.x.tick_labels && !tick.label.is_empty() {
@@ -325,67 +334,132 @@ fn axis_prims(
             let at = pos2(center, frame.bottom() + config.tick_length + TICK_GAP);
             scene
                 .over
-                .push(measure.label(at, Align2::CENTER_TOP, &tick.label, config.tick_size, colors.tick_text));
+                .push(measure.label(at, Align2::CENTER_TOP, &tick.label, config.tick_size, text));
         }
     }
+    vertical_axis(scene, measure, config, &config.y, frame, transform, YAxis::Left, colors);
+    if transform.y2.is_some() {
+        let right = transform.for_axis(YAxis::Right);
+        vertical_axis(scene, measure, config, &config.y2, frame, &right, YAxis::Right, colors);
+    }
+}
+
+fn line(points: Vec<Pos2>, width: f32, color: Color32) -> Prim {
+    Prim::Line {
+        points,
+        width,
+        color,
+        dash: Dash::Solid,
+    }
+}
+
+fn grid_color(config: &PlotConfig, colors: &Colors, major: bool) -> Color32 {
+    let opacity = if major {
+        config.grid_major_opacity
+    } else {
+        config.grid_minor_opacity
+    };
+    colors.grid.gamma_multiply(opacity)
+}
+
+fn tick_length(config: &PlotConfig, major: bool) -> f32 {
+    if major {
+        config.tick_length
+    } else {
+        config.tick_length * 0.5
+    }
+}
+
+/// Grid, tick marks, and tick labels of a y axis on either side of the frame.
+/// `transform` is already the transform of that axis.
+#[allow(clippy::too_many_arguments)]
+fn vertical_axis(
+    scene: &mut Scene,
+    measure: &Measure<'_>,
+    config: &PlotConfig,
+    axis: &AxisConfig,
+    frame: Rect,
+    transform: &Transform,
+    side: YAxis,
+    colors: &Colors,
+) {
+    let view = transform.view;
+    let y_ticks = ticks(
+        transform.y_scale,
+        view.min_y,
+        view.max_y,
+        frame.height(),
+        36.0,
+        TickRules::of(axis),
+    );
+    let mark = axis.tick_color.unwrap_or(colors.frame);
+    let text = axis.tick_color.unwrap_or(colors.tick_text);
+    let (edge, outward) = match side {
+        YAxis::Left => (frame.left(), -1.0),
+        YAxis::Right => (frame.right(), 1.0),
+    };
     for tick in &y_ticks {
         let y = measure.center(transform.scaled_to_screen(view.min_x, tick.value).y);
         if y < frame.top() - 0.01 || y > frame.bottom() + 0.01 {
             continue;
         }
-        let show_grid = if tick.major {
-            config.y.grid_major
-        } else {
-            config.y.grid_minor
-        };
+        let show_grid = if tick.major { axis.grid_major } else { axis.grid_minor };
         if show_grid {
             scene.under.push(line(
                 vec![pos2(frame.left(), y), pos2(frame.right(), y)],
                 config.grid_width,
-                grid(tick.major),
+                grid_color(config, colors, tick.major),
             ));
         }
-        let length = if tick.major {
-            config.tick_length
-        } else {
-            config.tick_length * 0.5
-        };
+        let length = tick_length(config, tick.major);
         if length > 0.0 {
-            scene.over.push(line(
-                vec![pos2(frame.left() - length, y), pos2(frame.left(), y)],
-                1.0,
-                colors.frame,
-            ));
+            scene
+                .over
+                .push(line(vec![pos2(edge + outward * length, y), pos2(edge, y)], 1.0, mark));
         }
-        if tick.major && config.y.tick_labels && !tick.label.is_empty() {
-            let at = pos2(frame.left() - config.tick_length - TICK_GAP, y);
-            scene.over.push(measure.label(
-                at,
-                Align2::RIGHT_CENTER,
-                &tick.label,
-                config.tick_size,
-                colors.tick_text,
-            ));
+        if tick.major && axis.tick_labels && !tick.label.is_empty() {
+            let at = pos2(edge + outward * (config.tick_length + TICK_GAP), y);
+            let anchor = match side {
+                YAxis::Left => Align2::RIGHT_CENTER,
+                YAxis::Right => Align2::LEFT_CENTER,
+            };
+            scene
+                .over
+                .push(measure.label(at, anchor, &tick.label, config.tick_size, text));
         }
     }
 }
 
-fn titles(scene: &mut Scene, measure: &Measure<'_>, config: &PlotConfig, layout: &Layout, colors: &Colors) {
+fn titles(
+    scene: &mut Scene,
+    measure: &Measure<'_>,
+    config: &PlotConfig,
+    layout: &Layout,
+    colors: &Colors,
+    right_axis: bool,
+) {
     let frame = layout.frame;
     if let Some(title) = &config.title {
-        let at = pos2(frame.center().x, layout.rect.top() + 6.0);
+        let color = config.title_color.unwrap_or(colors.text);
+        let (at, anchor) = match config.title_align {
+            TitleAlign::Left => (pos2(frame.left(), layout.rect.top() + 6.0), Align2::LEFT_TOP),
+            TitleAlign::Center => (pos2(frame.center().x, layout.rect.top() + 6.0), Align2::CENTER_TOP),
+            TitleAlign::Right => (pos2(frame.right(), layout.rect.top() + 6.0), Align2::RIGHT_TOP),
+        };
         scene
             .over
-            .push(measure.label(at, Align2::CENTER_TOP, title, config.title_size, colors.text));
+            .push(measure.label(at, anchor, title, config.title_size, color));
     }
     if let Some(label) = &config.x.label {
         let at = pos2(frame.center().x, layout.rect.bottom() - 2.0);
+        let color = config.x.label_color.unwrap_or(colors.text);
         scene
             .over
-            .push(measure.label(at, Align2::CENTER_BOTTOM, label, config.label_size, colors.text));
+            .push(measure.label(at, Align2::CENTER_BOTTOM, label, label_size(config, &config.x), color));
     }
     if let Some(label) = &config.y.label {
-        let (width, _, baseline) = measure.text(label, config.label_size);
+        let size = label_size(config, &config.y);
+        let (width, _, baseline) = measure.text(label, size);
         // Rotated −90° around its top-left corner: the text runs upward from `pos`.
         scene.over.push(Prim::Text {
             pos: pos2(
@@ -393,10 +467,27 @@ fn titles(scene: &mut Scene, measure: &Measure<'_>, config: &PlotConfig, layout:
                 measure.snap(frame.center().y + width * 0.5),
             ),
             text: label.clone(),
-            size: config.label_size,
-            color: colors.text,
+            size,
+            color: config.y.label_color.unwrap_or(colors.text),
             baseline,
             angle: -std::f32::consts::FRAC_PI_2,
+        });
+    }
+    if right_axis && let Some(label) = &config.y2.label {
+        let size = label_size(config, &config.y2);
+        let (width, _, baseline) = measure.text(label, size);
+        // Rotated +90° around its top-left corner: the text runs downward and its
+        // glyphs extend to the left of `pos`, toward the frame.
+        scene.over.push(Prim::Text {
+            pos: pos2(
+                measure.snap(layout.rect.right() - 2.0),
+                measure.snap(frame.center().y - width * 0.5),
+            ),
+            text: label.clone(),
+            size,
+            color: config.y2.label_color.unwrap_or(colors.text),
+            baseline,
+            angle: std::f32::consts::FRAC_PI_2,
         });
     }
 }
