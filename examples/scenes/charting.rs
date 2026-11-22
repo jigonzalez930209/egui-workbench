@@ -338,3 +338,5 @@ fn group(count: usize) -> String {
     }
     out
 }
+
+pub use super::chart_types::NewCharts;

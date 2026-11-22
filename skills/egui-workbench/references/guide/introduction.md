@@ -22,8 +22,11 @@ of chrome and nothing of their domain.
   text areas, switches, checkboxes, selects, steppers, segmented controls, labels,
   badges, banners, cards, separators, menus, popovers, tab strips, trees, palettes,
   dialogs, toasts, and an icon grid.
-- **Charts.** Interactive 2D plots with series, axes, fits, selection, live windows, and
-  SVG/PNG export.
+- **Charts.** Interactive 2D plots with series, axes, fits, selection, live windows,
+  SVG/PNG export, pie/donut, candlesticks, heatmaps, radar, gauges, waterfalls, 13
+  legend hover animations, and a streaming direction arrow.
+- **Data viewer.** Excel workbooks with sheet tabs, CSV/TSV, and virtualized plain-text
+  reading through `components::viewer::FileViewer`.
 - **A runtime.** `ThemeState`, `Documents<T>`, `Keymap<C>`, `CloseGuard`, and
   `show_workbench` implement the plumbing every workbench repeats.
 - **Assets.** 2,410 Lucide icons and the VS Code Material file/folder icon set, resolved
@@ -35,8 +38,9 @@ of chrome and nothing of their domain.
 
 - **Not a framework.** There is no virtual DOM, no retained widget tree, and no hidden
   component state. egui is immediate mode; components receive state every frame.
-- **Not an editor.** The crate has no file format, parser, syntax highlighter, or
-  renderer. The starter's editor is a `TextEdit` and its preview is plain text.
+- **Not an editor.** The crate has no editor format, syntax highlighter, or document
+  renderer. The starter's editor is a `TextEdit` and its preview is plain text. The data
+  viewer reads tabular files, but it is a viewer, not a spreadsheet editor.
 - **Not a storage layer.** `app` has no I/O and picks no config format. The template
   shows one settings implementation you can replace.
 - **Not opinionated about commands.** `Command` is your enum. `PaletteItem<T>`,

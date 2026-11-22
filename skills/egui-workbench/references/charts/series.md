@@ -1,6 +1,6 @@
 # Series
 
-> Lines, areas, steps, scatter, bars, functions, reference lines, error bars, and markers. Live page: <https://jigonzalez930209.github.io/egui-workbench/charts/series.html>
+> Lines, areas, steps, scatter, bars, candlesticks, heatmaps, waterfalls, pie slices, radar polygons, gauges, functions, reference lines, error bars, and markers. Live page: <https://jigonzalez930209.github.io/egui-workbench/charts/series.html>
 
 A `Series<'a>` is one named data set. Data is borrowed when possible (`&[[f64; 2]]`), so
 a million-point buffer is not copied every frame. Non-finite points break a line into
@@ -31,6 +31,12 @@ Plot::new("series")
 | `Series::function(name, range, samples, f)` | `f(x)` sampled `samples` times over the range |
 | `Series::hline(name, y)` | Horizontal reference line across the plot |
 | `Series::vline(name, x)` | Vertical reference line across the plot |
+| `Series::pie(name, value)` | One slice of a pie/donut; add one series per slice |
+| `Series::candles(name, rows)` | OHLC candles from `[x, open, high, low, close]` rows |
+| `Series::heatmap(name, cells)` | Heatmap from `[x, y, value]` cells |
+| `Series::radar(name, values)` | Closed polygon over the axes in `RadarConfig::labels` |
+| `Series::gauge(name, value, range)` | One gauge arc with its own range |
+| `Series::waterfall(name, data)` | Cumulative bars from signed `[x, change]` values |
 
 `data` accepts `&[[f64; 2]]`, `Vec<[f64; 2]>`, or any `Into<Cow<[[f64; 2]]>>`. Functions
 return `Series<'static>` because they own the sampled points.
@@ -45,7 +51,7 @@ return `Series<'static>` because they own the sampled points.
 | `.fill_to(f64)` | lines | Fill between the curve and a base |
 | `.marker(Marker)` | scatter and line vertices | Marker shape |
 | `.radius(f32)` | scatter | Marker radius, minimum 1 |
-| `.bar_width(f64)` | bars | Bar width in data units |
+| `.bar_width(f64)` | bars, candles, waterfalls | Bar/body width in data units |
 | `.base(f64)` | bars | Where bars start (default 0) |
 | `.y_errors(&[f64])` | line, scatter, bars | Symmetric ±error whiskers |
 | `.smooth(Smoothing)` | lines, areas | `None`, `Spline` (centripetal Catmull–Rom), or `Monotone` (no overshoot) |
@@ -116,6 +122,11 @@ you call `.hide_from_legend()`.
 The legend is drawn inside the frame (top-left by default). Clicking a row hides or shows
 the series; hidden names are stored in `PlotState`, so the state survives frames. Long
 names elide instead of colliding with the toolbar.
+
+Hovering a row can play a configurable animation (blink, marching dashes, wiggle, glow,
+sweep, marker motion, …); see [Legend animation](../charts/animations.md). The setting lives in
+`PlotConfig::legend_hover` and defaults to a smooth blink with linear easing. Reduced
+motion disables the effects.
 
 ## Data rules
 

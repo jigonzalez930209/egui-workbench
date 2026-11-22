@@ -38,6 +38,8 @@ fn show(&mut self, ui: &mut egui::Ui) {
         .y_label("value")
         .x_window(60.0)
         .include([0.0, 0.0])
+        .direction_arrow(true)
+        .direction_points(5)
         .series(Series::line("sensor", &self.samples))
         .series(Series::hline("limit", 80.0).hide_from_legend())
         .export_button(true)
@@ -136,6 +138,7 @@ Build the same `Plot` (keep the clone) and call `to_svg` / `to_png`. See
 
 - [ ] Sorted x and a bounded buffer.
 - [ ] `x_window` only while the view is automatic.
+- [ ] The direction arrow uses a small trailing sample count, not the whole buffer.
 - [ ] Repaint on new samples, not on a permanent timer.
 - [ ] Fit on selection end, not on every pointer move.
 - [ ] Export from the same `Plot` you render.

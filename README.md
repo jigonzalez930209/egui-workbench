@@ -21,6 +21,11 @@ Every page runs the real library in your browser through WebAssembly.
 - **Runtime:** `ThemeState` (follow system, reduced motion), `Documents` (tab order,
   active document, dirty query), `Keymap` (ordered shortcuts that consume handled keys),
   `CloseGuard` (unsaved-changes prompt), and `show_workbench` (the fixed panel order).
+- **Charts:** `components::plot::Plot` with lines, areas, steps, scatter, bars, error
+  bars, fits, two y axes, log scales, SVG/PNG export, pie/donut, candlesticks, heatmaps,
+  radar, gauges, waterfalls, 13 legend hover animations, and a streaming direction arrow.
+- **Data viewer:** `components::viewer::FileViewer` for Excel workbooks with sheet tabs
+  (XLSX/XLSM/XLS/XLSB/ODS), CSV and TSV, and virtualized plain-text viewing.
 - **Icons:** 2,410 Lucide SVGs (ISC, lucide-static 1.77.0) plus the workbench UI glyphs, resolved by name
   through one tinted texture cache.
 - **Components:** a shadcn-style layer with builders, shared variants, and stateful
@@ -29,9 +34,9 @@ Every page runs the real library in your browser through WebAssembly.
   `StatusBar`, `MenuItem`, `TabStrip`, `CommandPalette`, `Tree`, and dialogs. The
   original function API stays available.
 
-The crate holds the shell, not the content: no file formats, editor, or renderer.
-Components take translated strings and return events; the application owns the state
-and one `Command` enum.
+The crate holds the shell plus reusable content components: charts and a data viewer.
+It ships no editor or document renderer. Components take translated strings and return
+events; the application owns the state and one `Command` enum.
 
 - **Specification:** [`WORKBENCH.md`](WORKBENCH.md) gives every size, color, order, and
   behavior.
@@ -162,7 +167,7 @@ src/
 ├── foundation/     sizes, theme tokens, UI, Lucide and Material icon caches
 ├── chrome/         window, title bar, tab strip, status bar, split view
 ├── widgets/        the function API: buttons, controls, dialogs, palette, settings, tree
-├── components/     builder API, variants, tones, and composite blocks
+├── components/     builder API, variants, tones, charts, file viewer, composite blocks
 └── app/            optional runtime: theme state, documents, keymap, close guard, shell
 templates/app/      starter application copied by `cargo xtask new`
 docs-site/          complete VitePress guide, component reference, charts, and recipes
@@ -178,4 +183,4 @@ Files stay under 500 lines and each layer only depends on the ones before it
 
 MIT OR Apache-2.0. The Material icons in `assets/material-icons` are MIT
 (`assets/material-icons/LICENSE`). The Lucide icons in `assets/lucide-icons` are ISC
-(`assets/lucide-icons/LICENSE`).
+(`assets/lucide-icons/LICENSE`). Workbook parsing uses `calamine` (MIT).

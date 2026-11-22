@@ -9,13 +9,16 @@
 
 #![allow(dead_code)]
 
+mod animations;
 mod board;
+mod chart_types;
 mod charting;
 mod controls;
 mod overlays;
 mod plots;
 mod shell;
 mod showcase;
+mod viewer;
 
 #[allow(dead_code, clippy::all)]
 #[path = "../catalog/main.rs"]
@@ -39,7 +42,7 @@ use egui_workbench::style::{self, Density, WorkbenchStyle};
 use egui_workbench::{Icons, ThemeId};
 
 /// Every scene name, in the order the docs introduce them.
-pub const SCENES: [&str; 22] = [
+pub const SCENES: [&str; 25] = [
     "shell",
     "catalog",
     "components",
@@ -61,7 +64,10 @@ pub const SCENES: [&str; 22] = [
     "plot-series",
     "plot-fits",
     "plot-big",
+    "plot-types",
+    "plot-animations",
     "charts",
+    "viewer",
 ];
 
 /// Every style preset name accepted by `style=`.
@@ -209,7 +215,10 @@ pub fn build(name: &str) -> Box<dyn Scene> {
         "plot-series" => Box::new(charting::SeriesScene::default()),
         "plot-fits" => Box::new(charting::FitsScene::default()),
         "plot-big" => Box::new(charting::BigScene::default()),
+        "plot-types" => Box::new(charting::NewCharts::default()),
+        "plot-animations" => Box::new(animations::AnimationScene::default()),
         "charts" => Box::new(charting::Gallery::default()),
+        "viewer" => Box::new(viewer::ViewerScene::default()),
         _ => Box::new(showcase::Catalog::default()),
     }
 }

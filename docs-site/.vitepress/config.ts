@@ -66,6 +66,7 @@ export default defineConfig({
             { text: 'Navigation', link: '/components/navigation' },
             { text: 'Icons', link: '/components/icons' },
             { text: 'Layout', link: '/components/layout' },
+            { text: 'Data viewer', link: '/components/data-viewer' },
           ],
         },
       ],
@@ -75,6 +76,8 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/charts/overview' },
             { text: 'Series', link: '/charts/series' },
+            { text: 'Chart types', link: '/charts/chart-types' },
+            { text: 'Legend animation', link: '/charts/animations' },
             { text: 'Axes and ticks', link: '/charts/axes-and-ticks' },
             { text: 'Interaction', link: '/charts/interaction' },
             { text: 'Configuration', link: '/charts/configuration' },

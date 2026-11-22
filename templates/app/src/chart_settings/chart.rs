@@ -62,6 +62,9 @@ impl Chart {
                 config.x.label = Some("t (s)".to_owned());
                 config.y.label = Some("Value".to_owned());
                 config.legend = LegendPosition::BottomLeft;
+                // Streaming data: show where the buffer is growing.
+                config.direction.enabled = true;
+                config.direction.points = 5;
             }
             Self::Histogram => {
                 config.title = Some("Histogram".to_owned());

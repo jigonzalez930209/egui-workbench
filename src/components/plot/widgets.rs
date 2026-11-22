@@ -21,22 +21,14 @@ pub(super) fn legend(ui: &mut Ui, plot: &Plot<'_>, legend: &LegendLayout, frame:
         state.set_legend_position(Some([min.x / room.x, min.y / room.y]));
         ui.ctx().request_repaint();
     }
-    let painter = ui.painter_at(frame);
-    let visuals = ui.visuals();
+    let now = ui.input(|input| input.time);
+    let mut hovered = None;
     for row in &legend.rows {
         let name = &plot.series[row.series].name;
         let response = ui.interact(row.rect, plot.id.with(("legend", row.series)), Sense::click());
         if response.hovered() && !handle.dragged() {
             over = true;
-            // A soft shade and outline mark the row under the pointer.
-            let shade = visuals.text_color().gamma_multiply(0.08);
-            painter.rect(
-                row.rect.shrink2(vec2(1.0, 0.5)),
-                crate::style::get(ui.ctx()).inner(),
-                shade,
-                Stroke::new(1.0, visuals.text_color().gamma_multiply(0.18)),
-                StrokeKind::Inside,
-            );
+            hovered = Some(row.series);
         }
         if response.clicked() {
             let hidden = state.is_hidden(name);
@@ -47,6 +39,11 @@ pub(super) fn legend(ui: &mut Ui, plot: &Plot<'_>, legend: &LegendLayout, frame:
         } else {
             "Hide series (drag to move the legend)"
         });
+    }
+    state.set_legend_hover(hovered, now);
+    if hovered.is_some() && plot.config.legend_hover.enabled && crate::theme::motion_enabled(ui.ctx()) {
+        // Only the hovered row animates, and only while the pointer is on it.
+        ui.ctx().request_repaint();
     }
     // An ordinary pointer over the legend, a closed hand while moving it.
     if handle.dragged() {
@@ -75,8 +72,20 @@ pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect) -> Option<Rect> {
     if !plot.config.toolbar {
         return None;
     }
-    let buttons = 6 + usize::from(plot.settings_button) + usize::from(plot.export_button);
-    let groups = if buttons > 6 { 2.0 } else { 1.0 };
+    let tools = if plot.chart_mode() == super::ChartMode::Cartesian {
+        6
+    } else {
+        0
+    };
+    let buttons = tools + usize::from(plot.settings_button) + usize::from(plot.export_button);
+    if buttons == 0 {
+        return None;
+    }
+    let groups = if tools > 0 && (plot.settings_button || plot.export_button) {
+        2.0
+    } else {
+        1.0
+    };
     let width = BUTTON * buttons as f32 + SEPARATOR * groups + 4.0;
     let rect = Rect::from_min_size(
         pos2(frame.right() - 6.0 - width, frame.top() + 6.0),
@@ -98,22 +107,25 @@ pub(super) fn toolbar(
     if !plot.config.toolbar {
         return output;
     }
-    let mut buttons: Vec<(&str, &str, Option<PlotTool>)> = vec![
-        ("lucide-hand", "Pan (drag) · wheel zooms", Some(PlotTool::Pan)),
-        (
-            "lucide-scan-search",
-            "Zoom to box (or right-drag)",
-            Some(PlotTool::Zoom),
-        ),
-        (
-            "lucide-square-dashed-mouse-pointer",
-            "Select area (or Shift-drag)",
-            Some(PlotTool::Select),
-        ),
-        ("lucide-zoom-in", "Zoom in", None),
-        ("lucide-zoom-out", "Zoom out", None),
-        ("lucide-maximize", "Fit data (double-click)", None),
-    ];
+    let mut buttons: Vec<(&str, &str, Option<PlotTool>)> = Vec::new();
+    if plot.chart_mode() == super::ChartMode::Cartesian {
+        buttons.extend([
+            ("lucide-hand", "Pan (drag) · wheel zooms", Some(PlotTool::Pan)),
+            (
+                "lucide-scan-search",
+                "Zoom to box (or right-drag)",
+                Some(PlotTool::Zoom),
+            ),
+            (
+                "lucide-square-dashed-mouse-pointer",
+                "Select area (or Shift-drag)",
+                Some(PlotTool::Select),
+            ),
+            ("lucide-zoom-in", "Zoom in", None),
+            ("lucide-zoom-out", "Zoom out", None),
+            ("lucide-maximize", "Fit data (double-click)", None),
+        ]);
+    }
     if plot.settings_button {
         buttons.push(("lucide-settings-2", "Chart settings", None));
     }

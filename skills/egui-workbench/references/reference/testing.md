@@ -36,7 +36,8 @@ change is a bug in the test.
 | `tests/dialogs.rs` | Name prompt focus and validation; confirm; choice window; progress; banners; popover; settings rail and switches |
 | `tests/palette_menu.rs` | Rows, filtering, Enter/click, no matches, 12-row cap; F10/Alt menu navigation |
 | `tests/layout_icons.rs` | Status bar order; empty state; split columns/rows; editor scrollbars; custom glyphs; Material icons |
-| `tests/plot.rs`, `tests/plot_export.rs` | Plot interaction, fits, sanitize, export |
+| `tests/plot.rs`, `tests/plot_export.rs`, `tests/plot_charts.rs` | Plot interaction, fits, sanitize, export; new chart families, direction arrow, and hover animation of every legend effect |
+| `tests/viewer.rs` | XLSX sheets and cells, CSV/TSV, text line splitting, binary rejection, and rendering each viewer kind |
 | `tests/doc_scenes.rs` | Every docs scene renders at 360 and 1100 pt without panicking (with egui_kittest's accessibility check); every `<LiveDemo>` names a known scene, look, and theme; every embedded demo's first frame equals its reference in `tests/snapshots/doc-scenes/` |
 | `tests/snapshots*.rs` | PNG references: the shell, settings, palette, menus; the component board in every base style plus compact + sharp, comfortable + rounded, large text + borderless, and a custom accent; toasts; plots |
 

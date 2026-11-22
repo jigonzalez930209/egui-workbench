@@ -360,6 +360,20 @@ pub(super) fn series_section(ui: &mut egui::Ui, draft: &mut PlotConfig, names: &
                     style.y_axis = choices[index];
                 }
             });
+            row(ui, "Direction arrow", |ui| {
+                let choices = [None, Some(true), Some(false)];
+                let options = [(0, "Auto".to_owned()), (1, "Show".to_owned()), (2, "Hide".to_owned())];
+                let mut index = choices
+                    .iter()
+                    .position(|choice| *choice == style.direction_arrow)
+                    .unwrap_or(0);
+                if Select::new(&format!("{name} direction"), &mut index, &options)
+                    .width(120.0)
+                    .show(ui)
+                {
+                    style.direction_arrow = choices[index];
+                }
+            });
         });
     }
     // Drop empty overrides so the config stays small.

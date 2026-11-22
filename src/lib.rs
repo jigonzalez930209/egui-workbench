@@ -3,8 +3,8 @@
 //! The crate holds the shell, not the content: nine themes, the size tokens, the
 //! undecorated window with a custom title bar and menus, the document tab strip, the
 //! explorer tree, modal prompts, the settings scaffold, the command palette, the
-//! keyboard menu, the status bar, toasts, interactive plots, icon buttons, form controls,
-//! and the icon cache.
+//! keyboard menu, the status bar, toasts, interactive plots with new chart families and
+//! legend animations, a native file viewer, icon buttons, form controls, and the icon cache.
 //!
 //! Components never translate text or own application state: they take translated
 //! strings and return events. The [`components`] builders share variants and sizes; the
@@ -43,8 +43,8 @@
 //!   `foundation` layer).
 //! - `chrome`: the window frame, title bar, tab strip, status bar, and split view.
 //! - `widgets`: the function API for buttons, controls, dialogs, overlays, and the tree.
-//! - [`components`]: the shadcn-style builder layer with shared variants, tones, and
-//!   composite blocks. Start here for new screens.
+//! - [`components`]: the shadcn-style builder layer with shared variants, tones,
+//!   composite blocks, charts, and the data viewer. Start here for new screens.
 //! - [`app`]: optional runtime helpers ([`ThemeState`](app::ThemeState),
 //!   [`Documents`](app::Documents), [`Keymap`](app::Keymap), [`CloseGuard`](app::CloseGuard),
 //!   and [`show_workbench`](app::show_workbench)).

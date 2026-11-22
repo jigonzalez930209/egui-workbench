@@ -27,7 +27,8 @@ egui is immediate mode, so there is no virtual DOM and no hidden component state
   or `egui::Response` for position, hover, focus, and clicks.
 - The application remains the source of truth. A click does not schedule a hidden
   update; the caller applies the event in its handler.
-- Paint code never performs I/O. Commands and file operations stay in the application.
+- Paint code never performs I/O. Commands and file operations stay in the application;
+  the data viewer parses once in `open`/`from_bytes` and paints from memory.
 - Animations use egui's animation clock and respect reduced motion.
 
 ## Two traits
@@ -65,6 +66,7 @@ padding and text size stay fixed.
 | Navigation | `TabStrip`, `Tree`, `CommandPalette` | [Navigation](../components/navigation.md) |
 | Icons | `IconGrid`, `IconPreview`, `Icons` | [Icons](../components/icons.md) |
 | Layout | `split_panes`, `show_empty_state`, `Card` composition, blocks | [Layout](../components/layout.md) |
+| Data | `FileViewer`, `Workbook`, `Sheet`, `Table`, `Cell`, `TextFile` | [Data viewer](../components/data-viewer.md) |
 
 Charts have their own section: [Charts](../charts/overview.md).
 

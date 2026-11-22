@@ -46,6 +46,31 @@ Plot::new("live")
 zooms, the view is theirs; `PlotState::reset_view()` (double-click or the fit button)
 returns to following the data.
 
+## Direction arrow
+
+Mark the newest sample and the direction the buffer grows with the arrow:
+
+```rust
+Plot::new("live")
+    .x_window(10.0)
+    .direction_arrow(true)   // off by default
+    .direction_points(5)     // trailing samples used for the direction
+    .series(Series::line("sensor", &self.data))
+```
+
+`PlotConfig::direction` also sets the shaft length and width, head size, and color. The
+arrow is drawn for `line`, `area`, `step`, and `candles` at the last visible point; if the
+view is panned away from the newest sample, it stays out of the frame. It is part of the
+scene, so SVG/PNG exports include it. A per-series override lives in
+`SeriesStyle::direction_arrow`.
+
+<LiveDemo
+  scene="plot-live"
+  height="420"
+  alt="A streaming signal with a direction arrow beside the newest point"
+  caption="The arrow uses the last five samples and follows the buffer as it grows."
+/>
+
 ## Keep the buffer bounded
 
 - Drain in chunks instead of one point per frame, so the line does not jump every frame.

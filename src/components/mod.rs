@@ -61,6 +61,7 @@ mod switch;
 mod tabs;
 mod toast;
 mod tree;
+pub mod viewer;
 
 pub use badge::Badge;
 pub use button::{Button, CloseButton, IconButton};
@@ -85,6 +86,7 @@ pub use switch::Switch;
 pub use tabs::{TabEvent, TabIcon, TabItem, TabStrip};
 pub use toast::{Toast, ToastEvent, ToastId, ToastKind, ToastPosition, Toasts};
 pub use tree::{RowIcon, Tree, TreeEvent, TreeNode, TreeState};
+pub use viewer::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
 
 /// A component that takes only a [`Ui`] and returns a value.
 ///
@@ -112,10 +114,10 @@ pub trait IconComponent {
 pub mod prelude {
     pub use super::{
         Badge, Banner, Button, ButtonVariant, Card, Checkbox, CloseButton, CommandPalette, Component, ConfirmDialog,
-        Dialog, IconButton, IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview, IconSize, Label, Menu,
-        MenuButton, MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation, PaletteItem, PaletteLabels,
-        PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl, Select, Separator, Size,
-        StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField, Toast, ToastEvent,
-        ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
+        Dialog, FileFormat, FileViewer, IconButton, IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview,
+        IconSize, Label, Menu, MenuButton, MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation,
+        PaletteItem, PaletteLabels, PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl,
+        Select, Separator, Size, StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField,
+        Toast, ToastEvent, ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
     };
 }

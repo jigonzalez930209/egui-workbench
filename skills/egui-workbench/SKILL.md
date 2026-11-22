@@ -1,6 +1,6 @@
 ---
 name: egui-workbench
-description: Build native desktop applications in Rust with the egui-workbench crate (an IDE-style shell for egui/eframe 0.37) - custom title bar and menus, document tabs, explorer tree, command palette, keymap, settings, dialogs, toasts, nine themes, interactive plots with fits and SVG/PNG export, and shadcn-style components. Use this skill whenever the user wants a Rust desktop GUI, an egui or eframe app, a tool or editor or dashboard with a native window, or mentions egui-workbench, egui_workbench, WorkbenchApp, show_workbench, or the workbench components and plots, even if they only say "make me a desktop app in Rust".
+description: Build native desktop applications in Rust with the egui-workbench crate (an IDE-style shell for egui/eframe 0.37) - custom title bar and menus, document tabs, explorer tree, command palette, keymap, settings, dialogs, toasts, nine themes, interactive plots with fits, six chart families, legend animations, a streaming direction arrow, SVG/PNG export, a native Excel/CSV/TSV/text viewer, and shadcn-style components. Use this skill whenever the user wants a Rust desktop GUI, an egui or eframe app, a tool or editor or dashboard with a native window, or mentions egui-workbench, egui_workbench, WorkbenchApp, show_workbench, or the workbench components and plots, even if they only say "make me a desktop app in Rust".
 license: MIT OR Apache-2.0
 compatibility: Rust 1.95+ (edition 2024) with cargo; Linux needs the usual winit/OpenGL development packages.
 metadata:
@@ -14,8 +14,9 @@ metadata:
 
 `egui-workbench` is the shell of a desktop application built on egui 0.37: undecorated
 window with its own title bar, menus, tab strip, explorer, status bar, command palette,
-keymap, close guard, settings dialog, toasts, plots, and a component set with shared sizes
-and tones. It owns presentation only. Your application owns state, files, and commands.
+keymap, close guard, settings dialog, toasts, plots (including pie, candles, heatmaps,
+radar, gauges, and waterfalls), a file viewer, and a component set with shared sizes and
+tones. It owns presentation only. Your application owns state, files, and commands.
 
 ## Set up a project
 
@@ -251,7 +252,8 @@ themes:
 | Dialogs and popovers | `Dialog`, `ConfirmDialog`, `NameDialog`, `ProgressDialog` | `references/components/overlays.md` |
 | Toasts | `Toasts`, `Toast`, `ToastKind` | `references/components/feedback.md` |
 | File tree | `Tree`, `TreeNode`, `TreeState`, `TreeEvent` | `references/components/navigation.md` |
-| Charts | `components::plot::{Plot, Series, PlotState, Fit}` | `references/charts/overview.md` |
+| Charts | `components::plot::{Plot, Series, PlotState, Fit, LegendAnimation, PieConfig, RadarConfig}` | `references/charts/overview.md` |
+| Data viewer | `components::viewer::{FileViewer, Workbook, Table, TextFile}` | `references/components/data-viewer.md` |
 | Themes, accent, density | `ThemeState`, `ThemeId`, `WorkbenchStyle`, `Density` | `references/theming/themes.md` |
 | Long tasks, live data | worker thread + `request_repaint` | `references/recipes/long-tasks.md` |
 | Every public item | module-by-module list | `references/reference/api-map.md` |
@@ -302,6 +304,7 @@ links to its live version with interactive demos. Read only the pages the task n
 
 - [`references/components/index.md`](references/components/index.md): The builder layer, shared variants and sizes, the reactivity contract, and the complete component index.
 - [`references/components/buttons.md`](references/components/buttons.md): Button, IconButton, and CloseButton: variants, sizes, disabled, selected, and per-instance overrides.
+- [`references/components/data-viewer.md`](references/components/data-viewer.md): Native Excel workbooks with sheet tabs, CSV and TSV files, and virtualized plain-text viewing.
 - [`references/components/display.md`](references/components/display.md): Labels, badges, banners, cards, separators, status bars, and icon previews.
 - [`references/components/feedback.md`](references/components/feedback.md): Sonner-style toasts with kinds, positions, actions, loading-to-success updates, and timers.
 - [`references/components/icons.md`](references/components/icons.md): The icon cache, Lucide names, custom SVGs, Material file icons, and the responsive icon grid.
@@ -314,14 +317,16 @@ links to its live version with interactive demos. Read only the pages the task n
 **Charts**
 
 - [`references/charts/overview.md`](references/charts/overview.md): An interactive 2D plot component: series, axes, interaction, fits, live data, and export.
+- [`references/charts/animations.md`](references/charts/animations.md): Thirteen hover animations with user-defined easing, plus the direction arrow for streaming data.
 - [`references/charts/axes-and-ticks.md`](references/charts/axes-and-ticks.md): Linear and log scales, automatic and fixed limits, major and minor ticks, grid, and label precision.
+- [`references/charts/chart-types.md`](references/charts/chart-types.md): Pie and donut slices, candlesticks, heatmaps, radar polygons, gauges, and waterfalls.
 - [`references/charts/configuration.md`](references/charts/configuration.md): PlotConfig field by field, per-series styles, theme colors, sanitizing, and a settings dialog.
 - [`references/charts/export.md`](references/charts/export.md): Export the plot to SVG or PNG from the same scene the screen draws, including sizes, transparency, and the toolbar menu.
 - [`references/charts/fits.md`](references/charts/fits.md): Least-squares models, equations, R², moving averages, and selecting points inside a plot area.
 - [`references/charts/interaction.md`](references/charts/interaction.md): Pan, wheel zoom, box zoom, area selection, hover popups, legend toggles, tools, and annotations.
 - [`references/charts/live-data.md`](references/charts/live-data.md): Follow the newest x units, keep a bounded buffer, and repaint only while streaming.
 - [`references/charts/performance.md`](references/charts/performance.md): Per-pixel decimation, sorted data, million-point series, and what costs a frame.
-- [`references/charts/series.md`](references/charts/series.md): Lines, areas, steps, scatter, bars, functions, reference lines, error bars, and markers.
+- [`references/charts/series.md`](references/charts/series.md): Lines, areas, steps, scatter, bars, candlesticks, heatmaps, waterfalls, pie slices, radar polygons, gauges, functions, reference lines, error bars, and markers.
 
 **Theming**
 

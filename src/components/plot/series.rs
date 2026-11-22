@@ -82,6 +82,28 @@ pub(super) enum Kind {
     },
     HLine(f64),
     VLine(f64),
+    /// One slice of a pie or donut. The series name is the slice label.
+    Pie {
+        value: f64,
+    },
+    /// Open–high–low–close candles; the projected close is the series' data.
+    Candles {
+        width: Option<f64>,
+    },
+    /// A regular x/y/value grid.
+    Heatmap,
+    /// A closed polygon over the configured radar axes.
+    Radar,
+    /// One gauge, with its own range.
+    Gauge {
+        value: f64,
+        min: f64,
+        max: f64,
+    },
+    /// A cumulative bar chart of signed changes.
+    Waterfall {
+        width: Option<f64>,
+    },
 }
 
 /// One named data series. Build it with [`Series::line`], [`Series::scatter`],
@@ -99,10 +121,14 @@ pub struct Series<'a> {
     pub(super) y_errors: Option<Cow<'a, [f64]>>,
     pub(super) legend: bool,
     pub(super) axis: YAxis,
+    /// OHLC rows for [`Kind::Candles`].
+    pub(super) ohlc: Option<Cow<'a, [[f64; 5]]>>,
+    /// x, y, value rows for [`Kind::Heatmap`].
+    pub(super) cells: Option<Cow<'a, [[f64; 3]]>>,
 }
 
 impl<'a> Series<'a> {
-    fn new(name: impl Into<String>, data: Cow<'a, [[f64; 2]]>, kind: Kind) -> Self {
+    pub(super) fn new(name: impl Into<String>, data: Cow<'a, [[f64; 2]]>, kind: Kind) -> Self {
         Self {
             name: name.into(),
             data,
@@ -111,6 +137,8 @@ impl<'a> Series<'a> {
             y_errors: None,
             legend: true,
             axis: YAxis::Left,
+            ohlc: None,
+            cells: None,
         }
     }
 
@@ -259,10 +287,13 @@ impl<'a> Series<'a> {
         self
     }
 
-    /// Bar width in data units.
+    /// Bar width in data units (bars, candles, and waterfall bars).
     pub fn bar_width(mut self, new_width: f64) -> Self {
-        if let Kind::Bars { width, .. } = &mut self.kind {
-            *width = Some(new_width);
+        match &mut self.kind {
+            Kind::Bars { width, .. } | Kind::Candles { width } | Kind::Waterfall { width } => {
+                *width = Some(new_width);
+            }
+            _ => {}
         }
         self
     }
@@ -301,6 +332,16 @@ impl<'a> Series<'a> {
         matches!(self.kind, Kind::HLine(_) | Kind::VLine(_))
     }
 
+    /// Candles, heatmaps, and waterfalls have their own cartesian renderer.
+    pub(super) fn is_extra(&self) -> bool {
+        matches!(self.kind, Kind::Candles { .. } | Kind::Heatmap | Kind::Waterfall { .. })
+    }
+
+    /// Whether this is a line-like series that can show a direction arrow.
+    pub(super) fn has_direction(&self) -> bool {
+        matches!(self.kind, Kind::Line { .. } | Kind::Candles { .. })
+    }
+
     /// A cheap key for [`Self::bounds`]: the buffers' addresses and lengths, the kind, the
     /// scales, and 16 sampled values. A different buffer, length, or sampled value is a
     /// different key, so appended or replaced data refreshes the cached extent.
@@ -311,65 +352,30 @@ impl<'a> Series<'a> {
         if let Some(errors) = &self.y_errors {
             (errors.as_ptr() as usize, errors.len()).hash(&mut hasher);
         }
+        if let Some(rows) = &self.ohlc {
+            (rows.as_ptr() as usize, rows.len()).hash(&mut hasher);
+            let step = (rows.len() / 8).max(1);
+            for row in rows.iter().step_by(step) {
+                for value in row {
+                    value.to_bits().hash(&mut hasher);
+                }
+            }
+        }
+        if let Some(cells) = &self.cells {
+            (cells.as_ptr() as usize, cells.len()).hash(&mut hasher);
+            let step = (cells.len() / 8).max(1);
+            for cell in cells.iter().step_by(step) {
+                for value in cell {
+                    value.to_bits().hash(&mut hasher);
+                }
+            }
+        }
         format!("{:?}{x_scale:?}{y_scale:?}", self.kind).hash(&mut hasher);
         let step = (self.data.len() / 16).max(1);
         for point in self.data.iter().step_by(step).chain(self.data.last()) {
             (point[0].to_bits(), point[1].to_bits()).hash(&mut hasher);
         }
         hasher.finish()
-    }
-
-    /// Data extent in scaled space (log axes ignore values ≤ 0).
-    pub(super) fn bounds(&self, x_scale: Scale, y_scale: Scale) -> Bounds {
-        let mut bounds = Bounds::NOTHING;
-        let error = |index: usize| self.y_errors.as_ref().and_then(|errors| errors.get(index)).copied();
-        for (index, point) in self.data.iter().enumerate() {
-            let x = x_scale.forward(point[0]);
-            match error(index) {
-                Some(error) => {
-                    bounds.extend([x, y_scale.forward(point[1] - error)]);
-                    bounds.extend([x, y_scale.forward(point[1] + error)]);
-                }
-                None => bounds.extend([x, y_scale.forward(point[1])]),
-            }
-        }
-        if !bounds.is_valid() {
-            return bounds;
-        }
-        match self.kind {
-            Kind::Bars { base, width } => {
-                bounds.extend([bounds.min_x, y_scale.forward(base)]);
-                let half = width.unwrap_or_else(|| self.min_spacing() * 0.8) * 0.5;
-                if x_scale == Scale::Linear {
-                    bounds.min_x -= half;
-                    bounds.max_x += half;
-                }
-            }
-            Kind::Line {
-                fill_to: Some(base), ..
-            } => bounds.extend([bounds.min_x, y_scale.forward(base)]),
-            _ => {}
-        }
-        bounds
-    }
-
-    /// The smallest positive x step (1 for a single point).
-    pub(super) fn min_spacing(&self) -> f64 {
-        let mut spacing = f64::INFINITY;
-        for pair in self.data.windows(2) {
-            let delta = (pair[1][0] - pair[0][0]).abs();
-            if delta > 0.0 {
-                spacing = spacing.min(delta);
-            }
-        }
-        if spacing.is_finite() { spacing } else { 1.0 }
-    }
-
-    /// Whether x never decreases (enables binary search and decimation).
-    pub(super) fn sorted_x(&self) -> bool {
-        self.data
-            .windows(2)
-            .all(|pair| pair[1][0] >= pair[0][0] || pair[1][0].is_nan() || pair[0][0].is_nan())
     }
 }
 

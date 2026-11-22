@@ -82,6 +82,13 @@ uses `YAxis::Right`, grid off by default):
 | `toolbar` | `true` | Tool buttons |
 | `hover_guides` | `true` | Dashed guides to the axes |
 | `hover_popup` | `true` | Hover popup |
+| `legend_hover` | `Blink`, linear, 1.2 s | Legend row animation: `enabled`, `animation`, `easing`, `period`, `highlight` |
+| `direction` | off, 5 samples | Direction arrow: `enabled`, `points`, `length`, `width`, `head`, `color` |
+| `pie` | pie | `inner_radius`, `start_angle`, `labels`, `percentages`, `total` |
+| `radar` | 4 rings | `labels`, `max`, `rings`, `fill_opacity` |
+| `gauge` | 270° arc | `start_angle`, `end_angle`, `thickness`, `show_value`, `show_range` |
+| `heatmap` | opaque | `opacity`, `colorbar` |
+| `waterfall` | connectors on | `bar_width`, `connectors` |
 
 ## Colors
 
@@ -131,7 +138,9 @@ Call `config.sanitize()` after editing in a dialog:
 - `major_step` must be finite and positive;
 - `Minor::Divisions` is clamped to 2–20;
 - decimals are capped at 10;
-- series widths, marker sizes, and fill opacities are clamped.
+- series widths, marker sizes, fill opacities, and direction switches are clamped;
+- the legend animation period, direction samples/sizes, pie radius, radar rings, gauge
+  thickness/angles, heatmap opacity, and waterfall width are clamped.
 
 If limits or scales changed, call `PlotState::reset_view()`.
 
@@ -163,8 +172,9 @@ if self.chart_settings_open {
 }
 ```
 
-The starter has the complete dialog with tabs for text, axes, grid, colors, and each
-series. See `templates/app/src/chart_settings/`.
+The starter has the complete dialog with tabs for text, axes, grid, colors, each
+series, and **Motion** (legend animation and direction arrow). See
+`templates/app/src/chart_settings/`.
 
 ## Export uses the same config
 

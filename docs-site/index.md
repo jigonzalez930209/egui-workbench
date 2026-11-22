@@ -34,7 +34,10 @@ features:
     details: Button, inputs, menus, cards, badges, dialogs, tree, palette, tabs, toasts, and an icon grid over 2,410 Lucide icons.
   - icon: 📈
     title: Real interactive charts
-    details: Lines, areas, steps, scatter, bars, error bars, log axes, fits, live windows, selection, and SVG/PNG export.
+    details: Lines, areas, steps, scatter, bars, candlesticks, heatmaps, waterfalls, pie/donut, radar, gauges, 13 legend animations, and SVG/PNG export.
+  - icon: 📊
+    title: Native data viewer
+    details: Excel workbooks with sheet tabs, CSV and TSV, and virtualized plain-text reading, with no I/O while painting.
   - icon: 🧠
     title: One Command, one handler
     details: Menus, the palette, shortcuts, and panels return events. Only the application mutates state.
@@ -56,7 +59,8 @@ features:
 
 `egui-workbench` packages the visual core of an IDE-like desktop application as a Rust
 crate. It draws the shell and returns what the user asked for; it never owns your
-documents, performs file I/O, or chooses a storage format.
+documents or chooses a storage format. The optional chart and data-viewer components
+expose explicit loaders, and painting performs no I/O.
 
 ```rust
 use egui_workbench::app::{WorkbenchApp, show_workbench};

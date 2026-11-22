@@ -89,6 +89,9 @@ fn prim(out: &mut String, prim: &Prim) {
                 Dash::Dotted(spacing) => {
                     format!(" stroke-dasharray=\"0 {spacing:.2}\" stroke-linecap=\"round\"")
                 }
+                Dash::Marching { dash, gap, offset } => {
+                    format!(" stroke-dasharray=\"{dash:.2} {gap:.2}\" stroke-dashoffset=\"{offset:.2}\"")
+                }
             };
             let _ = writeln!(
                 out,
@@ -119,6 +122,21 @@ fn prim(out: &mut String, prim: &Prim) {
                 out,
                 "<polygon points=\"{}\"{}/>",
                 points(shape),
+                paint_attr("fill", *color)
+            );
+        }
+        Prim::Fan {
+            center,
+            points: shape,
+            color,
+        } => {
+            let mut polygon = Vec::with_capacity(shape.len() + 1);
+            polygon.push(*center);
+            polygon.extend_from_slice(shape);
+            let _ = writeln!(
+                out,
+                "<polygon points=\"{}\"{}/>",
+                points(&polygon),
                 paint_attr("fill", *color)
             );
         }
@@ -267,7 +285,7 @@ impl Plot<'_> {
         options: &ExportOptions,
     ) -> (scene::Scene, Option<Color32>) {
         let measure = Measure {
-            ctx,
+            ctx: ctx.clone(),
             pixels_per_point: 1.0,
         };
         let rect = Rect::from_min_size(
@@ -276,7 +294,8 @@ impl Plot<'_> {
         );
         let view = state.view.unwrap_or_else(|| self.auto_bounds(state));
         let y2 = self.second_axis(state);
-        let layout = overlay::layout(&measure, &self.config, rect, view, y2);
+        let mode = self.chart_mode();
+        let layout = overlay::layout(&measure, &self.config, rect, view, y2, mode);
         let transform = Transform {
             frame: layout.frame,
             view,
@@ -292,7 +311,9 @@ impl Plot<'_> {
             Some(colors.canvas.take().unwrap_or(visuals.panel_fill))
         };
         let theme = crate::theme::current(ctx);
-        let scene = overlay::build_scene(&measure, self, &layout, &transform, state, &colors, &theme, true);
+        let scene = overlay::build_scene(
+            &measure, self, &layout, &transform, state, &colors, &theme, true, mode, 0.0, false,
+        );
         (scene, canvas)
     }
 

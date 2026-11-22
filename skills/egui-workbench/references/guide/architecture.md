@@ -11,7 +11,7 @@ application (template or your crate)
 app/                 ThemeState · Documents · Keymap · CloseGuard · show_workbench
         │
         ▼
-components/          builders · variants · tones · composite blocks
+components/          builders · variants · tones · plots · viewer · blocks
         │
         ├──────────────┬──────────────┐
         ▼              ▼              ▼
@@ -32,7 +32,7 @@ foundation/          metrics · theme · style · icons · material
 | `foundation` | Sizes, color tokens, shape/density, egui style application, SVG caches | Draw application content or read files |
 | `chrome` | Window edges, title bar, tab strip, status bar, split | Own a document model or apply commands |
 | `widgets` | The function API for inputs, buttons, dialogs, overlays, tree rows | Know an application's `Command` type |
-| `components` | Builders, shared variants/tones, composite blocks, plots, toasts | Own application state or invent tokens |
+| `components` | Builders, shared variants/tones, composite blocks, plots, data viewer, toasts | Own application state or invent tokens |
 | `app` | Repeated application plumbing and the fixed panel order | Do file I/O, translate text, or pick a storage format |
 | Template | State, `Command`, persistence, translations | Reimplement chrome or hard-code tokens |
 

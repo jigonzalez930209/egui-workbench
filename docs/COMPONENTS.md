@@ -138,6 +138,9 @@ if response.selection_changed { let area = state.selection; }
 | | |
 |---|---|
 | Series | `line`, `area` (fill), `step`, `scatter` (7 markers), `bars`, `function`, `hline`, `vline`; `.color`, `.width`, `.style(Dashed/Dotted)`, `.marker`, `.y_errors`, `.fill_to` |
+| Chart types | Pie/donut (`Series::pie`), candlesticks (`Series::candles`), heatmaps (`Series::heatmap`), radar (`Series::radar`), gauges (`Series::gauge`), waterfalls (`Series::waterfall`) |
+| Legend animation | `PlotConfig::legend_hover`: 13 effects (`Blink`, `DashMarch`, `Wiggle`, `Glow`, `Sweep`, …), `AnimationEasing`, period, second color |
+| Direction arrow | `PlotConfig::direction` / `.direction_arrow(true)` / `.direction_points(n)`: the arrow beside the newest sample of line-like series |
 | Axes | `Scale::Linear` / `Scale::Log10` per axis; 1-2-5 ticks measured so labels never overlap; one notation per axis; minor log ticks |
 | Interaction | drag pans; wheel zooms around the cursor (Shift: x only, Alt: y only; the wheel is consumed so a surrounding scroll area stays put); right-drag or the zoom tool zooms to a box (a thin box zooms one axis); Shift-drag or the select tool selects an area; double-click fits the data; the toolbar has the three tools, zoom in/out, and fit |
 | Feedback | hover ring with dashed guides to the axes and a popup with the series, x, and y; the legend toggles series |
@@ -160,6 +163,9 @@ in a dialog (the starter's Charts section has a complete one):
 | `grid_width`, `grid_major_opacity`, `grid_minor_opacity`, `frame_width`, `tick_length` | Line weights |
 | `line_scale`, `marker_scale` | Multipliers for every series |
 | `legend`, `legend_frame`, `toolbar`, `hover_popup`, `hover_guides` | Chrome |
+| `legend_hover` | `LegendHoverConfig`: animation, easing, period, highlight color |
+| `direction` | `DirectionArrowConfig`: enabled, trailing points, length, width, head, color |
+| `pie`, `radar`, `gauge`, `heatmap`, `waterfall` | Per-family layout: donut hole, radar labels/rings, gauge arc, heatmap colorbar, waterfall connectors |
 | `colors` (`PlotColors`) | Data area, canvas, frame, grid, titles, tick labels, selection (`None` = theme) |
 | `series` (`SeriesStyle` by name) | Color, width, line style, marker, marker size, fill opacity |
 
@@ -181,6 +187,30 @@ Pixel rules: the frame and all grid, tick, and reference lines sit on pixel cent
 bars snap to physical pixels; margins come from the measured tick labels. Dense sorted
 lines are reduced per pixel column (first/min/max/last), so a million points render in
 a few milliseconds in release builds; nothing repaints while idle.
+
+## File viewer
+
+`components::viewer::FileViewer` reads the files a data tool usually needs:
+
+```rust
+use egui_workbench::components::viewer::FileViewer;
+
+if let Ok(mut viewer) = FileViewer::open("sales.xlsx") {
+    viewer.show(ui);
+}
+```
+
+| Format | Rendering |
+|---|---|
+| XLSX, XLSM, XLS, XLSB, ODS | One tab per sheet, typed cells, header row |
+| CSV / TSV | One sheet, RFC 4180 quoting, typed cells |
+| UTF-8 text | Virtualized line-number reader |
+
+`from_bytes(name, bytes)` parses data already in memory (browser downloads, workers);
+`text(name, text)` builds a text viewer without parsing. Painting performs no I/O. The
+grid and text view only lay out rows inside the viewport. Workbook support uses `calamine`
+(MIT). The section above lists the public model (`Workbook`, `Sheet`, `Table`, `Cell`,
+`CellKind`, `TextFile`, `ViewerError`).
 
 ## Toasts
 

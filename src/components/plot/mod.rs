@@ -1,11 +1,14 @@
 //! A fast, interactive 2D plot in the spirit of matplotlib.
 //!
 //! - Series: lines, areas, steps, scatter with seven markers, bars, error bars,
-//!   functions, and horizontal/vertical reference lines.
+//!   functions, and horizontal/vertical reference lines; plus pie/donut slices,
+//!   candlesticks, heatmaps, radar polygons, gauges, and waterfalls.
 //! - Axes: linear or log10 scales, 1-2-5 ticks that never overlap, minor log ticks,
 //!   grid, and a title and axis titles with their own size, color, and alignment; every line is snapped to the pixel grid.
 //! - Two y axes: series marked [`YAxis::Right`] get their own axis on the right, with
 //!   its own range, scale, ticks, and title.
+//! - Legend hover animations: 13 effects with user-defined easing, plus a direction
+//!   arrow beside the newest sample of streaming line series.
 //! - Interaction: drag to pan, wheel to zoom around the cursor (Shift: x only, Alt: y
 //!   only; with two y axes, Alt zooms the left axis over the left half of the frame and
 //!   the right axis over the right half), right-drag or the zoom tool to zoom to a box, Shift-drag or the select tool
@@ -20,61 +23,48 @@
 //! The view, the selection, the active tool, and hidden series live in a
 //! [`PlotState`] the caller owns, like every other component.
 
+mod animation;
 mod axis;
 mod builder;
+mod chart_config;
 mod config;
 mod decimate;
+mod direction;
 mod export;
+mod extra;
 mod fit;
 mod interact;
+mod layout;
 mod legend;
 mod overlay;
 mod paint;
 mod scene;
 mod series;
+mod series_bounds;
+mod series_charts;
 mod smooth;
+mod special;
 mod transform;
+mod types;
 mod widgets;
 
-use egui::{Color32, Id, Pos2, Rect, Response, Sense, Ui, vec2};
+use egui::{Color32, Id, Pos2, Rect, Sense, Ui, vec2};
 
+pub use animation::{AnimationEasing, LegendAnimation, LegendHoverConfig};
 pub use axis::{Bounds, Scale};
+pub use chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
 pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, SeriesStyle, TitleAlign};
 pub use export::ExportOptions;
 pub use fit::{Fit, FitKind};
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
 
+pub use types::{ChartMode, ExportFormat, LegendPosition, PlotHover, PlotResponse, PlotTool};
+
 use crate::Icons;
 use crate::components::IconComponent;
 use axis::{SecondAxis, Transform};
 use scene::Measure;
-
-/// A file format the toolbar's export menu asked for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExportFormat {
-    /// Scalable vector graphics.
-    Svg,
-    /// A raster image.
-    Png,
-}
-
-/// What a primary-button drag does.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PlotTool {
-    /// Drag moves the view.
-    #[default]
-    Pan,
-    /// Drag draws a box and zooms to it.
-    Zoom,
-    /// Drag draws a box and reports it as the selection.
-    Select,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum Drag {
-    Pan,
-    Box { start: Pos2, select: bool },
-}
+use types::Drag;
 
 /// The interactive state of one plot. Keep it in the application model.
 #[derive(Clone, Debug, Default)]
@@ -94,6 +84,10 @@ pub struct PlotState {
     /// Series extents by [`Series::fingerprint`], so the automatic view does not walk
     /// every point of every series each frame.
     extents: Vec<(u64, Bounds)>,
+    /// The series whose legend row the pointer is over.
+    legend_hover: Option<usize>,
+    /// When that hover began, for the animation clock.
+    legend_hover_start: f64,
 }
 
 impl PlotState {
@@ -104,6 +98,26 @@ impl PlotState {
             .iter()
             .find(|(cached, _)| *cached == key)
             .map_or_else(|| series.bounds(x_scale, y_scale), |(_, bounds)| *bounds)
+    }
+
+    pub(super) fn legend_hover(&self) -> Option<usize> {
+        self.legend_hover
+    }
+
+    pub(super) fn legend_hover_start(&self) -> f64 {
+        self.legend_hover_start
+    }
+
+    pub(super) fn set_legend_hover(&mut self, series: Option<usize>, now: f64) {
+        if series != self.legend_hover {
+            self.legend_hover = series;
+            self.legend_hover_start = now;
+        }
+    }
+
+    /// The series whose legend row is under the pointer, if any.
+    pub fn hovered_series(&self) -> Option<usize> {
+        self.legend_hover
     }
 }
 
@@ -154,76 +168,6 @@ impl PlotState {
     }
 }
 
-/// The nearest data point under the pointer.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlotHover {
-    /// Series name.
-    pub series: String,
-    /// Index into the series data.
-    pub index: usize,
-    /// The point, in data coordinates.
-    pub point: [f64; 2],
-    /// The y axis the series is measured on.
-    pub axis: YAxis,
-}
-
-/// What happened in the plot this frame.
-pub struct PlotResponse {
-    /// The response of the whole plot area.
-    pub response: Response,
-    /// The pointer position in data coordinates, while over the frame.
-    pub pointer: Option<[f64; 2]>,
-    /// The nearest point within 12 pt of the pointer.
-    pub hovered: Option<PlotHover>,
-    /// A point that was clicked.
-    pub clicked: Option<PlotHover>,
-    /// The selection changed (drawn, or cleared with a click).
-    pub selection_changed: bool,
-    /// The visible range in data coordinates (x and the left y axis).
-    pub view: Bounds,
-    /// The visible range of the right y axis in data coordinates, when it is shown.
-    pub y2_view: Option<[f64; 2]>,
-    /// The data area on screen (inside the axes).
-    pub frame: Rect,
-    /// The toolbar's settings button was clicked: open your settings dialog.
-    pub settings_requested: bool,
-    /// The toolbar's export menu chose a format: call [`Plot::to_svg`] or
-    /// [`Plot::to_png`] and save the result.
-    pub export_requested: Option<ExportFormat>,
-    transform: Transform,
-}
-
-impl PlotResponse {
-    /// Where a data point lands on screen this frame, for annotations drawn on top.
-    pub fn screen_pos(&self, point: [f64; 2]) -> Pos2 {
-        self.transform.to_screen(point)
-    }
-
-    /// Where a point measured on `axis` lands on screen this frame.
-    pub fn screen_pos_on(&self, axis: YAxis, point: [f64; 2]) -> Pos2 {
-        self.transform.for_axis(axis).to_screen(point)
-    }
-
-    /// The data coordinates of a screen position.
-    pub fn data_pos(&self, pos: Pos2) -> [f64; 2] {
-        self.transform.to_data(pos)
-    }
-}
-
-/// Where the legend sits inside the frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LegendPosition {
-    /// Top-left corner.
-    #[default]
-    TopLeft,
-    /// Bottom-left corner.
-    BottomLeft,
-    /// Bottom-right corner.
-    BottomRight,
-    /// No legend.
-    Hidden,
-}
-
 /// The plot builder. Add series, then call `show` with the icon cache and a
 /// [`PlotState`].
 ///
@@ -264,6 +208,29 @@ pub struct Plot<'a> {
 impl<'a> Plot<'a> {
     pub(super) fn visible<'s>(&'s self, state: &'s PlotState) -> impl Iterator<Item = &'s Series<'a>> {
         self.series.iter().filter(|series| !state.is_hidden(&series.name))
+    }
+
+    /// The chart family: the first special series wins (pie, then radar, then gauge).
+    /// Mixing families in one plot is not meaningful; cartesian series need no marker.
+    pub fn chart_mode(&self) -> ChartMode {
+        let mut mode = ChartMode::Cartesian;
+        for series in &self.series {
+            match series.kind {
+                series::Kind::Pie { .. } => return ChartMode::Pie,
+                series::Kind::Radar if mode == ChartMode::Cartesian => mode = ChartMode::Radar,
+                series::Kind::Gauge { .. } if mode == ChartMode::Cartesian => mode = ChartMode::Gauge,
+                _ => {}
+            }
+        }
+        mode
+    }
+
+    /// Whether the direction arrow draws for series `index` after the overrides.
+    pub(super) fn draws_direction(&self, index: usize) -> bool {
+        self.config
+            .series_style(&self.series[index].name)
+            .and_then(|style| style.direction_arrow)
+            .unwrap_or(self.config.direction.enabled)
     }
 
     /// The axis series `index` is measured on, after the config override.
@@ -328,13 +295,14 @@ impl Plot<'_> {
             .max(120.0);
         let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
         let measure = Measure {
-            ctx: ui.ctx(),
+            ctx: ui.ctx().clone(),
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
         self.refresh_extents(state);
         let view = state.view.unwrap_or_else(|| self.auto_bounds(state));
         let y2 = self.second_axis(state);
-        let layout = overlay::layout(&measure, &self.config, rect, view, y2);
+        let mode = self.chart_mode();
+        let layout = overlay::layout(&measure, &self.config, rect, view, y2, mode);
         let transform = Transform {
             frame: layout.frame,
             view,
@@ -345,7 +313,11 @@ impl Plot<'_> {
 
         let mut selection_changed = false;
         let pointer = response.hover_pos().filter(|pos| layout.frame.contains(*pos));
-        self.interact(ui, &response, &transform, state, pointer, &mut selection_changed);
+        if mode == ChartMode::Cartesian {
+            self.interact(ui, &response, &transform, state, pointer, &mut selection_changed);
+        } else if pointer.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
+        }
         // The transform may have changed; paint with the new view this same frame.
         let view = state.view.unwrap_or(view);
         let y2 = y2.map(|axis| match state.y2_view {
@@ -354,9 +326,21 @@ impl Plot<'_> {
         });
         let transform = Transform { view, y2, ..transform };
 
+        // The legend interaction runs before the scene: the hovered row feeds the
+        // animation the data layer draws this same frame.
+        let now = ui.input(|input| input.time);
+        let legend = if let Some(legend) = legend::layout(&measure, &self, layout.frame, state, true) {
+            Some(widgets::legend(ui, &self, &legend, layout.frame, state))
+        } else {
+            state.set_legend_hover(None, now);
+            None
+        };
+        let motion = crate::theme::motion_enabled(ui.ctx());
         let theme = crate::theme::current(ui.ctx());
         let colors = overlay::Colors::resolve(&self.config, ui.visuals());
-        let mut scene = overlay::build_scene(&measure, &self, &layout, &transform, state, &colors, &theme, false);
+        let mut scene = overlay::build_scene(
+            &measure, &self, &layout, &transform, state, &colors, &theme, false, mode, now, motion,
+        );
         // The points each series drew; hover searches these instead of every point.
         let drawn = std::mem::take(&mut scene.drawn);
         let painter = ui.painter_at(rect);
@@ -372,8 +356,6 @@ impl Plot<'_> {
             );
         }
 
-        let legend = legend::layout(&measure, &self, layout.frame, state, true)
-            .map(|legend| widgets::legend(ui, &self, &legend, layout.frame, state));
         let toolbar = widgets::toolbar(ui, icons, &self, layout.frame, &transform, state);
         let blocked = |pos: Pos2| {
             legend.is_some_and(|rect| rect.contains(pos)) || toolbar.rect.is_some_and(|rect| rect.contains(pos))
@@ -384,7 +366,11 @@ impl Plot<'_> {
         }
         let hovered = pointer
             .filter(|pos| !blocked(*pos) && state.drag.is_none())
-            .and_then(|pointer| self.hover(ui, &transform, state, pointer, &theme, &drawn));
+            .and_then(|pointer| {
+                (mode == ChartMode::Cartesian)
+                    .then(|| self.hover(ui, &transform, state, pointer, &theme, &drawn))
+                    .flatten()
+            });
 
         let clicked = if response.clicked() && state.drag.is_none() {
             hovered.clone()
@@ -443,5 +429,33 @@ impl IconComponent for Plot<'_> {
         let response = Plot::show(self, ui, icons, &mut state);
         ui.ctx().data_mut(|data| data.insert_temp(id, state));
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn special_series_choose_the_chart_mode() {
+        let pie = Plot::new("pie").series(Series::pie("a", 1.0));
+        assert_eq!(pie.chart_mode(), ChartMode::Pie);
+        let radar = Plot::new("radar").series(Series::radar("a", [1.0, 2.0, 3.0]));
+        assert_eq!(radar.chart_mode(), ChartMode::Radar);
+        let gauge = Plot::new("gauge").series(Series::gauge("a", 4.0, 0.0..=10.0));
+        assert_eq!(gauge.chart_mode(), ChartMode::Gauge);
+        let candles = Plot::new("candles").series(Series::candles("a", vec![[0.0, 1.0, 2.0, 0.5, 1.5]]));
+        assert_eq!(candles.chart_mode(), ChartMode::Cartesian);
+    }
+
+    #[test]
+    fn direction_and_legend_hover_builders_write_the_config() {
+        let plot = Plot::new("p")
+            .direction_arrow(true)
+            .direction_points(9)
+            .legend_animation(LegendAnimation::DashMarch);
+        assert!(plot.config.direction.enabled);
+        assert_eq!(plot.config.direction.points, 9);
+        assert_eq!(plot.config.legend_hover.animation, LegendAnimation::DashMarch);
     }
 }

@@ -6,7 +6,10 @@ use super::axis::{Bounds, Scale};
 use super::config::PlotConfig;
 use super::fit::{Fit, FitKind};
 use super::series::Series;
-use super::{LegendPosition, Plot};
+use super::{
+    DirectionArrowConfig, GaugeConfig, HeatmapConfig, LegendAnimation, LegendHoverConfig, LegendPosition, PieConfig,
+    Plot, RadarConfig, WaterfallConfig,
+};
 
 impl<'a> Plot<'a> {
     /// A plot with a stable id.
@@ -145,6 +148,66 @@ impl<'a> Plot<'a> {
     /// Legend corner, or [`LegendPosition::Hidden`].
     pub fn legend(mut self, legend: LegendPosition) -> Self {
         self.config.legend = legend;
+        self
+    }
+
+    /// Replace the legend hover animation settings.
+    pub fn legend_hover(mut self, config: LegendHoverConfig) -> Self {
+        self.config.legend_hover = config;
+        self
+    }
+
+    /// The animation played while the pointer rests on a legend row (enabled by default).
+    pub fn legend_animation(mut self, animation: LegendAnimation) -> Self {
+        self.config.legend_hover.animation = animation;
+        self
+    }
+
+    /// Replace the direction-arrow settings.
+    pub fn direction(mut self, config: DirectionArrowConfig) -> Self {
+        self.config.direction = config;
+        self
+    }
+
+    /// Show or hide the direction arrow beside the newest point of line-like series.
+    pub fn direction_arrow(mut self, show: bool) -> Self {
+        self.config.direction.enabled = show;
+        self
+    }
+
+    /// How many trailing samples measure the direction arrow (5 by default).
+    pub fn direction_points(mut self, points: usize) -> Self {
+        self.config.direction.points = points.max(2);
+        self
+    }
+
+    /// Replace the pie/donut layout.
+    pub fn pie(mut self, config: PieConfig) -> Self {
+        self.config.pie = config;
+        self
+    }
+
+    /// Replace the radar layout (labels, maximum, rings, fill).
+    pub fn radar(mut self, config: RadarConfig) -> Self {
+        self.config.radar = config;
+        self
+    }
+
+    /// Replace the gauge layout.
+    pub fn gauge(mut self, config: GaugeConfig) -> Self {
+        self.config.gauge = config;
+        self
+    }
+
+    /// Replace the heatmap layout.
+    pub fn heatmap(mut self, config: HeatmapConfig) -> Self {
+        self.config.heatmap = config;
+        self
+    }
+
+    /// Replace the waterfall layout.
+    pub fn waterfall(mut self, config: WaterfallConfig) -> Self {
+        self.config.waterfall = config;
         self
     }
 

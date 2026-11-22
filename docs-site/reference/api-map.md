@@ -112,6 +112,21 @@ Methods: `sharp`, `rounded`, `with_density`, `scaled`, `control_height`, `size_h
 `texture_sized`, `paint`, `put`, `show`, `show_tinted`, and the `material` field.
 `MaterialIcons`: `file_icon`, `folder_icon`, `texture`, `texture_sized`, `draw`.
 
+## Charts — `egui_workbench::components::plot`
+
+`Plot`, `PlotState`, `PlotConfig`, `Series`, `ChartMode`, `PlotHover`, `PlotResponse`,
+`ExportFormat`, `ExportOptions`, `Fit`, `FitKind`, `LineStyle`, `Marker`, `Smoothing`,
+`YAxis`, `Bounds`, `Scale`, `points_in`. New families: `Series::{pie, candles, heatmap,
+radar, gauge, waterfall}` with `PieConfig`, `RadarConfig`, `GaugeConfig`, `HeatmapConfig`,
+and `WaterfallConfig`. Hover animation: `LegendAnimation` (13 effects),
+`AnimationEasing`, `LegendHoverConfig`, `DirectionArrowConfig`.
+
+## File viewer — `egui_workbench::components::viewer`
+
+`FileViewer`, `FileFormat`, `Document`, `Workbook`, `Sheet`, `Table`, `Cell`, `CellKind`,
+`TextFile`, `ViewerError`. Open with `FileViewer::{open, from_bytes, text}`; paint with
+`viewer.show(ui)`.
+
 ## Components — `egui_workbench::components`
 
 | Item | Kind |

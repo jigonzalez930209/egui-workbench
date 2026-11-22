@@ -112,6 +112,8 @@ impl PlotScene {
                 .y_label("Value")
                 .x_window(10.0)
                 .y_limits(Some(-3.0), Some(3.0))
+                .direction_arrow(true)
+                .direction_points(5)
                 .series(Series::line("sensor", &self.data)),
         }
     }

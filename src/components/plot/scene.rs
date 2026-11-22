@@ -14,6 +14,12 @@ pub(super) enum Dash {
     Dashed(f32, f32),
     /// Dot spacing; dots have the stroke's width as diameter.
     Dotted(f32),
+    /// Dash and gap lengths, shifted by `offset` points along the path.
+    Marching {
+        dash: f32,
+        gap: f32,
+        offset: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +39,13 @@ pub(super) enum Prim {
     },
     /// A filled convex polygon.
     Polygon { points: Vec<Pos2>, color: Color32 },
+    /// A triangle fan from `center` through `points` (pie slices and radar fills; not
+    /// necessarily convex).
+    Fan {
+        center: Pos2,
+        points: Vec<Pos2>,
+        color: Color32,
+    },
     Rect {
         rect: Rect,
         radius: f32,
@@ -102,10 +115,16 @@ fn push_shapes(painter: &Painter, prim: Prim, out: &mut Vec<Shape>) {
                 Dash::Solid => out.push(Shape::Path(PathShape::line(points, PathStroke::from(stroke)))),
                 Dash::Dashed(dash, gap) => out.extend(Shape::dashed_line(&points, stroke, dash, gap)),
                 Dash::Dotted(spacing) => out.extend(Shape::dotted_line(&points, color, spacing, width * 0.5)),
+                Dash::Marching { dash, gap, offset } => {
+                    out.extend(marching_line(&points, stroke, dash, gap, offset));
+                }
             }
         }
         Prim::Area { points, base_y, color } => out.push(Shape::mesh(area_mesh(&points, base_y, color))),
         Prim::Polygon { points, color } => out.push(Shape::convex_polygon(points, color, Stroke::NONE)),
+        Prim::Fan { center, points, color } => {
+            out.push(Shape::mesh(fan_mesh(center, &points, color)));
+        }
         Prim::Rect {
             rect,
             radius,
@@ -158,14 +177,66 @@ fn area_mesh(points: &[Pos2], base_y: f32, color: Color32) -> Mesh {
     mesh
 }
 
+/// A triangle fan from `center` through `points`.
+fn fan_mesh(center: Pos2, points: &[Pos2], color: Color32) -> Mesh {
+    let mut mesh = Mesh::default();
+    if points.len() < 2 {
+        return mesh;
+    }
+    mesh.colored_vertex(center, color);
+    for point in points {
+        mesh.colored_vertex(*point, color);
+    }
+    for index in 1..points.len() as u32 {
+        mesh.add_triangle(0, index, index + 1);
+    }
+    mesh
+}
+
+/// Dashes shifted by `offset` points along the polyline (marching ants).
+fn marching_line(points: &[Pos2], stroke: Stroke, dash: f32, gap: f32, offset: f32) -> Vec<Shape> {
+    let pattern = (dash + gap).max(0.5);
+    let mut out = Vec::new();
+    let mut drawing = offset.rem_euclid(pattern) < dash;
+    let mut remaining = if drawing {
+        dash - offset.rem_euclid(pattern)
+    } else {
+        pattern - offset.rem_euclid(pattern)
+    }
+    .max(0.01);
+    for pair in points.windows(2) {
+        if !(pair[0].is_finite() && pair[1].is_finite()) {
+            continue;
+        }
+        let mut start = pair[0];
+        let mut left = pair[0].distance(pair[1]);
+        while left > 0.01 {
+            let step = left.min(remaining);
+            let direction = (pair[1] - start) / start.distance(pair[1]).max(0.001);
+            let end = start + direction * step;
+            if drawing {
+                out.push(Shape::line_segment([start, end], stroke));
+            }
+            start = end;
+            left -= step;
+            remaining -= step;
+            if remaining <= 0.01 {
+                drawing = !drawing;
+                remaining = if drawing { dash } else { gap };
+            }
+        }
+    }
+    out
+}
+
 /// Measures text with egui's fonts, so the layout (and the export) uses the real glyph
 /// widths, and snaps coordinates to the physical pixel grid.
-pub(super) struct Measure<'c> {
-    pub ctx: &'c egui::Context,
+pub(super) struct Measure {
+    pub ctx: egui::Context,
     pub pixels_per_point: f32,
 }
 
-impl Measure<'_> {
+impl Measure {
     /// Width, height, and baseline offset of one line of text.
     pub fn text(&self, text: &str, size: f32) -> (f32, f32, f32) {
         let galley = self

@@ -7,6 +7,7 @@ use egui_workbench::egui;
 
 mod axes;
 pub mod chart;
+mod motion;
 mod sections;
 
 use super::charts::{Chart, ChartsDemo};
@@ -69,16 +70,18 @@ enum Section {
     Grid,
     Colors,
     Series,
+    Motion,
     Export,
 }
 
-const SECTIONS: [(Section, &str); 7] = [
+const SECTIONS: [(Section, &str); 8] = [
     (Section::General, "General"),
     (Section::Titles, "Titles"),
     (Section::Axes, "Axes"),
     (Section::Grid, "Grid & ticks"),
     (Section::Colors, "Colors"),
     (Section::Series, "Series"),
+    (Section::Motion, "Motion"),
     (Section::Export, "Export"),
 ];
 
@@ -143,6 +146,7 @@ pub fn show(ctx: &egui::Context, demo: &mut ChartsDemo, toasts: &mut Toasts) {
                         Section::Grid => sections::grid(ui, draft),
                         Section::Colors => sections::colors(ui, draft, &visuals),
                         Section::Series => sections::series_section(ui, draft, &series, &visuals),
+                        Section::Motion => motion::show(ui, draft, &visuals),
                         Section::Export => sections::export(ui, demo, &mut action),
                     }
                 });

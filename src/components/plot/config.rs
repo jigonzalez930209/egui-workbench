@@ -5,7 +5,9 @@
 use egui::Color32;
 
 use super::LegendPosition;
+use super::animation::LegendHoverConfig;
 use super::axis::Scale;
+use super::chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
 use super::series::{LineStyle, Marker, Smoothing, YAxis};
 
 /// Where the chart title sits along the top.
@@ -125,6 +127,8 @@ pub struct SeriesStyle {
     pub smoothing: Option<Smoothing>,
     /// Move the series to the left or the right y axis.
     pub y_axis: Option<YAxis>,
+    /// Show the direction arrow for this series; [`PlotConfig::direction`] when `None`.
+    pub direction_arrow: Option<bool>,
 }
 
 impl SeriesStyle {
@@ -138,6 +142,7 @@ impl SeriesStyle {
             && self.fill_opacity.is_none()
             && self.smoothing.is_none()
             && self.y_axis.is_none()
+            && self.direction_arrow.is_none()
     }
 }
 
@@ -189,6 +194,20 @@ pub struct PlotConfig {
     pub hover_guides: bool,
     /// The hover popup.
     pub hover_popup: bool,
+    /// The animation played while a legend row is hovered.
+    pub legend_hover: LegendHoverConfig,
+    /// The arrow beside the newest point of a line (for streaming data).
+    pub direction: DirectionArrowConfig,
+    /// Pie and donut layout.
+    pub pie: PieConfig,
+    /// Radar axes and fill.
+    pub radar: RadarConfig,
+    /// Gauge arc and labels.
+    pub gauge: GaugeConfig,
+    /// Heatmap opacity and color scale.
+    pub heatmap: HeatmapConfig,
+    /// Waterfall width and connectors.
+    pub waterfall: WaterfallConfig,
     /// Theme overrides.
     pub colors: PlotColors,
     /// Per-series overrides.
@@ -224,6 +243,13 @@ impl Default for PlotConfig {
             toolbar: true,
             hover_guides: true,
             hover_popup: true,
+            legend_hover: LegendHoverConfig::default(),
+            direction: DirectionArrowConfig::default(),
+            pie: PieConfig::default(),
+            radar: RadarConfig::default(),
+            gauge: GaugeConfig::default(),
+            heatmap: HeatmapConfig::default(),
+            waterfall: WaterfallConfig::default(),
             colors: PlotColors::default(),
             series: Vec::new(),
         }
@@ -262,6 +288,30 @@ impl PlotConfig {
         self.tick_length = self.tick_length.clamp(0.0, 16.0);
         self.line_scale = self.line_scale.clamp(0.25, 8.0);
         self.marker_scale = self.marker_scale.clamp(0.25, 8.0);
+        self.legend_hover.period = self.legend_hover.period.clamp(0.2, 10.0);
+        self.direction.points = self.direction.points.clamp(2, 64);
+        self.direction.length = self.direction.length.clamp(4.0, 160.0);
+        self.direction.width = self.direction.width.clamp(0.5, 8.0);
+        self.direction.head = self.direction.head.clamp(2.0, 40.0);
+        self.pie.inner_radius = self.pie.inner_radius.clamp(0.0, 0.9);
+        if !self.pie.start_angle.is_finite() {
+            self.pie.start_angle = -std::f32::consts::FRAC_PI_2;
+        }
+        self.radar.rings = self.radar.rings.clamp(1, 12);
+        self.radar.fill_opacity = self.radar.fill_opacity.clamp(0.0, 1.0);
+        self.radar.max = self.radar.max.filter(|max| max.is_finite() && *max > 0.0);
+        self.gauge.thickness = self.gauge.thickness.clamp(2.0, 40.0);
+        if !(self.gauge.start_angle.is_finite() && self.gauge.end_angle.is_finite())
+            || (self.gauge.end_angle - self.gauge.start_angle).abs() < 0.1
+        {
+            self.gauge.start_angle = 0.75 * std::f32::consts::PI;
+            self.gauge.end_angle = 2.25 * std::f32::consts::PI;
+        }
+        self.heatmap.opacity = self.heatmap.opacity.clamp(0.0, 1.0);
+        self.waterfall.bar_width = self
+            .waterfall
+            .bar_width
+            .filter(|width| width.is_finite() && *width > 0.0);
         for axis in [&mut self.x, &mut self.y, &mut self.y2] {
             axis.label_size = axis.label_size.map(|size| size.clamp(6.0, 36.0));
             if let (Some(min), Some(max)) = (axis.min, axis.max)
@@ -300,11 +350,25 @@ mod tests {
         config.y.min = Some(-1.0);
         config.y.major_step = Some(0.0);
         config.title_size = 400.0;
+        config.legend_hover.period = 0.0;
+        config.direction.points = 0;
+        config.pie.inner_radius = 4.0;
+        config.radar.rings = 0;
+        config.gauge.thickness = 900.0;
+        config.heatmap.opacity = 4.0;
+        config.waterfall.bar_width = Some(-1.0);
         config.sanitize();
         assert_eq!((config.x.min, config.x.max), (Some(5.0), None));
         assert_eq!(config.y.min, None);
         assert_eq!(config.y.major_step, None);
         assert_eq!(config.title_size, 48.0);
+        assert_eq!(config.legend_hover.period, 0.2);
+        assert_eq!(config.direction.points, 2);
+        assert_eq!(config.pie.inner_radius, 0.9);
+        assert_eq!(config.radar.rings, 1);
+        assert_eq!(config.gauge.thickness, 40.0);
+        assert_eq!(config.heatmap.opacity, 1.0);
+        assert_eq!(config.waterfall.bar_width, None);
     }
 
     #[test]

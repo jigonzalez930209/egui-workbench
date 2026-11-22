@@ -1,7 +1,9 @@
 //! The legend: its layout (shared by painting and interaction) and its primitives.
 
 use egui::{Align2, Color32, Pos2, Rect, pos2, vec2};
+use std::f32::consts::PI;
 
+use super::animation::Effect;
 use super::overlay::{Colors, look};
 use super::paint::{self, Look};
 use super::scene::{Dash, Measure, Prim, Scene};
@@ -30,7 +32,7 @@ pub(super) struct LegendLayout {
 /// Where the legend and its rows go. Hidden series stay listed (dimmed) on screen so
 /// they can be shown again; exports leave them out.
 pub(super) fn layout(
-    measure: &Measure<'_>,
+    measure: &Measure,
     plot: &Plot<'_>,
     frame: Rect,
     state: &PlotState,
@@ -124,13 +126,16 @@ pub(super) fn layout(
     Some(LegendLayout { rect, rows })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn prims(
     scene: &mut Scene,
-    measure: &Measure<'_>,
+    measure: &Measure,
     plot: &Plot<'_>,
     legend: &LegendLayout,
     colors: &Colors,
     theme: &crate::theme::Theme,
+    hovered: Option<usize>,
+    effect: Option<Effect>,
 ) {
     let config = &plot.config;
     if config.legend_frame {
@@ -145,16 +150,29 @@ pub(super) fn prims(
     let max_text = legend.rect.right() - LEGEND_PAD - legend.rows.first().map_or(0.0, |row| row.text.x) + 0.5;
     for row in &legend.rows {
         let series = &plot.series[row.series];
-        let look = look(plot, row.series, theme);
+        let mut look = look(plot, row.series, theme);
+        let row_effect = (hovered == Some(row.series)).then_some(effect).flatten();
+        if let Some(row_effect) = row_effect {
+            look.color = row_effect.color(look.color);
+            look.width = row_effect.width(look.width);
+            scene.over.push(Prim::Rect {
+                rect: row.rect.shrink2(vec2(1.0, 0.5)),
+                radius: 4.0,
+                fill: row_effect.highlight.gamma_multiply(0.10 + 0.10 * row_effect.wave()),
+                stroke: Some((1.0, row_effect.highlight.gamma_multiply(0.22))),
+            });
+        }
         let color = if row.hidden {
             look.color.gamma_multiply(0.3)
         } else {
             look.color
         };
-        swatch(&mut scene.over, series, &look, row.swatch, color);
+        swatch(&mut scene.over, series, &look, row.swatch, color, row_effect);
         let name = elide(measure, &series.name, config.legend_size, max_text);
         let text_color = if row.hidden {
             colors.tick_text.gamma_multiply(0.6)
+        } else if let Some(effect) = row_effect {
+            effect.color(colors.text)
         } else {
             colors.text
         };
@@ -166,8 +184,22 @@ pub(super) fn prims(
 
 /// The legend sample of a series, centered on `center`: the line and its marker share
 /// the same pixel-centered midline.
-fn swatch(out: &mut Vec<Prim>, series: &super::series::Series<'_>, look: &Look, center: Pos2, color: Color32) {
+fn swatch(
+    out: &mut Vec<Prim>,
+    series: &super::series::Series<'_>,
+    look: &Look,
+    center: Pos2,
+    color: Color32,
+    effect: Option<Effect>,
+) {
     let half = SWATCH * 0.5;
+    let width = effect.map_or(look.width, |effect| effect.width(look.width));
+    let style = match look.style {
+        LineStyle::Solid => Dash::Solid,
+        LineStyle::Dashed => Dash::Dashed(5.0, 3.0),
+        LineStyle::Dotted => Dash::Dotted(4.0),
+    };
+    let dash = effect.map_or(style, |effect| effect.dash(style));
     let line = |width: f32, dash: Dash| Prim::Line {
         points: vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)],
         width,
@@ -178,12 +210,63 @@ fn swatch(out: &mut Vec<Prim>, series: &super::series::Series<'_>, look: &Look, 
         Kind::Scatter { marker, .. } => {
             paint::marker_prims(out, center, look.marker.unwrap_or(marker), look.radius.min(5.0), color);
         }
-        Kind::Bars { .. } => out.push(Prim::Rect {
+        Kind::Bars { .. } | Kind::Pie { .. } | Kind::Waterfall { .. } => out.push(Prim::Rect {
             rect: Rect::from_center_size(center, vec2(10.0, 10.0)),
             radius: 2.0,
-            fill: color.gamma_multiply(look.fill_opacity),
+            fill: color.gamma_multiply(look.fill_opacity.max(0.75)),
             stroke: None,
         }),
+        Kind::Candles { .. } => {
+            out.push(line(1.0, Dash::Solid));
+            out.push(Prim::Rect {
+                rect: Rect::from_center_size(center, vec2(6.0, 9.0)),
+                radius: 0.0,
+                fill: color,
+                stroke: None,
+            });
+        }
+        Kind::Heatmap => {
+            for (index, tint) in [0.35, 0.6, 0.9].into_iter().enumerate() {
+                out.push(Prim::Rect {
+                    rect: Rect::from_min_size(
+                        pos2(center.x - half + index as f32 * (SWATCH / 3.0), center.y - 5.0),
+                        vec2(SWATCH / 3.0, 10.0),
+                    ),
+                    radius: 0.0,
+                    fill: color.gamma_multiply(tint),
+                    stroke: None,
+                });
+            }
+        }
+        Kind::Radar => {
+            let points = vec![
+                center + vec2(0.0, -5.0),
+                center + vec2(5.0, 0.0),
+                center + vec2(0.0, 5.0),
+                center + vec2(-5.0, 0.0),
+                center + vec2(0.0, -5.0),
+            ];
+            out.push(Prim::Line {
+                points,
+                width: width.clamp(1.0, 3.0),
+                color,
+                dash,
+            });
+        }
+        Kind::Gauge { .. } => {
+            let points: Vec<Pos2> = (0..=8)
+                .map(|step| {
+                    let angle = PI * 1.15 + PI * 0.7 * step as f32 / 8.0;
+                    center + vec2(angle.cos(), angle.sin()) * 6.0
+                })
+                .collect();
+            out.push(Prim::Line {
+                points,
+                width: width.clamp(1.0, 4.0),
+                color,
+                dash: Dash::Solid,
+            });
+        }
         Kind::Line { fill_to, .. } => {
             if fill_to.is_some() {
                 out.push(Prim::Rect {
@@ -193,22 +276,17 @@ fn swatch(out: &mut Vec<Prim>, series: &super::series::Series<'_>, look: &Look, 
                     stroke: None,
                 });
             }
-            let dash = match look.style {
-                LineStyle::Solid => Dash::Solid,
-                LineStyle::Dashed => Dash::Dashed(5.0, 3.0),
-                LineStyle::Dotted => Dash::Dotted(4.0),
-            };
-            out.push(line(look.width.clamp(1.0, 4.0), dash));
+            out.push(line(width.clamp(1.0, 4.0), dash));
             if let Some(marker) = look.marker {
                 paint::marker_prims(out, center, marker, look.radius.min(4.0), color);
             }
         }
-        Kind::HLine(_) | Kind::VLine(_) => out.push(line(look.width.clamp(1.0, 3.0), Dash::Solid)),
+        Kind::HLine(_) | Kind::VLine(_) => out.push(line(width.clamp(1.0, 3.0), Dash::Solid)),
     }
 }
 
 /// `text` cut with "…" to fit `width`.
-fn elide(measure: &Measure<'_>, text: &str, size: f32, width: f32) -> String {
+fn elide(measure: &Measure, text: &str, size: f32, width: f32) -> String {
     if measure.text(text, size).0 <= width {
         return text.to_owned();
     }

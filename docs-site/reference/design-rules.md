@@ -11,8 +11,9 @@ you add a component or a screen so the workbench does not drift.
 ## Principles
 
 1. **The shell owns presentation only.** Components take translated strings and state
-   snapshots, and return events. They never do file I/O, change settings, or decide
-   lifecycle questions.
+   snapshots, and return events. They do not change settings or decide lifecycle
+   questions. The data viewer is the one exception to "no file I/O": its explicit
+   `open`/`from_bytes` loaders parse once, and its paint methods never touch the disk.
 2. **One `Command` enum, one handler.** Menus, the palette, the keyboard menu, shortcuts,
    and context menus produce the same command. Every action is reachable by pointer,
    keyboard, and search.

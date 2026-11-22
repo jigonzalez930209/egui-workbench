@@ -15,6 +15,53 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-22
+
+### Added
+
+- Legend hover animations: resting the pointer on a legend row can play an effect on
+  that series. `PlotConfig::legend_hover` (`LegendHoverConfig`) has an on/off switch, the
+  effect, easing, period, and a second color; `Plot::legend_animation` and
+  `Plot::legend_hover` are the builder shorthands. The default is a strong `Blink` with `AnimationEasing::Linear`: in dark mode it
+  pulses between white and the series color, and in light mode between black and the
+  series color. The 13 effects are `Blink`, `Fade`, `Throb`,
+  `DashMarch`, `DashToggle`, `Glow`, `Sweep`, `Wiggle`, `Reveal`, `MarkerBounce`,
+  `MarkerPulse`, `Twinkle`, and `Wave`; they adapt to line, pie, radar, gauge, heatmap,
+  candlestick, and waterfall series. Reduced motion disables them.
+- Direction arrow for streaming data: `PlotConfig::direction`
+  (`DirectionArrowConfig`), `Plot::direction_arrow(true)`, and
+  `Plot::direction_points(n)`. It measures the last 5 samples by default (2–64) and draws
+  with each line-like series' color; `SeriesStyle::direction_arrow` overrides it per
+  series. It is part of the scene, so exports include it.
+- New chart types on `Plot`, with their layouts in `PlotConfig`:
+  - pie and donut (`Series::pie`, `PieConfig`);
+  - candlesticks (`Series::candles`, `[x, open, high, low, close]`);
+  - heatmaps (`Series::heatmap`, `[x, y, value]`, `HeatmapConfig`);
+  - radar polygons (`Series::radar`, `RadarConfig::labels`);
+  - gauges (`Series::gauge`, `0.0..=100.0`, `GaugeConfig`);
+  - waterfalls (`Series::waterfall`, `WaterfallConfig`).
+  `Plot::chart_mode()` reports the inferred family.
+- `components::viewer::FileViewer`: native Excel workbooks with one tab per sheet
+  (`.xlsx`, `.xlsm`, `.xls`, `.xlsb`, `.ods`), CSV and TSV (RFC 4180 quoting), and
+  UTF-8 plain text. The table and text views are virtualized, keep header and line-number
+  toggles, and never do I/O while painting. `FileViewer::{open, from_bytes, text}` and
+  the `Workbook`, `Sheet`, `Table`, `Cell`, `CellKind`, `TextFile`, and `ViewerError`
+  types are public. Workbook parsing uses `calamine` (MIT).
+- The starter's chart settings dialog has a **Motion** section for the legend animation
+  and direction arrow, and a new `plot-types` documentation scene plus a `viewer` scene.
+
+### Changed
+
+- `PlotConfig` gains `legend_hover`, `direction`, `pie`, `radar`, `gauge`, `heatmap`, and
+  `waterfall`; `SeriesStyle` gains `direction_arrow`.
+- Legend rows are shaded in the plot scene instead of by the interaction pass, so the
+  hovered row and the animated series are drawn in the same frame.
+
+### Migration
+
+- Code that builds `PlotConfig` or `SeriesStyle` with struct literals adds
+  `..Default::default()` (or the new fields).
+
 ## [0.2.1] - 2026-11-22
 
 ### Changed
@@ -150,7 +197,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.0...v0.1.1

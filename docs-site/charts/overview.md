@@ -45,6 +45,8 @@ if let Some(hover) = response.hovered {
 | Area | What you get |
 |---|---|
 | Series | `line`, `area`, `step`, `scatter` (7 markers), `bars`, `function`, `hline`, `vline`; color, width, dashed/dotted, marker, `y_errors`, `fill_to` |
+| Chart types | Pie/donut (`Series::pie`), candlesticks, heatmaps, radar, gauges, and waterfalls |
+| Hover animation | 13 legend-row effects with user-defined easing, plus the direction arrow for streaming series |
 | Axes | Linear or log10 per axis; 1-2-5 ticks measured so labels never overlap; minor log ticks; fixed limits; grid per axis |
 | Interaction | Drag pans; wheel zooms around the cursor; right-drag or the zoom tool draws a box; Shift-drag or the select tool selects an area; double-click fits; toolbar |
 | Feedback | Hover ring, dashed guides to the axes, a popup with series/x/y; legend toggles series |
@@ -56,6 +58,8 @@ if let Some(hover) = response.hovered {
 ## Sections
 
 - [Series](/charts/series): every constructor and modifier.
+- [Chart types](/charts/chart-types): pie/donut, candles, heatmap, radar, gauge, waterfall.
+- [Legend animation](/charts/animations): the 13 hover effects, easing, and the direction arrow.
 - [Axes and ticks](/charts/axes-and-ticks): scales, limits, ticks, labels.
 - [Interaction](/charts/interaction): pan, zoom, selection, hover, response.
 - [Configuration](/charts/configuration): `PlotConfig`, colors, per-series styles.

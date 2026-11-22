@@ -3,7 +3,8 @@
 > Export the plot to SVG or PNG from the same scene the screen draws, including sizes, transparency, and the toolbar menu. Live page: <https://jigonzalez930209.github.io/egui-workbench/charts/export.html>
 
 `to_svg` and `to_png` render the same scene as the screen: same view, colors, grid,
-legend, and selection. The toolbar and hover feedback are not included.
+legend, and selection. The toolbar, hover popup, and transient legend animation are not
+included.
 
 ## Options
 

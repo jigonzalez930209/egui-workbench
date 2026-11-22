@@ -815,6 +815,8 @@ snapshots. `examples/catalog` shows every builder variant and state in one live 
 | Area | Items |
 |---|---|
 | Components | `components::{Button, IconButton, CloseButton, IconPreview, NavTab, TextField, TextArea, Switch, Checkbox, Select, Stepper, SegmentedControl, Badge, Banner, Label, Card, Separator, StatusBar, Menu, MenuItem, MenuToggle, MenuButton, MenuIconButton, Popover, TabStrip, CommandPalette, Tree, Dialog, ConfirmDialog, NameDialog, ProgressDialog, Size, Tone, ButtonVariant, prelude, blocks}` |
+| Charts | `components::plot::{Plot, PlotState, PlotConfig, Series, ChartMode, LegendAnimation, AnimationEasing, LegendHoverConfig, DirectionArrowConfig, PieConfig, RadarConfig, GaugeConfig, HeatmapConfig, WaterfallConfig, Fit, ExportOptions, …}` |
+| File viewer | `components::viewer::{FileViewer, FileFormat, Document, Workbook, Sheet, Table, Cell, CellKind, TextFile, ViewerError}` |
 | Application runtime | `app::{ThemeState, Documents, Document, Keymap, CloseGuard, WorkbenchApp, show_workbench, TITLE_BAR_PANEL, SIDEBAR_PANEL, TAB_STRIP_PANEL, STATUS_BAR_PANEL}` |
 | Theme | `Theme`, `ThemeId`, `ThemeMode`, `theme::{apply_id, apply_theme, effective_id, system_is_dark, set_reduced_motion, ANIMATION_TIME}`, `theme::{contrast_ratio, relative_luminance}` |
 | Window | `native_options`, `native_options_sized`, `handle_window_edges`, `apply_window_action`, `is_maximized`, `set_window_title`, `WindowAction` |
@@ -868,6 +870,8 @@ the geometry.
 | `tests/dialogs.rs` | The name prompt focuses its field, submits with Enter, and cancels with Cancel, ×, and Esc; validation text; primary on the right; the confirm prompt; the choice window (Esc = last); progress; banners; popover position; settings rail, switch rows, Done/×/Esc, and width bounds |
 | `tests/palette_menu.rs` | All rows with the first highlighted; filtering by label and detail; Enter and click run a row; "No matches"; at most 12 rows; F10 and Alt+letter open the keyboard menu; arrows wrap groups and clamp items; Enter, click, and Esc |
 | `tests/layout_icons.rs` | Status bar cell order and baseline; the empty state; the split as columns (drag moves the ratio) and as rows below 620 pt (ratio clamped); editor scrollbars applied and restored; registering custom glyphs; Material file and folder icons and their texture sizes |
+| `tests/plot_charts.rs` | The new chart families, the direction arrow in SVG, and every legend hover animation |
+| `tests/viewer.rs` | Workbook sheets and cells, CSV/TSV, text lines, binary rejection, and rendering each viewer kind |
 | `tests/snapshots.rs` | PNG references of the full workbench in GitHub Light, GitHub Dark, and Dracula; settings; the palette (One Dark Pro); the tree context menu with the pill |
 | `tests/snapshots_components.rs` | PNG references of the component board in GitHub Light and GitHub Dark |
 
