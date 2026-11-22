@@ -301,6 +301,24 @@ impl<'a> Series<'a> {
         matches!(self.kind, Kind::HLine(_) | Kind::VLine(_))
     }
 
+    /// A cheap key for [`Self::bounds`]: the buffers' addresses and lengths, the kind, the
+    /// scales, and 16 sampled values. A different buffer, length, or sampled value is a
+    /// different key, so appended or replaced data refreshes the cached extent.
+    pub(super) fn fingerprint(&self, x_scale: Scale, y_scale: Scale) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (self.data.as_ptr() as usize, self.data.len()).hash(&mut hasher);
+        if let Some(errors) = &self.y_errors {
+            (errors.as_ptr() as usize, errors.len()).hash(&mut hasher);
+        }
+        format!("{:?}{x_scale:?}{y_scale:?}", self.kind).hash(&mut hasher);
+        let step = (self.data.len() / 16).max(1);
+        for point in self.data.iter().step_by(step).chain(self.data.last()) {
+            (point[0].to_bits(), point[1].to_bits()).hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
     /// Data extent in scaled space (log axes ignore values ≤ 0).
     pub(super) fn bounds(&self, x_scale: Scale, y_scale: Scale) -> Bounds {
         let mut bounds = Bounds::NOTHING;
