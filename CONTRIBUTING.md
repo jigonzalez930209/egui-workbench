@@ -102,16 +102,22 @@ Review every changed snapshot, and bump this crate's minor version in `Cargo.tom
 
 ## Releasing
 
+Releases are continuous delivery from tags: the `Release` workflow runs
+`cargo xtask check`, publishes to crates.io with the `CARGO_REGISTRY_TOKEN` repository
+secret, and creates the GitHub release with that version's changelog section.
+
 1. Move the *Unreleased* entries of `CHANGELOG.md` under a new `## [X.Y.Z] - date`
    heading (and update the compare links at the bottom); set `version` in `Cargo.toml`.
-2. `cargo xtask check`, `cargo xtask template-check`, and `cargo publish --dry-run`.
-3. Commit, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`. The
-   `Release` workflow publishes to crates.io (Trusted Publishing, no stored token) and
-   creates the GitHub release with that version's changelog section.
+2. Locally: `cargo xtask check`, `cargo xtask template-check`, and
+   `cargo publish --dry-run`.
+3. Commit and push, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
-The first release (0.1.0) is published by hand, because Trusted Publishing is
-configured on an existing crate: `cargo login`, `cargo publish`, then enable Trusted
-Publishing for `jigonzalez930209/egui-workbench` / `release.yml` on crates.io.
+The workflow stops before publishing if the tag does not match `Cargo.toml`, the
+changelog has no section for the version, the secret is missing, or a check fails.
+
+One-time setup: create a crates.io API token (Account Settings → API Tokens) with the
+`publish-new` and `publish-update` scopes, then store it as a repository secret:
+`gh secret set CARGO_REGISTRY_TOKEN`.
 
 ## Commits
 
