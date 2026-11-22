@@ -41,6 +41,7 @@ export default defineConfig({
             { text: 'Quick start', link: '/guide/quick-start' },
             { text: 'Build your first app', link: '/guide/first-app' },
             { text: 'Live demo', link: '/guide/live-demo' },
+            { text: 'Use with AI agents', link: '/guide/ai-agents' },
           ],
         },
         {
