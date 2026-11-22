@@ -15,6 +15,39 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
+### Added
+
+- Plots get a second y axis on the right: `Series::y_axis(YAxis::Right)` (or
+  `SeriesStyle::y_axis`) measures a series on it, with its own range, scale, ticks, grid,
+  and title (`PlotConfig::y2`, `Plot::y2_label`, `y2_scale`, `y2_limits`). With two axes,
+  Alt + wheel zooms the left axis over the left half of the frame and the right axis
+  over the right half. `PlotResponse::y2_view`, `screen_pos_on`, `PlotHover::axis`, and
+  `PlotState::set_y2_view` expose it.
+- The wheel over an axis's tick labels (outside the frame) zooms that axis alone.
+- The legend can be dragged anywhere inside the frame; the position lives in
+  `PlotState` (`legend_position`, `set_legend_position`) and is used by exports.
+- Smooth lines: `Series::smooth(Smoothing::Spline | Monotone)`, `Series::spline`, and
+  `SeriesStyle::smoothing`.
+- Title and axis-title styling: `PlotConfig::title_color`, `title_align` (`TitleAlign`),
+  and per-axis `AxisConfig::label_size`, `label_color`, and `tick_color`.
+- The starter's Charts gallery adds a two-axis climate chart, and its settings dialog a
+  Titles section, the right axis, tick colors, and per-series smoothing and axis.
+
+### Changed
+
+- Plot cursors: a crosshair over the data area with every tool, a closed hand while
+  pressing or dragging to pan, resize arrows over an axis, and the ordinary pointer over
+  the legend (whose hovered row is shaded) and the toolbar.
+- `PlotState::reset_view` also resets the right axis.
+
+### Migration
+
+- `AxisConfig`, `PlotConfig`, `SeriesStyle`, and `PlotHover` have new public fields:
+  code that builds them with struct literals adds `..Default::default()` (or the new
+  `axis` field for `PlotHover`).
+
 ## [0.1.1] - 2026-11-21
 
 ### Added
@@ -103,6 +136,7 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jigonzalez930209/egui-workbench/releases/tag/v0.1.0
