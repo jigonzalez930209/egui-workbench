@@ -1,39 +1,70 @@
 name: Release
 
-# Push a tag `vX.Y.Z` (matching `version` in Cargo.toml) to publish to crates.io and
-# create the GitHub release. Uses crates.io Trusted Publishing: no API token is stored
-# in the repository. Configure it once in the crate's settings on crates.io
-# (Trusted Publishing → GitHub: this repository, workflow `release.yml`); the very first
-# release has to be published by hand with `cargo publish`.
+# Continuous delivery: push a tag `vX.Y.Z` (matching `version` in Cargo.toml) to run the
+# checks, publish egui-workbench to crates.io, and create the GitHub release with that
+# version's changelog section.
+#
+# Needs the repository secret CARGO_REGISTRY_TOKEN: a crates.io API token with the
+# `publish-new` and `publish-update` scopes (crates.io → Account Settings → API Tokens).
 on:
   push:
     tags: ["v*"]
 
 permissions:
   contents: write # the GitHub release
-  id-token: write # crates.io Trusted Publishing
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_JOBS: 4
     steps:
       - uses: actions/checkout@v4
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev \
+            mesa-vulkan-drivers libvulkan1 xvfb
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.1"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Tag matches Cargo.toml
         run: |
-          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "egui-workbench") | .version')
-          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != v$version"; exit 1; }
-      - uses: rust-lang/crates-io-auth-action@v1
-        id: auth
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "egui-workbench") | .version')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          fi
+      - name: Changelog has this version
+        run: |
+          grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no section for ${GITHUB_REF_NAME#v}"; exit 1; }
+      - name: Token is configured
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          [ -n "$CARGO_REGISTRY_TOKEN" ] \
+            || { echo "::error::add the CARGO_REGISTRY_TOKEN repository secret"; exit 1; }
+      - name: Checks
+        run: xvfb-run -a cargo xtask check
       - name: Publish to crates.io
         env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --locked
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes=$(awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f && !/^\[[^]]*\]: /' CHANGELOG.md)
-          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --notes "$notes"
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f && !/^\[[^]]*\]: /' \
+            CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
