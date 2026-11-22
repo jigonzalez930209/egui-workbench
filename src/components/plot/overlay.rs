@@ -227,6 +227,7 @@ pub(super) fn build_scene(
         under: Vec::new(),
         data: Vec::new(),
         over: Vec::new(),
+        drawn: Vec::new(),
     };
     if let Some(canvas) = colors.canvas {
         scene.under.push(Prim::Rect {
@@ -246,12 +247,16 @@ pub(super) fn build_scene(
 
     for (index, series) in plot.series.iter().enumerate() {
         if state.is_hidden(&series.name) {
+            scene.drawn.push(None);
             continue;
         }
         let look = look(plot, index, theme);
         let transform = transform.for_axis(plot.axis_of(series));
-        let indices = paint::visible_indices(&transform, series, series.sorted_x());
+        let sorted = series.sorted_x();
+        let indices = paint::visible_indices(&transform, series, sorted, look.radius);
         paint::series_prims(&mut scene.data, measure, &transform, series, &look, &indices);
+        // Sorted series find their nearest point by binary search already.
+        scene.drawn.push((!sorted).then_some(indices));
     }
     if let Some(selection) = state.selection {
         let a = transform.to_screen([selection.min_x, selection.min_y]);
