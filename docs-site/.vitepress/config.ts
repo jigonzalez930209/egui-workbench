@@ -135,6 +135,7 @@ export default defineConfig({
             { text: 'Testing', link: '/reference/testing' },
             { text: 'xtask', link: '/reference/xtask' },
             { text: 'Changelog', link: '/reference/changelog' },
+            { text: 'Roadmap', link: '/reference/roadmap' },
             { text: 'FAQ', link: '/reference/faq' },
           ],
         },
