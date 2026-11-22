@@ -43,7 +43,9 @@ events; the application owns the state and one `Command` enum.
 - **Component guide:** [`docs/COMPONENTS.md`](docs/COMPONENTS.md) and
   [`examples/catalog`](examples/catalog).
 - **Icon guide:** [`docs/ICONS.md`](docs/ICONS.md).
-- **Complete example:** [`examples/showcase`](examples/showcase) uses the runtime.
+- **Complete example:** [`examples/showcase`](examples/showcase) uses the runtime; the
+  data viewer and charts have runnable examples in [`examples/viewer`](examples/viewer)
+  and [`examples/scenes`](examples/scenes).
 - **Starter application:** [`templates/app`](templates/app), generated with
   `cargo xtask new`.
 

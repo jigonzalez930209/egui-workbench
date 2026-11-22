@@ -143,7 +143,7 @@ if response.selection_changed { let area = state.selection; }
 | Direction arrow | `PlotConfig::direction` / `.direction_arrow(true)` / `.direction_points(n)`: the arrow beside the newest sample of line-like series |
 | Axes | `Scale::Linear` / `Scale::Log10` per axis; 1-2-5 ticks measured so labels never overlap; one notation per axis; minor log ticks |
 | Interaction | drag pans; wheel zooms around the cursor (Shift: x only, Alt: y only; the wheel is consumed so a surrounding scroll area stays put); right-drag or the zoom tool zooms to a box (a thin box zooms one axis); Shift-drag or the select tool selects an area; double-click fits the data; the toolbar has the three tools, zoom in/out, and fit |
-| Feedback | hover ring with dashed guides to the axes and a popup with the series, x, and y; the legend toggles series |
+| Feedback | hover ring with dashed guides to the axes and a popup with the series, x, and y; the legend toggles series, and a hovered legend row draws its series above the others without reordering the legend |
 | Analysis | `Fit::new(FitKind, &data)`: linear, polynomial (1–8), exponential, power, logarithmic, moving average; `eval`, `equation`, `r_squared`, `series`; `points_in(&data, &bounds)` for selections |
 | Live data | `.x_window(10.0)` follows the newest 10 x units while the view is automatic |
 | Response | `hovered`, `clicked`, `pointer` (data coordinates), `selection_changed`, `view`, `frame`, `screen_pos(point)`, `data_pos(pos)` for annotations |

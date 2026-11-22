@@ -62,6 +62,23 @@ pub(super) fn look(plot: &Plot<'_>, index: usize, theme: &crate::theme::Theme) -
     }
 }
 
+/// The order series draw in: normal order, except that the series whose legend row is
+/// hovered draws last (on top of every other series). The legend itself keeps its order.
+pub(super) fn draw_order(plot: &Plot<'_>, state: &PlotState) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..plot.series.len()).collect();
+    if let Some(hovered) = state.legend_hover()
+        && plot
+            .series
+            .get(hovered)
+            .is_some_and(|series| !state.is_hidden(&series.name))
+        && let Some(position) = order.iter().position(|index| *index == hovered)
+    {
+        let index = order.remove(position);
+        order.push(index);
+    }
+    order
+}
+
 /// Everything static about one frame of the plot, as primitives.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_scene(
@@ -106,9 +123,10 @@ pub(super) fn build_scene(
     }
 
     if mode == ChartMode::Cartesian {
-        for (index, series) in plot.series.iter().enumerate() {
+        scene.drawn = vec![None; plot.series.len()];
+        for index in draw_order(plot, state) {
+            let series = &plot.series[index];
             if state.is_hidden(&series.name) {
-                scene.drawn.push(None);
                 continue;
             }
             let look = look(plot, index, theme);
@@ -128,11 +146,10 @@ pub(super) fn build_scene(
                     theme,
                     effect,
                 );
-                scene.drawn.push(None);
             } else {
                 paint::series_prims(&mut scene.data, measure, &transform, series, &look, &indices, effect);
                 // Sorted series find their nearest point by binary search already.
-                scene.drawn.push((!sorted).then_some(indices));
+                scene.drawn[index] = (!sorted).then_some(indices);
             }
             if plot.draws_direction(index) && series.has_direction() {
                 let color = effect.map_or(look.color, |effect| effect.color(look.color));
@@ -415,5 +432,26 @@ fn titles(
             baseline,
             angle: std::f32::consts::FRAC_PI_2,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::Series;
+    use super::*;
+
+    #[test]
+    fn the_hovered_series_draws_last_without_moving_the_legend() {
+        let data: [[f64; 2]; 2] = [[0.0, 0.0], [1.0, 1.0]];
+        let plot = Plot::new("z-order")
+            .series(Series::line("first", &data[..]))
+            .series(Series::line("second", &data[..]))
+            .series(Series::line("third", &data[..]));
+        let mut state = PlotState::default();
+        assert_eq!(draw_order(&plot, &state), [0, 1, 2]);
+        state.set_legend_hover(Some(0), 0.0);
+        assert_eq!(draw_order(&plot, &state), [1, 2, 0]);
+        state.set_hidden("first", true);
+        assert_eq!(draw_order(&plot, &state), [0, 1, 2]);
     }
 }

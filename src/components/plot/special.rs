@@ -27,15 +27,16 @@ pub(super) fn build(
     motion: bool,
 ) {
     let frame = layout.frame;
-    let visible: Vec<(usize, &Series<'_>, Look, Option<Effect>)> = plot
-        .series
-        .iter()
-        .enumerate()
-        .filter(|(_, series)| !state.is_hidden(&series.name))
-        .map(|(index, series)| {
+    let visible: Vec<(usize, &Series<'_>, Look, Option<Effect>)> = overlay::draw_order(plot, state)
+        .into_iter()
+        .filter_map(|index| {
+            let series = &plot.series[index];
+            if state.is_hidden(&series.name) {
+                return None;
+            }
             let look = overlay::look(plot, index, theme);
             let effect = Effect::for_hover(&plot.config, state, index, now, theme, motion);
-            (index, series, look, effect)
+            Some((index, series, look, effect))
         })
         .collect();
     scene.drawn = vec![None; plot.series.len()];

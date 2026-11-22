@@ -41,7 +41,7 @@ The cursor says what a gesture will do:
 | Pressing or dragging to pan | Closed hand |
 | Drawing a zoom or selection box | Crosshair |
 | Over an axis's tick labels | Horizontal (x) or vertical (y) resize arrows: the wheel zooms that axis |
-| Over the legend or the toolbar | The ordinary pointer; the legend row under it is shaded and its series animates |
+| Over the legend or the toolbar | The ordinary pointer; the hovered row is shaded, its series animates, and that series draws above the others |
 | Moving the legend | Closed hand |
 
 ## Tools

@@ -7,6 +7,19 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-22
+
+### Added
+
+- Hovering a legend row now draws that series above every other series without moving
+  the legend rows. A hovered line covers overlapping bars, a pie slice sits on top of its
+  neighbors, and a radar polygon covers the other polygons; the legend order and hidden
+  state stay exactly where they were.
+- `examples/viewer`: a runnable native example of the data viewer with drag-and-drop,
+  an optional command-line path, the embedded sample workbook, and a light/dark toggle.
+- The documentation now has a live gallery of every new chart family (pie/donut,
+  candlesticks, heatmap, radar, gauges, and waterfall) instead of a single default chart.
+
 ## [0.2.2] - 2026-11-22
 
 ### Added
@@ -189,7 +202,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.1.1...v0.2.0

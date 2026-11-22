@@ -1,6 +1,6 @@
 ---
 name: egui-workbench
-description: Build native desktop applications in Rust with the egui-workbench crate (an IDE-style shell for egui/eframe 0.37) - custom title bar and menus, document tabs, explorer tree, command palette, keymap, settings, dialogs, toasts, nine themes, interactive plots with fits, six chart families, legend animations, a streaming direction arrow, SVG/PNG export, a native Excel/CSV/TSV/text viewer, and shadcn-style components. Use this skill whenever the user wants a Rust desktop GUI, an egui or eframe app, a tool or editor or dashboard with a native window, or mentions egui-workbench, egui_workbench, WorkbenchApp, show_workbench, or the workbench components and plots, even if they only say "make me a desktop app in Rust".
+description: Build native desktop applications in Rust with the egui-workbench crate (an IDE-style shell for egui/eframe 0.37) - custom title bar and menus, document tabs, explorer tree, command palette, keymap, settings, dialogs, toasts, nine themes, interactive plots with fits, six chart families, legend hover animations that bring the hovered series to the front, a streaming direction arrow, SVG/PNG export, a native Excel/CSV/TSV/text viewer, and shadcn-style components. Use this skill whenever the user wants a Rust desktop GUI, an egui or eframe app, a tool or editor or dashboard with a native window, or mentions egui-workbench, egui_workbench, WorkbenchApp, show_workbench, or the workbench components and plots, even if they only say "make me a desktop app in Rust".
 license: MIT OR Apache-2.0
 compatibility: Rust 1.95+ (edition 2024) with cargo; Linux needs the usual winit/OpenGL development packages.
 metadata:
@@ -15,8 +15,9 @@ metadata:
 `egui-workbench` is the shell of a desktop application built on egui 0.37: undecorated
 window with its own title bar, menus, tab strip, explorer, status bar, command palette,
 keymap, close guard, settings dialog, toasts, plots (including pie, candles, heatmaps,
-radar, gauges, and waterfalls), a file viewer, and a component set with shared sizes and
-tones. It owns presentation only. Your application owns state, files, and commands.
+radar, gauges, and waterfalls, with legend hover animations), a file viewer, and a
+component set with shared sizes and tones. It owns presentation only. Your application
+owns state, files, and commands.
 
 ## Set up a project
 
@@ -209,6 +210,34 @@ fn main() -> eframe::Result {
     )
 }
 ```
+
+## Charts and data
+
+Add series to a `Plot` and keep its `PlotState` in the application model:
+
+```rust
+let mut state = PlotState::default();
+Plot::new("signal")
+    .legend_hover(LegendHoverConfig::default()) // Blink: white/black ↔ series color
+    .direction_arrow(true)                      // trailing 5 samples
+    .series(Series::line("sensor", &samples))
+    .series(Series::pie("share", 38.0))         // or candles, heatmap, radar, gauge, waterfall
+    .show(ui, &mut icons, &mut state);
+```
+
+Hovering a legend row animates that series and draws it above all other series without
+moving the legend rows. Reduced motion disables the animation.
+
+The data viewer loads once and paints a virtualized table or text buffer:
+
+```rust
+let mut viewer = FileViewer::open("sales.xlsx")?; // or from_bytes(name, bytes)
+viewer.show(ui);                                  // no I/O while painting
+```
+
+Runnable examples: `cargo run --example viewer`,
+`cargo run --example scenes -- scene=plot-chart-gallery`, and
+`cargo run --example scenes -- scene=plot-animations`.
 
 ## Rules that keep an app consistent
 

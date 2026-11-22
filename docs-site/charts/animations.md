@@ -5,8 +5,9 @@ description: Thirteen hover animations with user-defined easing, plus the direct
 
 # Legend animation
 
-Resting the pointer on a legend row can animate its series. The effect is off for every
-other row, starts at the first hover frame, and respects reduced motion.
+Resting the pointer on a legend row animates its series and brings that series to the
+front of the chart. The legend itself never reorders. The effect is off for every other
+row, starts at the first hover frame, and respects reduced motion.
 
 <LiveDemo
   scene="plot-animations"
@@ -26,7 +27,7 @@ Plot::new("signal")
         animation: LegendAnimation::DashMarch,
         easing: AnimationEasing::Sine,
         period: 1.4,
-        highlight: None, // theme warning
+        highlight: None, // white/black blink; theme warning in other effects
     })
     .series(Series::line("signal", &data))
     .show(ui, &mut icons, &mut state);
@@ -39,6 +40,12 @@ Plot::new("signal")
     .legend_animation(LegendAnimation::Blink)
     .series(Series::line("signal", &data));
 ```
+
+## Draw order
+
+The hovered series draws last, above every other series: a line over bars, a pie slice over
+its neighbors, a radar polygon over the others. The legend rows keep their original order,
+so hiding and showing series still targets the same row.
 
 ## The settings
 

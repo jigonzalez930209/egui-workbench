@@ -28,6 +28,18 @@ let viewer = FileViewer::from_bytes("sales.xlsx", bytes)?;
 viewer.show(ui);
 ```
 
+## Runnable example
+
+The repository ships a native example with drag-and-drop and a command-line path:
+
+```bash
+cargo run --example viewer
+cargo run --example viewer -- tests/fixtures/sales.xlsx
+```
+
+Drop an XLSX, XLS, ODS, CSV, TSV, or UTF-8 text file into the window to open it. The
+example starts with an embedded workbook, so it runs without arguments.
+
 ## What the viewer paints
 
 - A toolbar with the format badge, the file name, dimensions, and toggles.

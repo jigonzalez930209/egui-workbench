@@ -147,3 +147,18 @@ motion disables the effects.
   a linear axis.
 - A series with fewer than two points still appears in the legend and hover, but draws no
   line.
+
+## Other chart families
+
+The same constructors cover the non-line families: `pie` (one series per slice),
+`candles`, `heatmap`, `radar`, `gauge`, and `waterfall`. They share the legend, hover
+animation, themes, and export pipeline with every cartesian series.
+
+<LiveDemo
+  scene="plot-chart-gallery"
+  height="800"
+  alt="All six chart families side by side"
+  caption="Pie/donut, candlesticks, heatmap, radar, gauges, and waterfall, all live."
+/>
+
+See [Chart types](/charts/chart-types) for the fields and behavior of each family.

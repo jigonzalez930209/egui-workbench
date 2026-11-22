@@ -19,10 +19,10 @@ meaningful: the first special family wins (`Pie`, then `Radar`, then `Gauge`) an
 others are ignored. `Plot::chart_mode()` reports the inferred family.
 
 <LiveDemo
-  scene="plot-types"
-  height="560"
-  alt="A chart with a selector for pie, candlesticks, heatmap, radar, gauge, and waterfall"
-  caption="Switch families, pick a legend hover animation, toggle the direction arrow, and hover a legend row."
+  scene="plot-chart-gallery"
+  height="800"
+  alt="Live gallery of pie/donut, candlesticks, heatmap, radar, gauges, and waterfall charts"
+  caption="Every new family live at once: pie/donut, candlesticks, heatmap, radar, gauges, and waterfall."
 />
 
 ## Pie and donut

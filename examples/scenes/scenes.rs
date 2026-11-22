@@ -11,6 +11,7 @@
 
 mod animations;
 mod board;
+mod chart_gallery;
 mod chart_types;
 mod charting;
 mod controls;
@@ -42,7 +43,7 @@ use egui_workbench::style::{self, Density, WorkbenchStyle};
 use egui_workbench::{Icons, ThemeId};
 
 /// Every scene name, in the order the docs introduce them.
-pub const SCENES: [&str; 25] = [
+pub const SCENES: [&str; 26] = [
     "shell",
     "catalog",
     "components",
@@ -66,6 +67,7 @@ pub const SCENES: [&str; 25] = [
     "plot-big",
     "plot-types",
     "plot-animations",
+    "plot-chart-gallery",
     "charts",
     "viewer",
 ];
@@ -217,6 +219,7 @@ pub fn build(name: &str) -> Box<dyn Scene> {
         "plot-big" => Box::new(charting::BigScene::default()),
         "plot-types" => Box::new(charting::NewCharts::default()),
         "plot-animations" => Box::new(animations::AnimationScene::default()),
+        "plot-chart-gallery" => Box::new(chart_gallery::ChartGallery::default()),
         "charts" => Box::new(charting::Gallery::default()),
         "viewer" => Box::new(viewer::ViewerScene::default()),
         _ => Box::new(showcase::Catalog::default()),
