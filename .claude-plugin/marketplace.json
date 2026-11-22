@@ -1,0 +1,16 @@
+{
+  "name": "egui-workbench",
+  "owner": {
+    "name": "jigonzalez930209"
+  },
+  "metadata": {
+    "description": "The egui-workbench agent skill: build native Rust desktop apps with an IDE-style egui shell."
+  },
+  "plugins": [
+    {
+      "name": "egui-workbench",
+      "source": "./",
+      "description": "Agent skill for building native Rust desktop apps with the egui-workbench crate."
+    }
+  ]
+}
