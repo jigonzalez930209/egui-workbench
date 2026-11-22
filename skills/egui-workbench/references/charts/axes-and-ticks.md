@@ -99,7 +99,10 @@ Plot::new("voltage")
     .title("Battery discharge");
 ```
 
-Axis labels also appear in the hover popup. The y label is drawn vertically. Long labels
+Axis labels also appear in the hover popup. The y label is drawn vertically; the right
+axis title (`.y2_label(...)`) runs down the right edge. Each title has its own size and
+color (`AxisConfig::label_size`, `label_color`), and the chart title its color and
+alignment (`PlotConfig::title_color`, `title_align`). Long labels
 are measured; if they do not fit, the plot reduces the data area rather than clipping the
 text.
 
