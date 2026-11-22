@@ -15,7 +15,7 @@ The generator copies [`templates/app`](../templates/app), replaces `__APP_NAME__
 application. Use `--name` when the directory does not give a valid crate name.
 
 The generated `Cargo.toml` points at this repository by path. If you move the project,
-update the path, or switch to the published crate: `egui-workbench = "0.1"`.
+update the path, or switch to the published crate: `egui-workbench = "0.2"`.
 
 ## 2. Rename the product
 
