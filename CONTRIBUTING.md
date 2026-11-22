@@ -107,17 +107,33 @@ Releases are continuous delivery from tags: the `Release` workflow runs
 secret, and creates the GitHub release with that version's changelog section.
 
 1. Move the *Unreleased* entries of `CHANGELOG.md` under a new `## [X.Y.Z] - date`
-   heading (and update the compare links at the bottom); set `version` in `Cargo.toml`.
+   heading (and update the compare links at the bottom); set `version` in `Cargo.toml`
+   and in `.claude-plugin/plugin.json`.
 2. Locally: `cargo xtask check`, `cargo xtask template-check`, and
    `cargo publish --dry-run`.
 3. Commit and push, then tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
-The workflow stops before publishing if the tag does not match `Cargo.toml`, the
-changelog has no section for the version, the secret is missing, or a check fails.
+The workflow stops before publishing if the tag does not match `Cargo.toml` or
+`plugin.json`, the changelog has no section for the version, the agent skill is stale,
+the secret is missing, or a check fails. The release carries `egui-workbench-skill.zip`.
 
 One-time setup: create a crates.io API token (Account Settings → API Tokens) with the
 `publish-new` and `publish-update` scopes, then store it as a repository secret:
 `gh secret set CARGO_REGISTRY_TOKEN`.
+
+## Agent skill
+
+`skills/egui-workbench/` teaches AI agents to use the crate. `SKILL.md` is written by
+hand; `references/` and the index at the end of `SKILL.md` are generated from
+`docs-site/`. After changing a docs page or the public API:
+
+```bash
+python3 docs-site/scripts/build-skill.py   # regenerate references/
+bash docs-site/scripts/check-examples.sh    # the SKILL.md program and docs programs compile
+claude plugin validate .                    # optional: the plugin and marketplace manifests
+```
+
+CI runs the first two and fails on a stale skill.
 
 ## Commits
 
