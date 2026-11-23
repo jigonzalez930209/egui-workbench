@@ -260,7 +260,7 @@ fn waterfall(
 }
 
 /// A blue → purple → amber scale anchored on theme tokens.
-fn heat_color(t: f32, theme: &crate::theme::Theme) -> Color32 {
+pub(super) fn heat_color(t: f32, theme: &crate::theme::Theme) -> Color32 {
     let t = t.clamp(0.0, 1.0);
     if t < 0.5 {
         mix(theme.link, theme.done, t * 2.0)
