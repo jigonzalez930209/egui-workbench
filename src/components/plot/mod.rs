@@ -20,6 +20,10 @@
 //! - Speed: dense sorted lines are decimated per pixel column, so a million points
 //!   draw in a few milliseconds; nothing repaints while idle.
 //!
+//! [`Plot3D`] is the 3D sibling: an orbit camera, x/y/z axes, lines, scatter, bars, and
+//! surfaces, with the same legend, hover animations, direction arrow, themes, and
+//! SVG/PNG export.
+//!
 //! The view, the selection, the active tool, and hidden series live in a
 //! [`PlotState`] the caller owns, like every other component.
 
@@ -44,6 +48,7 @@ mod series_bounds;
 mod series_charts;
 mod smooth;
 mod special;
+mod three;
 mod transform;
 mod types;
 mod widgets;
@@ -57,6 +62,10 @@ pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, SeriesStyle, TitleAl
 pub use export::ExportOptions;
 pub use fit::{Fit, FitKind};
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
+pub use three::{
+    Bounds3D, Camera3D, Plot3D, Plot3DConfig, Plot3DHover, Plot3DResponse, Plot3DState, Plot3DTool, Projection,
+    Series3D, Series3DStyle, Surface, Surface3DConfig,
+};
 
 pub use types::{ChartMode, ExportFormat, LegendPosition, PlotHover, PlotResponse, PlotTool};
 
