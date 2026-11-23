@@ -193,12 +193,33 @@ impl Effect {
         theme: &crate::theme::Theme,
         motion: bool,
     ) -> Option<Self> {
-        let hover = config.legend_hover;
-        if !hover.enabled || !motion || state.legend_hover() != Some(series) {
+        Self::for_legend(
+            &config.legend_hover,
+            state.legend_hover(),
+            state.legend_hover_start(),
+            series,
+            now,
+            theme,
+            motion,
+        )
+    }
+
+    /// The effect for `series` when the legend row `hovered` was entered at `start`.
+    /// Shared by the 2D plot and [`super::Plot3D`], whose states both track one row.
+    pub(super) fn for_legend(
+        hover: &LegendHoverConfig,
+        hovered: Option<usize>,
+        start: f64,
+        series: usize,
+        now: f64,
+        theme: &crate::theme::Theme,
+        motion: bool,
+    ) -> Option<Self> {
+        if !hover.enabled || !motion || hovered != Some(series) {
             return None;
         }
         let period = f64::from(hover.period.max(0.2));
-        let elapsed = (now - state.legend_hover_start()).max(0.0);
+        let elapsed = (now - start).max(0.0);
         let t = (elapsed / period).rem_euclid(1.0) as f32;
         Some(Self {
             kind: hover.animation,
