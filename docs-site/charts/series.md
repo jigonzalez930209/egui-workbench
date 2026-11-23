@@ -162,3 +162,9 @@ animation, themes, and export pipeline with every cartesian series.
 />
 
 See [Chart types](/charts/chart-types) for the fields and behavior of each family.
+
+## 3D series
+
+`Plot3D` has its own `Series3D` constructors: `line`, `scatter`, `bars`, `surface`, and
+`surface_fn`. They borrow `[f64; 3]` points, use the same palette and per-series overrides,
+and share the legend hover animations. See [3D charts](/charts/3d).
