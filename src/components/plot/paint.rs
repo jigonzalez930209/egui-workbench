@@ -100,7 +100,7 @@ pub(super) struct Look {
     pub smoothing: Smoothing,
 }
 
-fn dash(style: LineStyle, width: f32) -> Dash {
+pub(super) fn dash(style: LineStyle, width: f32) -> Dash {
     match style {
         LineStyle::Solid => Dash::Solid,
         LineStyle::Dashed => Dash::Dashed(6.0 * width.max(1.0) / 1.5, 4.0 * width.max(1.0) / 1.5),
