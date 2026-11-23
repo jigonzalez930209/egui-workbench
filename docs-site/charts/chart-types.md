@@ -5,7 +5,8 @@ description: Pie and donut slices, candlesticks, heatmaps, radar polygons, gauge
 
 # Chart types
 
-`Plot` infers the chart family from its series:
+`Plot` infers the chart family from its series. `Plot3D` is the separate 3D component
+with lines, scatter, bars, and surfaces; see [3D charts](/charts/3d).
 
 | Series | Family | Axes |
 |---|---|---|
