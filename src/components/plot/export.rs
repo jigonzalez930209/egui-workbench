@@ -125,6 +125,14 @@ fn prim(out: &mut String, prim: &Prim) {
                 paint_attr("fill", *color)
             );
         }
+        Prim::Quad { points: shape, color } => {
+            let _ = writeln!(
+                out,
+                "<polygon points=\"{}\"{}/>",
+                points(shape),
+                paint_attr("fill", *color)
+            );
+        }
         Prim::Fan {
             center,
             points: shape,
