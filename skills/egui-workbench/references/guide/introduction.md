@@ -22,9 +22,10 @@ of chrome and nothing of their domain.
   text areas, switches, checkboxes, selects, steppers, segmented controls, labels,
   badges, banners, cards, separators, menus, popovers, tab strips, trees, palettes,
   dialogs, toasts, and an icon grid.
-- **Charts.** Interactive 2D plots with series, axes, fits, selection, live windows,
-  SVG/PNG export, pie/donut, candlesticks, heatmaps, radar, gauges, waterfalls, 13
-  legend hover animations, and a streaming direction arrow.
+- **Charts.** Interactive 2D and 3D plots with series, axes, fits, selection, live
+  windows, SVG/PNG export, pie/donut, candlesticks, heatmaps, radar, gauges, waterfalls,
+  13 legend hover animations, and a streaming direction arrow. `Plot3D` adds an orbit
+  camera, surfaces, and 3D bars.
 - **Data viewer.** Excel workbooks with sheet tabs, CSV/TSV, and virtualized plain-text
   reading through `components::viewer::FileViewer`.
 - **A runtime.** `ThemeState`, `Documents<T>`, `Keymap<C>`, `CloseGuard`, and
