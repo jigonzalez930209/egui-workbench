@@ -116,7 +116,11 @@ Methods: `sharp`, `rounded`, `with_density`, `scaled`, `control_height`, `size_h
 `YAxis`, `Bounds`, `Scale`, `points_in`. New families: `Series::{pie, candles, heatmap,
 radar, gauge, waterfall}` with `PieConfig`, `RadarConfig`, `GaugeConfig`, `HeatmapConfig`,
 and `WaterfallConfig`. Hover animation: `LegendAnimation` (13 effects),
-`AnimationEasing`, `LegendHoverConfig`, `DirectionArrowConfig`.
+`AnimationEasing`, `LegendHoverConfig`, `DirectionArrowConfig`. 3D:
+`Plot3D`, `Plot3DState`, `Plot3DConfig`, `Series3D`, `Surface`, `Camera3D`,
+`Projection`, `Bounds3D`, `Plot3DHover`, `Plot3DResponse`, `Series3DStyle`,
+`Surface3DConfig`, `Plot3DTool`; constructors `Series3D::{line, scatter, bars, surface,
+surface_fn}`.
 
 ## File viewer — `egui_workbench::components::viewer`
 
@@ -156,12 +160,15 @@ and `WaterfallConfig`. Hover animation: `LegendAnimation` (13 effects),
 
 | Item | Kind |
 |---|---|
-| `Plot` | builder |
+| `Plot`, `Plot3D` | builders |
 | `PlotState`, `PlotTool`, `PlotHover`, `PlotResponse`, `LegendPosition` | state/response |
+| `Plot3DState`, `Plot3DTool`, `Plot3DHover`, `Plot3DResponse`, `Camera3D`, `Projection`, `Bounds3D` | 3D state/camera |
 | `Series`, `Marker`, `LineStyle`, `points_in` | data |
+| `Series3D`, `Surface` | 3D data |
 | `Fit`, `FitKind` | analysis |
 | `Bounds`, `Scale` | axes |
 | `AxisConfig`, `Minor`, `PlotColors`, `PlotConfig`, `SeriesStyle` | configuration |
+| `Plot3DConfig`, `Series3DStyle`, `Surface3DConfig` | 3D configuration |
 | `ExportOptions`, `ExportFormat` | export |
 
 `Plot` methods: `new`, `config`, `current_config`, `series_names`, `x_limits`,
