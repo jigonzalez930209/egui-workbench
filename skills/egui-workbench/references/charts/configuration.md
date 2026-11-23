@@ -183,3 +183,7 @@ let response = plot.clone().show(ui, &mut icons, &mut state);
 ```
 
 Then export `plot.to_svg(ctx, &state, &options)`. See [Export](../charts/export.md).
+
+`Plot3D` has its own `Plot3DConfig` with x/y/z `AxisConfig`s, `Surface3DConfig`, a
+`Projection`, and `Series3DStyle` overrides. The text sizes, colors, legend, hover, and
+direction fields match `PlotConfig`; see [3D charts](../charts/3d.md).
