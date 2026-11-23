@@ -1,13 +1,14 @@
 ---
 title: Charts overview
-description: "An interactive 2D plot component: series, axes, interaction, fits, live data, and export."
+description: "Interactive 2D and 3D plot components: series, axes, cameras, interaction, fits, live data, and export."
 ---
 
 # Charts overview
 
-`components::plot::Plot` is a 2D plotting component in the spirit of matplotlib. It is
-part of the same crate, uses the same themes and icon cache, and keeps its interaction
-state in a `PlotState` the application owns.
+`components::plot::Plot` is a 2D plotting component in the spirit of matplotlib;
+`components::plot::Plot3D` adds an orbit camera, surfaces, and 3D bars and scatter. Both
+are part of the same crate, use the same themes and icon cache, and keep their
+interaction state in a `PlotState` / `Plot3DState` the application owns.
 
 <LiveDemo
   scene="plot"
@@ -46,6 +47,7 @@ if let Some(hover) = response.hovered {
 |---|---|
 | Series | `line`, `area`, `step`, `scatter` (7 markers), `bars`, `function`, `hline`, `vline`; color, width, dashed/dotted, marker, `y_errors`, `fill_to` |
 | Chart types | Pie/donut (`Series::pie`), candlesticks, heatmaps, radar, gauges, and waterfalls |
+| 3D | `Plot3D` and `Series3D` lines, scatter, bars, and surfaces; orbit/pan/zoom, perspective or orthographic, depth-sorted faces |
 | Hover animation | 13 legend-row effects with user-defined easing, plus the direction arrow for streaming series |
 | Axes | Linear or log10 per axis; 1-2-5 ticks measured so labels never overlap; minor log ticks; fixed limits; grid per axis |
 | Interaction | Drag pans; wheel zooms around the cursor; right-drag or the zoom tool draws a box; Shift-drag or the select tool selects an area; double-click fits; toolbar |
@@ -55,10 +57,17 @@ if let Some(hover) = response.hovered {
 | Export | `to_svg`, `to_png` from the same scene as the screen; toolbar export and settings buttons |
 | Performance | Per-pixel decimation for sorted lines; nothing repaints while idle |
 
+## 3D examples
+
+Run the native gallery with `cargo run --example plot3d`, or one live scene with
+`cargo run --example scenes -- scene=plot-3d`. The [3D charts](/charts/3d) guide has
+separate live demos for surfaces, bars, and the helix.
+
 ## Sections
 
 - [Series](/charts/series): every constructor and modifier.
 - [Chart types](/charts/chart-types): pie/donut, candles, heatmap, radar, gauge, waterfall.
+- [3D charts](/charts/3d): orbit camera, surfaces, 3D bars, and the shared legend and export.
 - [Legend animation](/charts/animations): the 13 hover effects, easing, and the direction arrow.
 - [Axes and ticks](/charts/axes-and-ticks): scales, limits, ticks, labels.
 - [Interaction](/charts/interaction): pan, zoom, selection, hover, response.
