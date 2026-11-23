@@ -7,7 +7,8 @@ description: Thirteen hover animations with user-defined easing, plus the direct
 
 Resting the pointer on a legend row animates its series and brings that series to the
 front of the chart. The legend itself never reorders. The effect is off for every other
-row, starts at the first hover frame, and respects reduced motion.
+row, starts at the first hover frame, and respects reduced motion. The same effects
+apply to every `Plot3D` series: lines, bars, and surface cells blend, pulse, and glow.
 
 <LiveDemo
   scene="plot-animations"
