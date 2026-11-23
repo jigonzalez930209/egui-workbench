@@ -139,6 +139,7 @@ if response.selection_changed { let area = state.selection; }
 |---|---|
 | Series | `line`, `area` (fill), `step`, `scatter` (7 markers), `bars`, `function`, `hline`, `vline`; `.color`, `.width`, `.style(Dashed/Dotted)`, `.marker`, `.y_errors`, `.fill_to` |
 | Chart types | Pie/donut (`Series::pie`), candlesticks (`Series::candles`), heatmaps (`Series::heatmap`), radar (`Series::radar`), gauges (`Series::gauge`), waterfalls (`Series::waterfall`) |
+| 3D | `Plot3D` + `Series3D::{line, scatter, bars, surface, surface_fn}`: orbit camera, perspective/orthographic, three axes, depth-sorted faces, the same legend and export |
 | Legend animation | `PlotConfig::legend_hover`: 13 effects (`Blink`, `DashMarch`, `Wiggle`, `Glow`, `Sweep`, …), `AnimationEasing`, period, second color |
 | Direction arrow | `PlotConfig::direction` / `.direction_arrow(true)` / `.direction_points(n)`: the arrow beside the newest sample of line-like series |
 | Axes | `Scale::Linear` / `Scale::Log10` per axis; 1-2-5 ticks measured so labels never overlap; one notation per axis; minor log ticks |
