@@ -114,8 +114,10 @@ match plot.to_png(ctx, &self.plot_state, &options) {
 }
 ```
 
-The template's Charts section implements this flow: it asks for a folder, exports from
-the same `Plot` it renders, and shows a loading toast that resolves in place.
+`Plot3D` exports the same way: `plot.to_svg(ctx, &state, &options)` and `to_png` use the
+current camera, axes, surface shading, and legend. The template's Charts section
+implements this flow: it asks for a folder, exports from the same `Plot` it renders, and
+shows a loading toast that resolves in place.
 
 ## Pixel rules
 
