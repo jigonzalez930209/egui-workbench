@@ -15,6 +15,13 @@ const SWATCH: f32 = 18.0;
 /// From the legend box's left edge to its text: inset, padding, swatch, gap.
 const TEXT_OFFSET: f32 = 2.0 + LEGEND_PAD + SWATCH + 6.0 - 2.0;
 
+/// One row fed to the shared legend layout, for either plot dimension.
+pub(super) struct LegendEntry<'a> {
+    pub index: usize,
+    pub name: &'a str,
+    pub hidden: bool,
+}
+
 /// One legend row: which series, where it is, and where its swatch and text go.
 pub(super) struct LegendRow {
     pub series: usize,
@@ -38,29 +45,56 @@ pub(super) fn layout(
     state: &PlotState,
     include_hidden: bool,
 ) -> Option<LegendLayout> {
-    // `include_hidden` is true on screen (hidden series stay listed so they can be
-    // shown again, and the toolbar is there); exports pass false.
-    let config = &plot.config;
-    if config.legend == LegendPosition::Hidden {
-        return None;
-    }
-    let entries: Vec<(usize, bool)> = plot
+    let entries: Vec<LegendEntry<'_>> = plot
         .series
         .iter()
         .enumerate()
         .filter(|(_, series)| series.legend && !series.name.is_empty())
-        .map(|(index, series)| (index, state.is_hidden(&series.name)))
-        .filter(|(_, hidden)| include_hidden || !hidden)
+        .map(|(index, series)| LegendEntry {
+            index,
+            name: &series.name,
+            hidden: state.is_hidden(&series.name),
+        })
         .collect();
+    layout_entries(
+        measure,
+        plot.config.legend,
+        plot.config.legend_size,
+        frame,
+        state.legend_position(),
+        super::widgets::toolbar_rect(plot, frame),
+        &entries,
+        include_hidden,
+    )
+}
+
+/// The shared geometry of the 2D and 3D legends.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn layout_entries(
+    measure: &Measure,
+    legend: LegendPosition,
+    legend_size: f32,
+    frame: Rect,
+    legend_pos: Option<[f32; 2]>,
+    toolbar: Option<Rect>,
+    entries: &[LegendEntry<'_>],
+    include_hidden: bool,
+) -> Option<LegendLayout> {
+    // `include_hidden` is true on screen (hidden series stay listed so they can be
+    // shown again, and the toolbar is there); exports pass false.
+    if legend == LegendPosition::Hidden {
+        return None;
+    }
+    let entries: Vec<&LegendEntry<'_>> = entries.iter().filter(|entry| include_hidden || !entry.hidden).collect();
     if entries.is_empty() {
         return None;
     }
-    let (_, text_height, _) = measure.text("Ag", config.legend_size);
+    let (_, text_height, _) = measure.text("Ag", legend_size);
     let row_height = (text_height + 6.0).max(SWATCH).round();
     let max_text = (frame.width() * 0.6 - SWATCH - 3.0 * LEGEND_PAD).max(40.0);
     let text_width = entries
         .iter()
-        .map(|(index, _)| measure.text(&plot.series[*index].name, config.legend_size).0)
+        .map(|entry| measure.text(entry.name, legend_size).0)
         .fold(0.0, f32::max)
         .min(max_text);
     // Text starts TEXT_OFFSET after the box's left edge (see the rows below).
@@ -68,7 +102,7 @@ pub(super) fn layout(
         (TEXT_OFFSET + text_width + LEGEND_PAD).ceil(),
         (entries.len() as f32 * row_height + LEGEND_PAD).round(),
     );
-    let min = match config.legend {
+    let min = match legend {
         LegendPosition::BottomLeft => pos2(frame.left() + LEGEND_PAD, frame.bottom() - LEGEND_PAD - size.y),
         LegendPosition::BottomRight => pos2(
             frame.right() - LEGEND_PAD - size.x,
@@ -78,7 +112,7 @@ pub(super) fn layout(
     };
     let mut size = size;
     let mut min = min;
-    if let Some([fx, fy]) = state.legend_position() {
+    if let Some([fx, fy]) = legend_pos {
         // Dragged: the same fraction of the free room, so it stays put across resizes
         // and lands in the same place in an export.
         let room = (frame.size() - size).max(vec2(0.0, 0.0));
@@ -87,14 +121,14 @@ pub(super) fn layout(
     // On screen, keep clear of the toolbar: elide names when enough room is left beside
     // it, otherwise move the legend below it. A dragged legend goes where it was put.
     if include_hidden
-        && state.legend_position().is_none()
-        && let Some(toolbar) = super::widgets::toolbar_rect(plot, frame)
+        && legend_pos.is_none()
+        && let Some(toolbar) = toolbar
         && Rect::from_min_size(min, size).intersects(toolbar.expand(4.0))
     {
         let room = toolbar.left() - 6.0 - min.x;
         if room - TEXT_OFFSET - LEGEND_PAD >= 90.0 {
             size.x = room.floor();
-        } else if config.legend == LegendPosition::TopLeft {
+        } else if legend == LegendPosition::TopLeft {
             min.y = toolbar.bottom() + 6.0;
         }
     }
@@ -102,7 +136,7 @@ pub(super) fn layout(
     let rows = entries
         .into_iter()
         .enumerate()
-        .map(|(row, (series, hidden))| {
+        .map(|(row, entry)| {
             let rect = Rect::from_min_size(
                 pos2(
                     rect.left() + 2.0,
@@ -115,11 +149,11 @@ pub(super) fn layout(
             let swatch = pos2(measure.snap(rect.left() + LEGEND_PAD + SWATCH * 0.5 - 2.0), middle);
             let text = pos2(rect.left() - 2.0 + TEXT_OFFSET, middle);
             LegendRow {
-                series,
+                series: entry.index,
                 rect,
                 swatch,
                 text,
-                hidden,
+                hidden: entry.hidden,
             }
         })
         .collect();
@@ -286,7 +320,7 @@ fn swatch(
 }
 
 /// `text` cut with "…" to fit `width`.
-fn elide(measure: &Measure, text: &str, size: f32, width: f32) -> String {
+pub(super) fn elide(measure: &Measure, text: &str, size: f32, width: f32) -> String {
     if measure.text(text, size).0 <= width {
         return text.to_owned();
     }
