@@ -1,6 +1,6 @@
 //! The direction arrow beside the newest samples of streaming line series.
 
-use egui::{Color32, vec2};
+use egui::{Color32, Pos2, vec2};
 
 use super::axis::Transform;
 use super::chart_config::DirectionArrowConfig;
@@ -19,18 +19,32 @@ pub(super) fn direction_arrow(
     if !series.has_direction() || series.data().len() < 2 {
         return;
     }
-    let samples: Vec<&[f64; 2]> = series
+    let mut samples: Vec<Pos2> = series
         .data()
         .iter()
-        .rev()
         .filter(|point| point[0].is_finite() && point[1].is_finite())
+        .rev()
         .take(config.points.max(2))
+        .map(|point| transform.to_screen(*point))
         .collect();
-    let Some((first, last)) = samples.last().zip(samples.first()) else {
+    samples.reverse();
+    arrow(out, transform.frame, &samples, config, color);
+}
+
+/// The arrow beside the newest point of a projected path. The shaft sits beside the
+/// path (toward the frame center) so both the shaft and the head stay visible.
+pub(super) fn arrow(
+    out: &mut Vec<Prim>,
+    frame: egui::Rect,
+    samples: &[Pos2],
+    config: &DirectionArrowConfig,
+    color: Color32,
+) {
+    let Some((first, last)) = samples.first().zip(samples.last()) else {
         return;
     };
-    let (start, end) = (transform.to_screen(**first), transform.to_screen(**last));
-    if !(start.is_finite() && end.is_finite()) || !transform.frame.expand(18.0).contains(end) {
+    let (start, end) = (*first, *last);
+    if !(start.is_finite() && end.is_finite()) || !frame.expand(18.0).contains(end) {
         return;
     }
     let direction = end - start;
@@ -46,7 +60,7 @@ pub(super) fn direction_arrow(
     // frame center) and the shaft becomes visible.
     let gap = (head * 0.9 + config.width * 2.0).max(6.0);
     let towards_center = normal
-        * if normal.dot(transform.frame.center() - end) >= 0.0 {
+        * if normal.dot(frame.center() - end) >= 0.0 {
             1.0
         } else {
             -1.0
@@ -55,7 +69,7 @@ pub(super) fn direction_arrow(
     let fits = |at: egui::Pos2| {
         let tip = at - unit * 1.5;
         let tail = tip - unit * length;
-        transform.frame.shrink(2.0).contains(tip) && transform.frame.shrink(2.0).contains(tail)
+        frame.shrink(2.0).contains(tip) && frame.shrink(2.0).contains(tail)
     };
     let anchor = if fits(candidate) {
         candidate
