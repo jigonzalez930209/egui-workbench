@@ -24,6 +24,10 @@ Every page runs the real library in your browser through WebAssembly.
 - **Charts:** `components::plot::Plot` with lines, areas, steps, scatter, bars, error
   bars, fits, two y axes, log scales, SVG/PNG export, pie/donut, candlesticks, heatmaps,
   radar, gauges, waterfalls, 13 legend hover animations, and a streaming direction arrow.
+  `components::plot::Plot3D` adds an orbit camera, surfaces, 3D bars and scatter, and the
+  same legends, hover feedback, animations, and export. Run the native gallery with
+  `cargo run --example plot3d`, or a live docs scene with
+  `cargo run --example scenes -- scene=plot-3d`.
 - **Data viewer:** `components::viewer::FileViewer` for Excel workbooks with sheet tabs
   (XLSX/XLSM/XLS/XLSB/ODS), CSV and TSV, and virtualized plain-text viewing.
 - **Icons:** 2,410 Lucide SVGs (ISC, lucide-static 1.77.0) plus the workbench UI glyphs, resolved by name
@@ -125,7 +129,7 @@ product seams are `src/model.rs` (`TabData`), `src/content.rs` (the screen), and
 
 ```toml
 [dependencies]
-egui-workbench = "0.2"
+egui-workbench = "0.3"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```
