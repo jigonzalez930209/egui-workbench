@@ -2,7 +2,8 @@
 
 > Pie and donut slices, candlesticks, heatmaps, radar polygons, gauges, and waterfalls. Live page: <https://jigonzalez930209.github.io/egui-workbench/charts/chart-types.html>
 
-`Plot` infers the chart family from its series:
+`Plot` infers the chart family from its series. `Plot3D` is the separate 3D component
+with lines, scatter, bars, and surfaces; see [3D charts](../charts/3d.md).
 
 | Series | Family | Axes |
 |---|---|---|
