@@ -15,6 +15,30 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+### Added
+
+- `components::plot::Plot3D`: a native 3D chart with an orbit camera, perspective or
+  orthographic projection, x/y/z axes with linear or log10 scales, back-wall grids, and
+  the same themes, legend toggles, drag-and-drop legend, 13 hover animations, direction
+  arrow, hover popup, and SVG/PNG export as `Plot`. Drag orbits, Shift-drag pans, the
+  wheel zooms, and double-click fits the data.
+- `Series3D`: `line`, `scatter`, 3D `bars` from a z base, regular `surface` grids, and
+  `surface_fn` for sampled functions. Bars and surface cells are depth-sorted; surface
+  cells are filled as quad meshes so concave projections stay correct. Per-series
+  overrides live in `Plot3DConfig::series_style_mut`.
+- `Plot3DState` keeps the camera, hidden series, legend position, and hover state, with
+  `reset_view`, `camera`, and `set_camera` for programmatic control.
+- 3D bars draw their faces as quad meshes and cull near-edge-on faces, so no stray
+  anti-aliasing lines appear in perspective or orthographic views.
+- `examples/plot3d`: a native gallery with a title bar, theme toggle, chart/projection
+  selectors, the 13 legend animations, easing, wireframe, direction arrow, camera reset,
+  and SVG/PNG export.
+- The documentation has a detailed 3D guide, four live demos (`plot-3d`,
+  `plot-3d-surface`, `plot-3d-bars`, `plot-3d-helix`), and the runnable commands:
+  `cargo run --example plot3d` and `cargo run --example scenes -- scene=plot-3d`.
+
 ## [0.2.3] - 2026-11-22
 
 ### Added
@@ -210,7 +234,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.0...v0.2.1
