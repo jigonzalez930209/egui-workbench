@@ -39,6 +39,9 @@ pub(super) enum Prim {
     },
     /// A filled convex polygon.
     Polygon { points: Vec<Pos2>, color: Color32 },
+    /// A quad filled as two triangles, for surfaces whose projected corners need not
+    /// be planar or convex.
+    Quad { points: [Pos2; 4], color: Color32 },
     /// A triangle fan from `center` through `points` (pie slices and radar fills; not
     /// necessarily convex).
     Fan {
@@ -122,6 +125,15 @@ fn push_shapes(painter: &Painter, prim: Prim, out: &mut Vec<Shape>) {
         }
         Prim::Area { points, base_y, color } => out.push(Shape::mesh(area_mesh(&points, base_y, color))),
         Prim::Polygon { points, color } => out.push(Shape::convex_polygon(points, color, Stroke::NONE)),
+        Prim::Quad { points, color } => {
+            let mut mesh = Mesh::default();
+            for point in points {
+                mesh.colored_vertex(point, color);
+            }
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            out.push(Shape::mesh(mesh));
+        }
         Prim::Fan { center, points, color } => {
             out.push(Shape::mesh(fan_mesh(center, &points, color)));
         }
