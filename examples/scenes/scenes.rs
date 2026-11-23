@@ -19,6 +19,7 @@ mod overlays;
 mod plots;
 mod shell;
 mod showcase;
+mod three_d;
 mod viewer;
 
 #[allow(dead_code, clippy::all)]
@@ -43,7 +44,7 @@ use egui_workbench::style::{self, Density, WorkbenchStyle};
 use egui_workbench::{Icons, ThemeId};
 
 /// Every scene name, in the order the docs introduce them.
-pub const SCENES: [&str; 26] = [
+pub const SCENES: [&str; 30] = [
     "shell",
     "catalog",
     "components",
@@ -68,6 +69,10 @@ pub const SCENES: [&str; 26] = [
     "plot-types",
     "plot-animations",
     "plot-chart-gallery",
+    "plot-3d",
+    "plot-3d-surface",
+    "plot-3d-bars",
+    "plot-3d-helix",
     "charts",
     "viewer",
 ];
@@ -220,6 +225,10 @@ pub fn build(name: &str) -> Box<dyn Scene> {
         "plot-types" => Box::new(charting::NewCharts::default()),
         "plot-animations" => Box::new(animations::AnimationScene::default()),
         "plot-chart-gallery" => Box::new(chart_gallery::ChartGallery::default()),
+        "plot-3d" => Box::new(three_d::ThreeD::default()),
+        "plot-3d-surface" => Box::new(three_d::ThreeD::surface()),
+        "plot-3d-bars" => Box::new(three_d::ThreeD::bars()),
+        "plot-3d-helix" => Box::new(three_d::ThreeD::helix()),
         "charts" => Box::new(charting::Gallery::default()),
         "viewer" => Box::new(viewer::ViewerScene::default()),
         _ => Box::new(showcase::Catalog::default()),
