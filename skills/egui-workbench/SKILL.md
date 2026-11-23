@@ -1,11 +1,11 @@
 ---
 name: egui-workbench
-description: Build native desktop applications in Rust with the egui-workbench crate (an IDE-style shell for egui/eframe 0.37) - custom title bar and menus, document tabs, explorer tree, command palette, keymap, settings, dialogs, toasts, nine themes, interactive plots with fits, six chart families, legend hover animations that bring the hovered series to the front, a streaming direction arrow, SVG/PNG export, a native Excel/CSV/TSV/text viewer, and shadcn-style components. Use this skill whenever the user wants a Rust desktop GUI, an egui or eframe app, a tool or editor or dashboard with a native window, or mentions egui-workbench, egui_workbench, WorkbenchApp, show_workbench, or the workbench components and plots, even if they only say "make me a desktop app in Rust".
+description: Build native desktop applications in Rust with the egui-workbench crate (an IDE-style shell for egui/eframe 0.37) - custom title bar and menus, document tabs, explorer tree, command palette, keymap, settings, dialogs, toasts, nine themes, interactive 2D and 3D plots with fits, six 2D chart families, orbit-camera surfaces and 3D bars, legend hover animations that bring the hovered series to the front, a streaming direction arrow, SVG/PNG export, a native Excel/CSV/TSV/text viewer, and shadcn-style components. Use this skill whenever the user wants a Rust desktop GUI, an egui or eframe app, a tool or editor or dashboard with a native window, or mentions egui-workbench, egui_workbench, WorkbenchApp, show_workbench, or the workbench components and plots, even if they only say "make me a desktop app in Rust".
 license: MIT OR Apache-2.0
 compatibility: Rust 1.95+ (edition 2024) with cargo; Linux needs the usual winit/OpenGL development packages.
 metadata:
   crate: egui-workbench
-  version: "0.2"
+  version: "0.3"
   repository: https://github.com/jigonzalez930209/egui-workbench
   docs: https://jigonzalez930209.github.io/egui-workbench/
 ---
@@ -15,9 +15,9 @@ metadata:
 `egui-workbench` is the shell of a desktop application built on egui 0.37: undecorated
 window with its own title bar, menus, tab strip, explorer, status bar, command palette,
 keymap, close guard, settings dialog, toasts, plots (including pie, candles, heatmaps,
-radar, gauges, and waterfalls, with legend hover animations), a file viewer, and a
-component set with shared sizes and tones. It owns presentation only. Your application
-owns state, files, and commands.
+radar, gauges, and waterfalls, with legend hover animations), 3D plots with an orbit
+camera and surfaces, a file viewer, and a component set with shared sizes and tones. It
+owns presentation only. Your application owns state, files, and commands.
 
 ## Set up a project
 
@@ -25,7 +25,7 @@ Add the crate and use its re-exports so the project has exactly one copy of egui
 
 ```toml
 [dependencies]
-egui-workbench = "0.2"
+egui-workbench = "0.3"
 ```
 
 ```rust
@@ -228,6 +228,24 @@ Plot::new("signal")
 Hovering a legend row animates that series and draws it above all other series without
 moving the legend rows. Reduced motion disables the animation.
 
+For 3D, keep a `Plot3DState` in the model; the camera starts fitted and then lives there:
+
+```rust
+let mut state = Plot3DState::default();
+Plot3D::new("terrain")
+    .projection(Projection::Orthographic)
+    .legend_hover(LegendHoverConfig::default())
+    .series(Series3D::surface_fn("terrain", -2.0..=2.0, -2.0..=2.0, [34, 34], |x, y| {
+        (x * x + y * y).sin()
+    }))
+    .series(Series3D::scatter("peaks", &peaks))
+    .show(ui, &mut icons, &mut state);
+```
+
+Drag orbits, Shift-drag pans, the wheel zooms, and double-click fits. `Series3D` also
+has `line` and `bars`; the legend, hover popup (`[x, y, z]`), animations, direction arrow,
+and `to_svg`/`to_png` work exactly as in 2D. The next section is the complete 3D contract.
+
 The data viewer loads once and paints a virtualized table or text buffer:
 
 ```rust
@@ -235,9 +253,251 @@ let mut viewer = FileViewer::open("sales.xlsx")?; // or from_bytes(name, bytes)
 viewer.show(ui);                                  // no I/O while painting
 ```
 
-Runnable examples: `cargo run --example viewer`,
-`cargo run --example scenes -- scene=plot-chart-gallery`, and
-`cargo run --example scenes -- scene=plot-animations`.
+Runnable examples: `cargo run --example viewer`, `cargo run --example plot3d`,
+`cargo run --example scenes -- scene=plot-chart-gallery`,
+`cargo run --example scenes -- scene=plot-animations`,
+`cargo run --example scenes -- scene=plot-3d-surface`,
+`cargo run --example scenes -- scene=plot-3d-bars`, and
+`cargo run --example scenes -- scene=plot-3d-helix`.
+
+## 3D charts in depth
+
+`Plot3D` is a separate component, not a mode of `Plot`. It owns a camera, projects
+`[x, y, z]` data, depth-sorts faces, and uses the same `Prim` scene pipeline for screen
+and SVG/PNG. `Plot3DState` is the caller-owned interaction state; `Plot3D` borrows data
+and is `Clone`, like `Plot`.
+
+### API map
+
+| Type | Purpose |
+|---|---|
+| `Plot3D` | Builder: series, axes, camera, legend, toolbar, export |
+| `Plot3DState` | Camera, tool, hidden series, legend position/hover, extent cache |
+| `Plot3DConfig` | Text, x/y/z axes, colors, camera, legend, feedback, surface, series overrides |
+| `Series3D` | One line, scatter, bar field, or surface data set |
+| `Surface` | `x` columns, `y` rows, row-major `z` |
+| `Camera3D` | `yaw`, `pitch`, `distance`, `target`, `fov`, `projection` |
+| `Projection` | `Perspective` (default) or `Orthographic` |
+| `Bounds3D` | Data-space box returned by `Plot3DResponse::view` |
+| `Plot3DHover` | `series`, `index`, `point: [f64; 3]` |
+| `Plot3DResponse` | Response, hovered/clicked, view, camera, frame, settings/export requests |
+| `Plot3DTool` | `Orbit` (default) or `Pan` |
+
+### Constructors and modifiers
+
+| Constructor | Data | Default |
+|---|---|---|
+| `Series3D::line(name, data)` | `&[[f64; 3]]` | 1.6 pt polyline |
+| `Series3D::scatter(name, data)` | `&[[f64; 3]]` | 3 pt circle markers |
+| `Series3D::bars(name, data)` | `&[[f64; 3]]` | Cuboids from `z = 0` |
+| `Series3D::surface(name, x, y, z)` | three slices/vectors | Filled surface + wireframe |
+| `Series3D::surface_fn(name, x_range, y_range, [columns, rows], f)` | closure | Sampled regular grid |
+
+```rust
+let surface = Series3D::surface_fn(
+    "terrain",
+    -2.0..=2.0,
+    -2.0..=2.0,
+    [34, 34], // columns, rows
+    |x, y| (x * x + y * y).sin() * 0.7,
+);
+
+let bars: Vec<[f64; 3]> = (0..8)
+    .flat_map(|x| (0..8).map(move |y| [f64::from(x), f64::from(y), revenue(x, y)]))
+    .collect();
+
+Plot3D::new("3d")
+    .x_label("x").y_label("y").z_label("z")
+    .series(surface)
+    .series(Series3D::bars("revenue", bars).bar_width(0.62).base(0.0))
+    .show(ui, &mut icons, &mut state);
+```
+
+Modifiers: `.color`, `.width`, `.style(LineStyle)`, `.marker(Marker)`, `.radius`,
+`.bar_width`, `.base`, `.hide_from_legend`. Lines break on non-finite points.
+`Series3D::len`/`is_empty`/`point(index)`/`data()`/`surface_grid()` inspect the data.
+
+### Surface data contract
+
+- `x` has `nx` column coordinates.
+- `y` has `ny` row coordinates.
+- `z` has exactly `nx * ny` heights, **row-major**: `z[row * nx + column]`.
+- Cell `(column, row)` has corners `(c,r)`, `(c+1,r)`, `(c+1,r+1)`, `(c,r+1)`.
+- Cells are filled as `Prim::Quad` meshes (two triangles), because a projected cell can be
+  concave. `Surface3DConfig { wireframe, opacity, color_scale }` controls the fill.
+- `color_scale = true` uses the blue → purple → amber height ramp; `false` uses the series
+  color.
+
+### Camera lifecycle
+
+1. `Plot3DConfig::{yaw, pitch, fov, projection}` is the initial camera.
+2. On the first frame, the target is the center of the visible bounds and distance fits
+   the bounding sphere, field of view, and aspect ratio.
+3. After the user orbits/pans/zooms, `Plot3DState::camera()` holds the camera and wins.
+4. `Plot3DConfig::projection` and `fov` are reapplied every frame, so a settings panel can
+   switch Perspective/Orthographic without resetting the camera.
+5. `state.set_camera(camera)` places it explicitly; `state.reset_view()` returns to auto;
+   `state.is_auto()` reports whether it still follows the data.
+
+```rust
+let camera = state.camera().unwrap_or_default();
+state.set_camera(Camera3D { yaw: 0.9, pitch: 0.3, ..camera });
+state.reset_view();
+```
+
+`Camera3D::orbit(delta)`, `zoom(factor)`, and `pan(delta, frame)` are public and useful
+for custom controls. Pitch is clamped to ±85°; distance is clamped away from zero.
+
+### Interaction
+
+| Gesture | Action |
+|---|---|
+| Drag | Orbit (default tool) |
+| Shift-drag, right-drag, or `Plot3DTool::Pan` | Pan target |
+| Wheel or pinch | Zoom toward/away from target |
+| Double-click or fit button | `Plot3DState::reset_view` |
+| Toolbar | Orbit/pan, zoom in/out, fit, settings, export |
+| Legend row click | Toggle series |
+| Legend row drag | Move legend inside the frame |
+| Legend row hover | Play the configured effect; draw that series last |
+
+The wheel is consumed so an enclosing scroll area does not scroll. Hover is a nearest
+projected point search within 12 pt, ties broken by camera depth.
+
+### Legend, hover, animation, and response
+
+`Plot3DConfig::legend_hover` is the same `LegendHoverConfig` as 2D: all 13 effects,
+`AnimationEasing`, period, and highlight color. Reduced motion disables them. The legend
+geometry is shared with `Plot`; only the swatches are 3D-specific.
+
+`Plot3DState` stores `hidden: Vec<String>` (`set_hidden`, `is_hidden`), the dragged
+legend position (`legend_position`, `set_legend_position`), and the hovered row
+(`hovered_series`). Draw order puts the hovered series last without moving rows.
+
+```rust
+let response = plot.show(ui, &mut icons, &mut state);
+if let Some(hover) = response.hovered {
+    let Plot3DHover { series, index, point: [x, y, z] } = hover;
+}
+if let Some(pos) = response.screen_pos([1.0, 2.0, 3.0]) {
+    // annotate at the projected point
+}
+if response.settings_requested { /* open settings */ }
+if let Some(format) = response.export_requested { /* save */ }
+```
+
+The hover ring gets a dashed drop line to `view.min_z` when `hover_guides` is on; the
+popup shows the x/y/z axis labels and values when `hover_popup` is on.
+
+### Direction arrow and export
+
+`.direction_arrow(true)`, `.direction_points(n)`, or `Plot3DConfig::direction` draw the
+screen-space arrow beside the newest line point. Per-series overrides use
+`Series3DStyle::direction_arrow`.
+
+`to_svg(ctx, &state, &options)` and `to_png(...)` rebuild the same scene with the current
+camera, axes, depth order, surface shading, hidden series, and legend. They deliberately
+omit the toolbar, hover ring, popup, and guides.
+
+### Configuration
+
+`Plot3DConfig` groups:
+
+| Group | Fields |
+|---|---|
+| Text | `title`, `title_size`, `title_color`, `title_align`, `label_size`, `tick_size`, `legend_size` |
+| Axes | `x`, `y`, `z` (`AxisConfig`), `grid_width`, `grid_major_opacity`, `grid_minor_opacity`, `tick_length` |
+| Frame | `frame_width`, `line_scale`, `marker_scale` |
+| Camera | `projection`, `yaw`, `pitch`, `fov` |
+| Legend | `legend`, `legend_frame`, `legend_hover` |
+| Feedback | `hover_guides`, `hover_popup`, `direction` |
+| Surface | `surface` (`wireframe`, `opacity`, `color_scale`) |
+| Toolbar | `toolbar` |
+| Colors | `colors` (`PlotColors`) |
+| Series | `series` (`Series3DStyle`) |
+
+`Series3DStyle` fields: `color`, `width`, `line_style`, `marker`, `marker_size`,
+`fill_opacity`, `direction_arrow`. Use `config.series_style_mut("name")`; `sanitize()`
+clamps sizes, opacity, pitch, FOV, tick divisions, and limits after editing.
+
+### Builder and state surface
+
+`Plot3D` builders, in addition to `new` and `series`:
+
+```text
+config, current_config, series_names, series, title,
+x_label, y_label, z_label, x_limits, y_limits, z_limits,
+x_scale, y_scale, z_scale, width, height, legend,
+legend_hover, legend_animation, direction, direction_arrow,
+direction_points, projection, camera_angles, fov, surface,
+grid, toolbar, include, settings_button, export_button
+```
+
+`Plot3DState`:
+
+```text
+tool: Plot3DTool, reset_view(), is_auto(), camera(), set_camera(),
+legend_position(), set_legend_position(), is_hidden(), set_hidden(),
+hovered_series()
+```
+
+`Bounds3D` exposes `from_corners`, `width`, `depth`, `height`, `center`, and the six
+public min/max fields. `Surface` exposes public `x`, `y`, and `z` (`Cow<[f64]>`).
+`Plot3DResponse::screen_pos([x, y, z])` returns `Option<Pos2>` for annotations.
+`Surface3DConfig::default()` is `wireframe: true`, `opacity: 0.92`,
+`color_scale: true`; `Camera3D::default()` is perspective, yaw `-0.72`, pitch `0.42`,
+FOV 45°.
+
+### Source map
+
+| File | Responsibility |
+|---|---|
+| `src/components/plot/three/camera.rs` | Camera basis, projection, orbit/zoom/pan |
+| `src/components/plot/three/series.rs` | `Series3D`, `Surface`, bounds, fingerprints |
+| `src/components/plot/three/axes.rs` | Box, wall grid, ticks, labels, titles |
+| `src/components/plot/three/paint.rs` | Lines, markers, cuboids, surface cells |
+| `src/components/plot/three/scene.rs` | Auto bounds, draw order, one frame |
+| `src/components/plot/three/interact.rs` | Drag, wheel, hover search |
+| `src/components/plot/three/widgets.rs` | Toolbar, legend, hover ring/popup |
+| `src/components/plot/three/export.rs` | SVG/PNG from the camera scene |
+| `src/components/plot/three/config.rs` | `Plot3DConfig`, styles, surface config |
+| `src/components/plot/three/types.rs` | State, response, hover, bounds, tools |
+| `src/components/plot/three/mod.rs` | Builder, public exports, `show` |
+| `src/components/plot/three/builder.rs` | Builder methods |
+| `src/components/plot/three/legend.rs` | 3D legend geometry and swatches |
+| `src/components/plot/three/layout.rs` | Frame/title margins |
+
+### Rendering details and pitfalls
+
+- Extents are cached by a fingerprint of buffers, sampled values, and scales. Call nothing
+  each frame to recompute them; `refresh_extents` is internal.
+- Bar faces are filled as `Prim::Quad` meshes, not `convex_polygon`. Faces with a
+  projected area below 8 px² are culled. This prevents the long anti-aliasing spikes that
+  appear at edge-on angles in perspective and orthographic views. Do not change this back.
+- Surface cells are also quad meshes; concave projections remain correct.
+- 3D does not support two y axes, fits, area selection, step lines, candlesticks,
+  heatmaps, radar, gauges, waterfalls, decimation, or smoothing. Do not try to pass a
+  `Series` to `Plot3D` or a `Series3D` to `Plot`.
+- A still plot does not repaint; orbit/pan/zoom and legend hover request repaint only
+  while active.
+- Large surface grids cost one quad per cell plus hover points; reduce `surface_fn`
+  samples for interaction-heavy screens.
+
+### Examples and tests
+
+```bash
+cargo run --example plot3d
+cargo run --example scenes -- scene=plot-3d
+cargo run --example scenes -- scene=plot-3d-surface
+cargo run --example scenes -- scene=plot-3d-bars
+cargo run --example scenes -- scene=plot-3d-helix
+cargo test --test plot3d
+```
+
+The native example has a title bar, theme toggle, chart/projection selectors, all 13
+animations, easing, wireframe, direction arrow, reset, and export. The live scenes are
+the practical documentation examples; the PNGs under `tests/snapshots/doc-scenes/` are
+only regression references, not user-facing examples.
 
 ## Rules that keep an app consistent
 
@@ -282,6 +542,7 @@ themes:
 | Toasts | `Toasts`, `Toast`, `ToastKind` | `references/components/feedback.md` |
 | File tree | `Tree`, `TreeNode`, `TreeState`, `TreeEvent` | `references/components/navigation.md` |
 | Charts | `components::plot::{Plot, Series, PlotState, Fit, LegendAnimation, PieConfig, RadarConfig}` | `references/charts/overview.md` |
+| 3D charts | `components::plot::{Plot3D, Plot3DState, Plot3DConfig, Series3D, Surface, Camera3D, Projection, Bounds3D, Plot3DResponse}` | `references/charts/3d.md` |
 | Data viewer | `components::viewer::{FileViewer, Workbook, Table, TextFile}` | `references/components/data-viewer.md` |
 | Themes, accent, density | `ThemeState`, `ThemeId`, `WorkbenchStyle`, `Density` | `references/theming/themes.md` |
 | Long tasks, live data | worker thread + `request_repaint` | `references/recipes/long-tasks.md` |
@@ -345,7 +606,8 @@ links to its live version with interactive demos. Read only the pages the task n
 
 **Charts**
 
-- [`references/charts/overview.md`](references/charts/overview.md): An interactive 2D plot component: series, axes, interaction, fits, live data, and export.
+- [`references/charts/overview.md`](references/charts/overview.md): Interactive 2D and 3D plot components: series, axes, cameras, interaction, fits, live data, and export.
+- [`references/charts/3d.md`](references/charts/3d.md): A complete guide to Plot3D: orbit cameras, perspective and orthographic projection, x/y/z axes, 3D lines, scatter, bars, surfaces, legends, hover, animation, export, and the native example.
 - [`references/charts/animations.md`](references/charts/animations.md): Thirteen hover animations with user-defined easing, plus the direction arrow for streaming data.
 - [`references/charts/axes-and-ticks.md`](references/charts/axes-and-ticks.md): Linear and log scales, automatic and fixed limits, major and minor ticks, grid, and label precision.
 - [`references/charts/chart-types.md`](references/charts/chart-types.md): Pie and donut slices, candlesticks, heatmaps, radar polygons, gauges, and waterfalls.
