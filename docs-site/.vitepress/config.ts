@@ -77,6 +77,7 @@ export default defineConfig({
             { text: 'Overview', link: '/charts/overview' },
             { text: 'Series', link: '/charts/series' },
             { text: 'Chart types', link: '/charts/chart-types' },
+            { text: '3D charts', link: '/charts/3d' },
             { text: 'Legend animation', link: '/charts/animations' },
             { text: 'Axes and ticks', link: '/charts/axes-and-ticks' },
             { text: 'Interaction', link: '/charts/interaction' },
