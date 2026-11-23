@@ -133,6 +133,20 @@ Dragging the legend moves it anywhere inside the frame. The position lives in th
 application runs, survives resizes, and is used by exports too.
 `set_legend_position(None)` returns the legend to its configured corner.
 
+## 3D interaction
+
+`Plot3D` uses the same legend and toolbar behavior with a different camera:
+
+| Gesture | Action |
+|---|---|
+| Drag | Orbit around the data |
+| Shift-drag, right-drag, or the pan tool | Move the camera target |
+| Wheel | Zoom toward or away from the target |
+| Double-click or the fit button | Fit the data again |
+
+The camera lives in `Plot3DState`; `reset_view()` fits the data and `set_camera(camera)`
+places it explicitly. Hovering a point draws a ring and a dashed drop line to the floor.
+
 ## Focus and keyboard
 
 The plot is a pointer-first component. The toolbar buttons are real `IconButton`s and
