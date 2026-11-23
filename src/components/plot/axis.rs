@@ -75,7 +75,7 @@ impl Bounds {
 }
 
 /// How values map onto an axis.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Scale {
     /// Evenly spaced values.
     #[default]
