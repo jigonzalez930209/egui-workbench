@@ -3,7 +3,7 @@
 use egui::{Color32, Rect, Visuals, pos2};
 
 use super::axis::{Bounds, SecondAxis, Tick, TickRules, ticks};
-use super::config::{AxisConfig, PlotConfig};
+use super::config::{AxisConfig, PlotColors, PlotConfig};
 use super::scene::Measure;
 
 /// Points between a tick mark and its label.
@@ -31,7 +31,11 @@ pub(super) struct Colors {
 
 impl Colors {
     pub fn resolve(config: &PlotConfig, visuals: &Visuals) -> Self {
-        let colors = &config.colors;
+        Self::from_colors(&config.colors, visuals)
+    }
+
+    /// The same colors from a bare [`PlotColors`], shared by the 3D plot.
+    pub fn from_colors(colors: &PlotColors, visuals: &Visuals) -> Self {
         let frame = colors.frame.unwrap_or(visuals.window_stroke.color);
         Self {
             background: colors.background.unwrap_or(visuals.extreme_bg_color),
