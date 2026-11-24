@@ -101,18 +101,32 @@ fn new(mut arguments: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>
     }
     let workbench = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize()?;
     copy_tree(&template, &destination)?;
+    // The template manifest configures cargo-generate; a generated app does not use it.
+    let template_manifest = destination.join("cargo-generate.toml");
+    if template_manifest.is_file() {
+        fs::remove_file(template_manifest)?;
+    }
     for license in ["LICENSE-APACHE", "LICENSE-MIT"] {
         let source = workbench.join(license);
         if source.is_file() {
             fs::copy(&source, destination.join(license))?;
         }
     }
+    let workbench_path = workbench.to_string_lossy().replace('\\', "/");
+    let dependency = format!("path = \"{workbench_path}\",");
     replace_tree(
         &destination,
         &[
             ("__APP_NAME__", &crate_name),
             ("__APP_TITLE__", &app_title),
-            ("__WORKBENCH_PATH__", &workbench.to_string_lossy().replace('\\', "/")),
+            ("__WORKBENCH_PATH__", &workbench_path),
+            ("{{project-name}}", &crate_name),
+            ("{{app_title}}", &app_title),
+            (
+                "{% if workbench_path != \"\" %}path = \"{{workbench_path}}\", {% else %}version = \"0.3\", {% endif %}",
+                &dependency,
+            ),
+            ("{{workbench_path}}", &workbench_path),
         ],
     )?;
 

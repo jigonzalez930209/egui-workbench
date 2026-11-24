@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -55,3 +55,20 @@ unreachable = "deny"
 
 [dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
+criterion = "0.5"
+
+[[bench]]
+name = "plot_decimation"
+harness = false
+
+[[bench]]
+name = "large_tree"
+harness = false
+
+[[bench]]
+name = "csv"
+harness = false
+
+[[bench]]
+name = "palette_filter"
+harness = false

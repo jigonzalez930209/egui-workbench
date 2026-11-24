@@ -579,6 +579,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/guide/concepts.md`](references/guide/concepts.md): The state contract, commands, theming tokens, builders versus functions, accessibility, and repaint behavior.
 - [`references/guide/first-app.md`](references/guide/first-app.md): Build a small workbench from scratch: window, title bar, tabs, content, status bar, palette, shortcuts, and close guard.
 - [`references/guide/installation.md`](references/guide/installation.md): Add egui-workbench to a new or existing Rust application from crates.io or git, choose features, and keep one copy of egui.
+- [`references/guide/platforms.md`](references/guide/platforms.md): The Linux, macOS, and Windows CI matrix, the repeatable IME and HiDPI pass, and the egui upgrade policy.
 - [`references/guide/quick-start.md`](references/guide/quick-start.md): Generate a complete application from templates/app and learn what each generated file is for.
 
 **Application runtime**
@@ -643,6 +644,7 @@ links to its live version with interactive demos. Read only the pages the task n
 **Reference**
 
 - [`references/reference/api-map.md`](references/reference/api-map.md): The public surface grouped by module, with links to the guide pages.
+- [`references/reference/benchmarks.md`](references/reference/benchmarks.md): The criterion suites for plot decimation, a large tree, a one-million-row CSV, and palette filtering, with the recorded 0.3.1 baseline.
 - [`references/reference/design-rules.md`](references/reference/design-rules.md): The principles, interaction rules, accessibility contract, and new-screen checklist.
 - [`references/reference/faq.md`](references/reference/faq.md): Common errors and their fixes: egui versions, fonts, wrapping, repaint, snapshots, and docs.
 - [`references/reference/testing.md`](references/reference/testing.md): egui_kittest, AccessKit queries, snapshots, the harness clock, and end-to-end runs under Xvfb.

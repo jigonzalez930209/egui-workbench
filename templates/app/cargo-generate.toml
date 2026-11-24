@@ -1,0 +1,9 @@
+[template]
+# `cargo generate --path templates/app --name my-app`
+cargo_generate_version = ">=0.10.0"
+# The config describes the template; it is not part of a generated application.
+ignore = ["cargo-generate.toml"]
+
+[placeholders]
+app_title = { type = "string", prompt = "Application title", default = "My App" }
+workbench_path = { type = "string", prompt = "Path to an egui-workbench checkout (leave empty to use crates.io)", default = "" }

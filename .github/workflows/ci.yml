@@ -37,6 +37,8 @@ jobs:
         # WGPU_DEBUG=0 comes from .cargo/config.toml (concurrent devices + debug labels
         # crash the Vulkan loader).
         run: xvfb-run -a cargo test --workspace
+      - name: Benchmarks compile
+        run: cargo bench --workspace --no-run
       - name: Template
         run: cargo xtask template-check
       - name: Package
@@ -47,6 +49,33 @@ jobs:
         run: |
           python3 docs-site/scripts/build-skill.py --check
           bash docs-site/scripts/check-examples.sh
+
+  desktop:
+    # Behavior tests on the other two desktops. Pixel snapshots stay pinned to Linux;
+    # this job covers the platform-sensitive chrome, input, and interaction paths.
+    name: desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_BUILD_JOBS: 4
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test --workspace --lib
+      - name: Behavior tests
+        run: >
+          cargo test --workspace
+          --test app_runtime --test components --test controls --test dialogs
+          --test ime_hidpi --test layout_icons --test line_limit --test palette_menu
+          --test plot --test plot_axes --test plot_charts --test plot_export --test plot3d
+          --test tabs --test theme_window --test title_bar --test tree --test viewer
 
   msrv:
     # The oldest Rust that `rust-version` in Cargo.toml promises (egui 0.37 needs 1.95).
@@ -59,3 +88,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check on the minimum supported Rust
         run: cargo +1.95 check --lib --all-features --locked
+
+  semver:
+    # Every public API change is visible in review. The baseline is the last release.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: egui-workbench
+          baseline-rev: v0.3.1

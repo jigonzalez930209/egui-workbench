@@ -1,7 +1,7 @@
 //! Appearance preferences stored outside the project.
 //!
-//! The file lives at `$XDG_CONFIG_HOME/__APP_NAME__/settings.json` on Linux (or
-//! `~/.config/__APP_NAME__/settings.json`) and `%APPDATA%\__APP_NAME__\settings.json`
+//! The file lives at `$XDG_CONFIG_HOME/{{project-name}}/settings.json` on Linux (or
+//! `~/.config/{{project-name}}/settings.json`) and `%APPDATA%\{{project-name}}\settings.json`
 //! on Windows. A missing or invalid file falls back to the defaults, so a broken
 //! settings file never prevents startup. Writes go to a temporary file and are renamed,
 //! so a crash mid-write cannot truncate the previous settings.

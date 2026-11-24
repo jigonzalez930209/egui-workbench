@@ -39,7 +39,7 @@ Disable Material when the application never shows files:
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = { version = "0.2", default-features = false, features = ["lucide-icons"] }
+egui-workbench = { version = "0.3", default-features = false, features = ["lucide-icons"] }
 ```
 
 ## One copy of egui
@@ -78,7 +78,22 @@ unreachable = "deny"
 ## Start from the template
 
 The fastest install is the generator, which already contains the dependency, the
-lints, and a compiling application:
+lints, and a compiling application.
+
+With [`cargo-generate`](https://cargo-generate.github.io/cargo-generate/) installed,
+no checkout is needed:
+
+```bash
+cargo install cargo-generate
+cargo generate --git https://github.com/jigonzalez930209/egui-workbench \
+  --subfolder templates/app --name my-app
+# prompts for the title; leave the workbench path empty to use crates.io
+cd my-app
+cargo run
+```
+
+From a checkout of this repository, `cargo xtask new` does the same without the extra
+tool and points the dependency at the checkout:
 
 ```bash
 git clone https://github.com/jigonzalez930209/egui-workbench

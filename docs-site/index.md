@@ -74,5 +74,6 @@ fn ui(ui: &mut egui::Ui, app: &mut App) {
 }
 ```
 
-Start with `cargo xtask new`, or read [Build your first app](/guide/first-app) to wire the
+Start with `cargo generate --git https://github.com/jigonzalez930209/egui-workbench --subfolder templates/app --name my-app`,
+or `cargo xtask new` from a checkout, or read [Build your first app](/guide/first-app) to wire the
 runtime by hand.

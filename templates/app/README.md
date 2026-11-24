@@ -1,6 +1,6 @@
-# __APP_TITLE__
+# {{app_title}}
 
-A generic desktop workbench built on [`egui-workbench`](__WORKBENCH_PATH__).
+A generic desktop workbench built on [`egui-workbench`]({{workbench_path}}).
 
 ```bash
 cargo run

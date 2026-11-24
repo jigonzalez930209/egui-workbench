@@ -7,6 +7,34 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-24
+
+### Added
+
+- CI on three desktops: the full suite (including pixel snapshots) stays on Linux, and
+  macOS and Windows run the unit and behavior tests, including `tests/ime_hidpi.rs`.
+- `cargo-semver-checks` in CI against the previous release tag, so every public change
+  is visible in review.
+- A criterion baseline for plot decimation (1M points), a 10k-row explorer tree, a
+  1M-row × 20-column CSV (open and first frame), and palette filtering. The weekly
+  `Benchmarks` workflow uploads the samples; the recorded numbers are in
+  `docs/BENCHMARKS.md`.
+- `tests/ime_hidpi.rs`: IME pre-edit/commit composition and a 2× pixels-per-point frame,
+  run on Linux, macOS, and Windows.
+- `docs/PLATFORMS.md`: the repeatable IME and HiDPI pass for each desktop, with the
+  automated coverage listed next to each manual step.
+- `docs/EGUI_UPGRADE.md`: the egui upgrade policy for 0.x and the 1.0 promise.
+- `cargo generate` support: `templates/app` is a cargo-generate template with an
+  optional local-checkout path, so a new application can start from the published
+  template without cloning the repository. `cargo xtask new` keeps working for
+  contributors.
+- Documentation pages for the desktop matrix and the benchmark baseline.
+
+### Changed
+
+- The starter template now depends on `egui-workbench` 0.3 from crates.io when no
+  checkout path is given, and on the checkout when `cargo xtask new` creates it.
+
 ## [0.3.1] - 2026-11-24
 
 ### Fixed

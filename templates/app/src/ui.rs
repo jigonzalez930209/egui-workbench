@@ -307,7 +307,7 @@ impl App {
         let dialog = SettingsDialog {
             title: "Settings",
             tabs: &["Appearance", "Shape"],
-            note: concat!("__APP_TITLE__ ", env!("CARGO_PKG_VERSION")),
+            note: concat!("{{app_title}} ", env!("CARGO_PKG_VERSION")),
             done: "Done",
             close: "Close",
         };
@@ -399,7 +399,7 @@ impl App {
             .collapsible(false)
             .default_width(360.0)
             .show(ctx, |ui| {
-                ui.heading("__APP_TITLE__");
+                ui.heading("{{app_title}}");
                 ui.label(concat!("Version ", env!("CARGO_PKG_VERSION")));
                 ui.label("Built on egui-workbench.");
             });

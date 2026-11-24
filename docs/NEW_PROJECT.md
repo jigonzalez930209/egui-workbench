@@ -2,6 +2,20 @@
 
 ## 1. Generate the application
 
+With `cargo-generate` installed, start from the published template without cloning this
+repository:
+
+```bash
+cargo install cargo-generate
+cargo generate --git https://github.com/jigonzalez930209/egui-workbench \
+  --subfolder templates/app --name my-app
+# prompts for the title; leave the workbench path empty to use crates.io
+cd my-app
+cargo run
+```
+
+From a checkout, the contributor path fills the local dependency automatically:
+
 ```bash
 git clone https://github.com/jigonzalez930209/egui-workbench
 cd egui-workbench
@@ -10,12 +24,12 @@ cd ../my-app
 cargo run
 ```
 
-The generator copies [`templates/app`](../templates/app), replaces `__APP_NAME__`,
-`__APP_TITLE__`, and `__WORKBENCH_PATH__`, copies the licenses, and leaves a compiling
-application. Use `--name` when the directory does not give a valid crate name.
-
-The generated `Cargo.toml` points at this repository by path. If you move the project,
-update the path, or switch to the published crate: `egui-workbench = "0.2"`.
+The generator copies [`templates/app`](../templates/app) and replaces the
+`{{project-name}}`, `{{app_title}}`, and `{{workbench_path}}` placeholders, copies the
+licenses, and leaves a compiling application. Use `--name` when the directory does not
+give a valid crate name. The generated `Cargo.toml` points at this repository by path
+when `cargo xtask new` creates it, and at `egui-workbench = "0.3"` otherwise. If you move
+the project, update the path or switch to the published crate.
 
 ## 2. Rename the product
 

@@ -15,6 +15,25 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-24
+
+### Added
+
+- CI on three desktops: the full suite (including pixel snapshots) stays on Linux, and
+  macOS and Windows run the unit and behavior tests, including `tests/ime_hidpi.rs`.
+- `cargo-semver-checks` in CI against the previous release tag.
+- A criterion baseline for plot decimation, a large tree, a one-million-row CSV, and
+  palette filtering; the weekly `Benchmarks` workflow uploads the samples.
+- `tests/ime_hidpi.rs`, `docs/PLATFORMS.md`, `docs/EGUI_UPGRADE.md`, and
+  `docs/BENCHMARKS.md`.
+- `cargo generate` support for the starter template, with an optional local-checkout
+  path; `cargo xtask new` keeps working for contributors.
+
+### Changed
+
+- The starter depends on `egui-workbench` 0.3 from crates.io when no checkout path is
+  given, and on the checkout when `cargo xtask new` creates it.
+
 ## [0.3.1] - 2026-11-24
 
 ### Fixed

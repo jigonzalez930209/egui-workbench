@@ -15,7 +15,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) -> Vec<Command> {
     if app.tabs.is_empty() {
         if show_empty_state(
             ui,
-            "__APP_TITLE__",
+            "{{app_title}}",
             "A generic egui workbench.",
             "New tab",
             "The starter gallery opens in every new tab.",

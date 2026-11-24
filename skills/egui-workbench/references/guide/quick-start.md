@@ -4,6 +4,18 @@
 
 ## Generate the application
 
+With `cargo-generate` installed, no checkout is needed:
+
+```bash
+cargo install cargo-generate
+cargo generate --git https://github.com/jigonzalez930209/egui-workbench \
+  --subfolder templates/app --name my-app
+cd my-app
+cargo run
+```
+
+From a checkout, use the repository task so the dependency points at your tree:
+
 ```bash
 git clone https://github.com/jigonzalez930209/egui-workbench
 cd egui-workbench
@@ -12,9 +24,9 @@ cd ../my-app
 cargo run
 ```
 
-`xtask new` copies `templates/app`, replaces `__APP_NAME__`, `__APP_TITLE__`, and
-`__WORKBENCH_PATH__`, and copies both licenses. The result is a standalone Cargo
-workspace that compiles without changes.
+Both paths copy `templates/app` and replace the `{{project-name}}`, `{{app_title}}`, and
+`{{workbench_path}}` placeholders. `xtask new` also fills the local path, and the result
+is a standalone Cargo workspace that compiles without changes.
 
 ```text
 my-app/

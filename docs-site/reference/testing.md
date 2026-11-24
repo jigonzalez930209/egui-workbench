@@ -29,6 +29,7 @@ change is a bug in the test.
 | File | Proves |
 |---|---|
 | `src/**` unit tests | Contrast for all nine themes; palette filtering; tree flattening; path ellipsis; every bundled glyph rasterizes; document index math; keymap matching; theme state and brand accent; close guard; style scaling and text scale |
+| `tests/ime_hidpi.rs` | IME pre-edit/commit composition and a 2× pixels-per-point frame, on all three desktops |
 | `tests/app_runtime.rs` | Panel order, command collection order, hidden panels, right/bottom panel sizing |
 | `tests/components.rs` | Every builder variant, disabled state, labels, typing, switch/checkbox, select/stepper, dialog Escape |
 | `tests/theme_window.rs` | `apply_id` sets every visual and style; reduced motion; follow system; native options; resize edges; window actions |

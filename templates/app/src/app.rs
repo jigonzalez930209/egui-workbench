@@ -319,8 +319,8 @@ impl App {
 
     fn sync_window_title(&mut self, ctx: &egui_workbench::egui::Context) {
         let title = match self.tabs.active() {
-            Some(tab) => format!("{}{} — __APP_TITLE__", tab.title, if tab.dirty { " •" } else { "" }),
-            None => "__APP_TITLE__".to_owned(),
+            Some(tab) => format!("{}{} — {{app_title}}", tab.title, if tab.dirty { " •" } else { "" }),
+            None => "{{app_title}}".to_owned(),
         };
         if title != self.window_title {
             set_window_title(ctx, &title);

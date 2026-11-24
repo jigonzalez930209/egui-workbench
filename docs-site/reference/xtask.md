@@ -23,9 +23,13 @@ Copies `templates/app` to the destination, replaces:
 
 | Placeholder | Value |
 |---|---|
-| `__APP_NAME__` | Crate name (`--name` or derived from the directory) |
-| `__APP_TITLE__` | Window title (`--title` or derived from the name) |
-| `__WORKBENCH_PATH__` | Canonical path to this crate |
+| `{{project-name}}` | Crate name (`--name` or derived from the directory) |
+| `{{app_title}}` | Window title (`--title` or derived from the name) |
+| `{{workbench_path}}` | Canonical path to this crate |
+
+The same template works with `cargo generate --git … --subfolder templates/app`; the
+cargo-generate manifest asks for the title and an optional checkout path (empty means
+`egui-workbench = "0.3"` from crates.io).
 
 It also copies `LICENSE-APACHE` and `LICENSE-MIT`. The destination must not exist. The
 generated app is a standalone workspace with a path dependency on this crate and the lints.
