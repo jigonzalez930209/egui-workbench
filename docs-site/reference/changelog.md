@@ -15,6 +15,15 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-24
+
+### Fixed
+
+- `Plot3D` rejects projected points more than eight frames outside the data area.
+  A point just in front of the camera's near plane no longer paints a line to the edge
+  of the chart; it is treated as behind the camera, so the line breaks instead. This
+  protects 3D lines, bars, and surfaces from near-plane projection spikes.
+
 ## [0.3.0] - 2026-11-23
 
 ### Added
@@ -234,7 +243,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.1...v0.2.2
