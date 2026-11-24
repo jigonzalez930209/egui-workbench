@@ -96,9 +96,15 @@ impl<'a> Plot3D<'a> {
         let motion = crate::theme::motion_enabled(ui.ctx());
         let theme = crate::theme::current(ui.ctx());
         let colors = Colors::from_colors(&self.config.colors, ui.visuals());
-        let (scene, drawn) = scene::build_scene(
+        #[allow(unused_mut)]
+        let (mut scene, drawn) = scene::build_scene(
             &measure, &self, &layout, &projector, bounds, state, &colors, &theme, false, now, motion,
         );
+        #[cfg(feature = "gpu")]
+        if self.config.renderer == super::Renderer::Gpu {
+            let triangles = super::gpu::scene_triangles(&mut scene);
+            super::gpu::paint_triangles(ui, layout.frame, &triangles, self.id);
+        }
         let painter = ui.painter_at(rect);
         super::scene::paint(&painter, &painter.with_clip_rect(layout.frame), scene);
 

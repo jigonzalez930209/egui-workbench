@@ -17,6 +17,9 @@ crate root keeps the original function API; `components` adds builders.
 | `LinkHub`, `LinkMode`, `LinkSelection` | selection bus | [Linked views](../app/linked-views.md) |
 | `MinMaxPyramid`, `StreamingSeries`, `Trigger` | data engine | [Plot engine](../charts/plot-engine.md) |
 | `Renderer`, `set_output_format` | GPU | [Plot engine](../charts/plot-engine.md) |
+| `histogram`, `box_plot`, `hexbin`, `contour`, `polar`, `smith` | families | [Analysis](../charts/analysis-and-publication.md) |
+| `find_peaks`, `savgol`, `spectrum`, `fit_model`, `Statistics` | analysis | [Analysis](../charts/analysis-and-publication.md) |
+| `PlotAnnotation`, `Colormap`, `ExportPreset`, `to_unicode_math` | publication | [Analysis](../charts/analysis-and-publication.md) |
 | `DatasetPlot`, `PlotGrid`, `ViewHistory` | linked plots | [Linked views](../app/linked-views.md) |
 | `Dataset`, `Column`, `DataSource`, `Query`, `DataGrid` | data | [Data fabric](../app/data.md) |
 | `ViewerRegistry`, `ViewerFile`, `ViewerKind` | viewer | [Data fabric](../app/data.md) |

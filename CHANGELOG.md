@@ -7,6 +7,33 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-24
+
+### Added
+
+- Chart families: histogram and density histogram, box, violin, hexbin/2D density,
+  contour, polar, and Smith charts; `Plot::series_all` for multi-series families.
+- Analysis tools: peak detection, rolling baseline removal, Savitzky–Golay smoothing and
+  derivative, derivative/integral, radix-2 FFT and spectrum, resampling, Gauss–Newton
+  fits with standard errors and RMSE, and selection statistics.
+- `Colormap` with perceptually uniform, diverging, and color-blind-safe categorical
+  palettes; heatmap `colormap` and a matching colorbar; standalone `show_colorbar`.
+- `PlotAnnotation` text, arrows, x/y spans, rectangles, ellipses, and polygons in
+  `PlotState`, serialized and included in exports.
+- Math text: a LaTeX subset (Greek, scripts, fractions, roots, units) in titles, axis
+  labels, legend names, and annotations.
+- Vector PDF export (`Plot::to_pdf`, `ExportFormat::Pdf`) from the same scene, plus
+  `ExportPreset` sizes (`Screen`, `HalfPage`, `Letter`, `Journal`).
+- `Plot3DConfig::renderer`/`Plot3D::renderer`: GPU filled surfaces, bars, and primitives
+  through the `egui_wgpu` triangle pipeline; axes, lines, text, legend, and hover stay on
+  the CPU reference.
+- 2D and 3D GPU headless tests.
+
+### Migration
+
+0.10 is additive. `Renderer::Cpu` remains the default, and existing titles/annotations are
+plain text until they use the math subset.
+
 ## [0.9.0] - 2026-11-24
 
 ### Added

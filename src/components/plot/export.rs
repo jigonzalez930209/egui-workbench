@@ -11,6 +11,33 @@ use super::axis::Transform;
 use super::scene::{self, Dash, Measure, Prim, Scene};
 use super::{Plot, PlotState, overlay};
 
+/// Common export sizes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ExportPreset {
+    /// The on-screen default, 960 × 540 pt.
+    #[default]
+    Screen,
+    /// Half a letter page, 468 × 360 pt.
+    HalfPage,
+    /// A letter page, 612 × 792 pt.
+    Letter,
+    /// A single-column journal figure, 504 × 360 pt.
+    Journal,
+}
+
+impl ExportPreset {
+    /// Width and height in points.
+    pub const fn size(self) -> [f32; 2] {
+        match self {
+            Self::Screen => [960.0, 540.0],
+            Self::HalfPage => [468.0, 360.0],
+            Self::Letter => [612.0, 792.0],
+            Self::Journal => [504.0, 360.0],
+        }
+    }
+}
+
 /// Export settings.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExportOptions {
@@ -23,6 +50,18 @@ pub struct ExportOptions {
     /// Leave the area around the data frame transparent instead of the theme's
     /// background.
     pub transparent: bool,
+}
+
+impl ExportOptions {
+    /// The screen size, 2× scale, opaque background.
+    pub fn for_preset(preset: ExportPreset) -> Self {
+        let [width, height] = preset.size();
+        Self {
+            width,
+            height,
+            ..Self::default()
+        }
+    }
 }
 
 impl Default for ExportOptions {
@@ -319,9 +358,10 @@ impl Plot<'_> {
             Some(colors.canvas.take().unwrap_or(visuals.panel_fill))
         };
         let theme = crate::theme::current(ctx);
-        let scene = overlay::build_scene(
+        let mut scene = overlay::build_scene(
             &measure, self, &layout, &transform, state, &colors, &theme, true, mode, 0.0, false, false,
         );
+        super::annotations::paint(&mut scene.data, &transform, &state.annotations, &theme);
         (scene, canvas)
     }
 
@@ -330,6 +370,12 @@ impl Plot<'_> {
     pub fn to_svg(&self, ctx: &Context, state: &PlotState, options: &ExportOptions) -> String {
         let (scene, canvas) = self.export_scene(ctx, state, options);
         svg(&scene, canvas)
+    }
+
+    /// The plot as a one-page vector PDF.
+    pub fn to_pdf(&self, ctx: &Context, state: &PlotState, options: &ExportOptions) -> Vec<u8> {
+        let (scene, _) = self.export_scene(ctx, state, options);
+        super::pdf::write(&scene, options)
     }
 
     /// The plot as PNG bytes at `options.scale` pixels per point, rendered from the SVG

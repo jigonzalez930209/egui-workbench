@@ -21,6 +21,12 @@ impl<'a> Plot3D<'a> {
         }
     }
 
+    /// Select the CPU or GPU filled-surface layer.
+    pub fn renderer(mut self, renderer: super::super::Renderer) -> Self {
+        self.config.renderer = renderer;
+        self
+    }
+
     /// Replace the whole appearance.
     pub fn config(mut self, config: Plot3DConfig) -> Self {
         self.config = config;

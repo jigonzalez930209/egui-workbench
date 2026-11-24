@@ -15,6 +15,8 @@ pub enum ExportFormat {
     Svg,
     /// A raster image.
     Png,
+    /// Vector PDF.
+    Pdf,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

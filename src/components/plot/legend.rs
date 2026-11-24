@@ -202,7 +202,8 @@ pub(super) fn prims(
             look.color
         };
         swatch(&mut scene.over, series, &look, row.swatch, color, row_effect);
-        let name = elide(measure, &series.name, config.legend_size, max_text);
+        let display = super::math_text::to_unicode_math(&series.name);
+        let name = elide(measure, &display, config.legend_size, max_text);
         let text_color = if row.hidden {
             colors.tick_text.gamma_multiply(0.6)
         } else if let Some(effect) = row_effect {

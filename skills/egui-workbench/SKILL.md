@@ -613,6 +613,7 @@ links to its live version with interactive demos. Read only the pages the task n
 
 - [`references/charts/overview.md`](references/charts/overview.md): Interactive 2D and 3D plot components: series, axes, cameras, interaction, fits, live data, and export.
 - [`references/charts/3d.md`](references/charts/3d.md): A complete guide to Plot3D: orbit cameras, perspective and orthographic projection, x/y/z axes, 3D lines, scatter, bars, surfaces, legends, hover, animation, export, and the native example.
+- [`references/charts/analysis-and-publication.md`](references/charts/analysis-and-publication.md): New chart families, colormaps, annotations, analysis tools, math text, vector PDF, and the 3D GPU layer.
 - [`references/charts/animations.md`](references/charts/animations.md): Thirteen hover animations with user-defined easing, plus the direction arrow for streaming data.
 - [`references/charts/axes-and-ticks.md`](references/charts/axes-and-ticks.md): Linear and log scales, automatic and fixed limits, major and minor ticks, grid, and label precision.
 - [`references/charts/chart-types.md`](references/charts/chart-types.md): Pie and donut slices, candlesticks, heatmaps, radar polygons, gauges, and waterfalls.

@@ -15,6 +15,19 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-24
+
+### Added
+
+- Histogram/density, box, violin, hexbin, contour, polar, and Smith families.
+- Analysis tools, FFT/spectrum, fits with errors, and selection statistics.
+- Colormaps, colorbars, annotations/regions, math text, vector PDF, export presets.
+- GPU filled surfaces for `Plot3D` and 2D/3D headless GPU tests.
+
+### Migration
+
+Additive; CPU remains the default renderer.
+
 ## [0.9.0] - 2026-11-24
 
 ### Added

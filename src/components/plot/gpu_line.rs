@@ -26,3 +26,10 @@ impl GpuLine {
         self
     }
 }
+
+/// One filled triangle in screen space for the GPU 3D layer.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct GpuTriangle {
+    pub points: [Pos2; 3],
+    pub color: Color32,
+}

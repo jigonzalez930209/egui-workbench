@@ -17,7 +17,7 @@
 
 ```toml
 [dependencies]
-egui-workbench = "0.9"
+egui-workbench = "0.10"
 ```
 
 Or follow the repository's `main` branch:

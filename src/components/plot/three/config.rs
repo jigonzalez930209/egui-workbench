@@ -133,6 +133,8 @@ pub struct Plot3DConfig {
     pub colors: PlotColors,
     /// Per-series overrides.
     pub series: Vec<Series3DStyle>,
+    /// CPU or GPU filled surfaces.
+    pub renderer: super::super::Renderer,
 }
 
 impl Default for Plot3DConfig {
@@ -169,6 +171,7 @@ impl Default for Plot3DConfig {
             fov: 45.0,
             colors: PlotColors::default(),
             series: Vec::new(),
+            renderer: super::super::Renderer::Cpu,
         }
     }
 }

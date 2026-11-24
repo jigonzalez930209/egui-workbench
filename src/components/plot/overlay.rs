@@ -6,6 +6,7 @@ use super::animation::Effect;
 use super::axis::{TickRules, Transform, ticks};
 use super::config::{AxisConfig, PlotConfig, TitleAlign};
 use super::direction;
+use super::math_text::to_unicode_math;
 use super::paint::{self, Look};
 use super::scene::{Dash, Measure, Prim, Scene};
 use super::series::{Kind, LineStyle, Marker, Smoothing, YAxis};
@@ -391,7 +392,7 @@ fn titles(
         };
         scene
             .over
-            .push(measure.label(at, anchor, title, config.title_size, color));
+            .push(measure.label(at, anchor, &to_unicode_math(title), config.title_size, color));
     }
     if mode != ChartMode::Cartesian {
         return;
@@ -399,20 +400,25 @@ fn titles(
     if let Some(label) = &config.x.label {
         let at = pos2(frame.center().x, layout.rect.bottom() - 2.0);
         let color = config.x.label_color.unwrap_or(colors.text);
-        scene
-            .over
-            .push(measure.label(at, Align2::CENTER_BOTTOM, label, label_size(config, &config.x), color));
+        scene.over.push(measure.label(
+            at,
+            Align2::CENTER_BOTTOM,
+            &to_unicode_math(label),
+            label_size(config, &config.x),
+            color,
+        ));
     }
     if let Some(label) = &config.y.label {
         let size = label_size(config, &config.y);
-        let (width, _, baseline) = measure.text(label, size);
+        let label = to_unicode_math(label);
+        let (width, _, baseline) = measure.text(&label, size);
         // Rotated −90° around its top-left corner: the text runs upward from `pos`.
         scene.over.push(Prim::Text {
             pos: pos2(
                 measure.snap(layout.rect.left() + 2.0),
                 measure.snap(frame.center().y + width * 0.5),
             ),
-            text: label.clone(),
+            text: label,
             size,
             color: config.y.label_color.unwrap_or(colors.text),
             baseline,
@@ -421,7 +427,8 @@ fn titles(
     }
     if right_axis && let Some(label) = &config.y2.label {
         let size = label_size(config, &config.y2);
-        let (width, _, baseline) = measure.text(label, size);
+        let label = to_unicode_math(label);
+        let (width, _, baseline) = measure.text(&label, size);
         // Rotated +90° around its top-left corner: the text runs downward and its
         // glyphs extend to the left of `pos`, toward the frame.
         scene.over.push(Prim::Text {
@@ -429,7 +436,7 @@ fn titles(
                 measure.snap(layout.rect.right() - 2.0),
                 measure.snap(frame.center().y - width * 0.5),
             ),
-            text: label.clone(),
+            text: label,
             size,
             color: config.y2.label_color.unwrap_or(colors.text),
             baseline,

@@ -242,6 +242,7 @@ pub(super) fn export_menu_for(ui: &mut Ui, id: egui::Id, button: Rect, open: &mu
     let mut chosen = None;
     for (index, (label, detail, format)) in [
         ("Export SVG", "vector", ExportFormat::Svg),
+        ("Export PDF", "file-text", ExportFormat::Pdf),
         ("Export PNG", "image", ExportFormat::Png),
     ]
     .into_iter()

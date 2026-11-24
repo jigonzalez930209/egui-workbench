@@ -1,0 +1,124 @@
+//! The interactive state of one plot.
+//!
+//! The application owns it, like every other component state.
+
+use super::PlotAnnotation;
+use super::axis::{Bounds, Scale};
+use super::series::Series;
+use super::types::{Drag, PlotTool};
+
+/// The interactive state of one plot. Keep it in the application model.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Default)]
+pub struct PlotState {
+    pub(super) view: Option<Bounds>,
+    /// The tool the primary button uses.
+    pub tool: PlotTool,
+    /// The selected area in data coordinates.
+    pub selection: Option<Bounds>,
+    pub(super) hidden: Vec<String>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) drag: Option<Drag>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) export_menu: bool,
+    /// The right axis range in scaled units, once zoomed or panned.
+    pub(super) y2_view: Option<[f64; 2]>,
+    /// Where the dragged legend sits: 0–1 across the room left in the frame.
+    pub(super) legend_pos: Option<[f32; 2]>,
+    /// Series extents by [`Series::fingerprint`], so the automatic view does not walk
+    /// every point of every series each frame.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) extents: Vec<(u64, Bounds)>,
+    /// The series whose legend row the pointer is over.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) legend_hover: Option<usize>,
+    /// When that hover began, for the animation clock.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) legend_hover_start: f64,
+    /// Text notes, arrows, spans, and regions.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub annotations: Vec<PlotAnnotation>,
+}
+
+impl PlotState {
+    /// The cached extent of `series`, if it is current.
+    pub(super) fn cached_bounds(&self, series: &Series<'_>, x_scale: Scale, y_scale: Scale) -> Bounds {
+        let key = series.fingerprint(x_scale, y_scale);
+        self.extents
+            .iter()
+            .find(|(cached, _)| *cached == key)
+            .map_or_else(|| series.bounds(x_scale, y_scale), |(_, bounds)| *bounds)
+    }
+
+    pub(super) fn legend_hover(&self) -> Option<usize> {
+        self.legend_hover
+    }
+
+    pub(super) fn legend_hover_start(&self) -> f64 {
+        self.legend_hover_start
+    }
+
+    pub(super) fn set_legend_hover(&mut self, series: Option<usize>, now: f64) {
+        if series != self.legend_hover {
+            self.legend_hover = series;
+            self.legend_hover_start = now;
+        }
+    }
+
+    /// The series whose legend row is under the pointer, if any.
+    pub fn hovered_series(&self) -> Option<usize> {
+        self.legend_hover
+    }
+}
+
+impl PlotState {
+    /// Fit the view to the data again (also bound to double-click and the toolbar).
+    pub fn reset_view(&mut self) {
+        self.view = None;
+        self.y2_view = None;
+    }
+
+    /// Whether the view follows the data (no zoom or pan since the last reset).
+    pub fn is_auto(&self) -> bool {
+        self.view.is_none()
+    }
+
+    /// The explicit view, or `None` while automatic.
+    pub fn view(&self) -> Option<Bounds> {
+        self.view
+    }
+
+    /// Show `bounds` (data coordinates, linear axes) on the x and left y axes.
+    pub fn set_view(&mut self, bounds: Bounds) {
+        self.view = Some(bounds);
+    }
+
+    /// Show `min..=max` (data coordinates, linear axis) on the right y axis.
+    pub fn set_y2_view(&mut self, min: f64, max: f64) {
+        self.y2_view = Some([min.min(max), min.max(max)]);
+    }
+
+    /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)
+    /// of the room the frame leaves around it; `None` uses the configured corner.
+    pub fn legend_position(&self) -> Option<[f32; 2]> {
+        self.legend_pos
+    }
+
+    /// Place the legend (see [`Self::legend_position`]); `None` returns it to its corner.
+    pub fn set_legend_position(&mut self, position: Option<[f32; 2]>) {
+        self.legend_pos = position.map(|[x, y]| [x.clamp(0.0, 1.0), y.clamp(0.0, 1.0)]);
+    }
+
+    /// Whether the legend has hidden the series called `name`.
+    pub fn is_hidden(&self, name: &str) -> bool {
+        self.hidden.iter().any(|hidden| hidden == name)
+    }
+
+    /// Show or hide a series by name.
+    pub fn set_hidden(&mut self, name: &str, hidden: bool) {
+        self.hidden.retain(|entry| entry != name);
+        if hidden {
+            self.hidden.push(name.to_owned());
+        }
+    }
+}

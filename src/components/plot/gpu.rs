@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use egui::epaint::PaintCallback;
-use egui::{Rect, Ui};
+use egui::{Color32, Rect, Ui};
 use egui_wgpu::wgpu;
 
 /// Which wgpu surface format the line pipeline targets.
@@ -45,7 +45,7 @@ fn output_format() -> wgpu::TextureFormat {
     }
 }
 
-use super::gpu_line::GpuLine;
+use super::gpu_line::{GpuLine, GpuTriangle};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -329,6 +329,118 @@ pub(super) fn collect(
         }
     }
     lines
+}
+
+/// Upload and draw filled triangles in `frame` for the GPU 3D data layer.
+pub fn paint_triangles(ui: &Ui, frame: Rect, triangles: &[GpuTriangle], plot_id: egui::Id) {
+    let mut vertices = Vec::with_capacity(triangles.len() * 3);
+    for triangle in triangles {
+        for point in triangle.points {
+            vertices.push(Vertex {
+                position: [point.x - frame.min.x, point.y - frame.min.y],
+                color: triangle.color.to_normalized_gamma_f32(),
+            });
+        }
+    }
+    if vertices.is_empty() {
+        return;
+    }
+    let id = plot_id.value() ^ (u64::from(frame.left().to_bits()) << 32) ^ u64::from(frame.top().to_bits());
+    let callback = LineCallback {
+        id,
+        vertices,
+        size: [frame.width().max(1.0), frame.height().max(1.0)],
+    };
+    let callback = PaintCallback {
+        rect: frame,
+        callback: Arc::new(egui_wgpu::Callback::new_paint_callback(frame, callback)),
+    };
+    ui.painter().add(egui::Shape::Callback(callback));
+}
+
+/// Convert the filled primitives of a scene to GPU triangles, leaving lines and text
+/// for the CPU painter. Used by the 3D renderer.
+pub fn scene_triangles(scene: &mut super::scene::Scene) -> Vec<GpuTriangle> {
+    use super::scene::Prim;
+    let mut triangles = Vec::new();
+    for prim in &scene.data {
+        match prim {
+            Prim::Polygon { points, color } => fan(&mut triangles, points, *color),
+            Prim::Quad { points, color } => {
+                triangles.push(GpuTriangle {
+                    points: [points[0], points[1], points[2]],
+                    color: *color,
+                });
+                triangles.push(GpuTriangle {
+                    points: [points[0], points[2], points[3]],
+                    color: *color,
+                });
+            }
+            Prim::Fan { center, points, color } => {
+                for pair in points.windows(2) {
+                    triangles.push(GpuTriangle {
+                        points: [*center, pair[0], pair[1]],
+                        color: *color,
+                    });
+                }
+            }
+            Prim::Rect { rect, fill, .. } if fill.a() > 0 => {
+                let p = [
+                    rect.left_top(),
+                    rect.right_top(),
+                    rect.right_bottom(),
+                    rect.left_bottom(),
+                ];
+                triangles.push(GpuTriangle {
+                    points: [p[0], p[1], p[2]],
+                    color: *fill,
+                });
+                triangles.push(GpuTriangle {
+                    points: [p[0], p[2], p[3]],
+                    color: *fill,
+                });
+            }
+            Prim::Circle {
+                center, radius, fill, ..
+            } if fill.a() > 0 => {
+                let count = 24;
+                for index in 0..count {
+                    let a = index as f32 / count as f32 * std::f32::consts::TAU;
+                    let b = (index + 1) as f32 / count as f32 * std::f32::consts::TAU;
+                    triangles.push(GpuTriangle {
+                        points: [
+                            *center,
+                            egui::pos2(center.x + radius * a.cos(), center.y + radius * a.sin()),
+                            egui::pos2(center.x + radius * b.cos(), center.y + radius * b.sin()),
+                        ],
+                        color: *fill,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    scene.data.retain(|prim| {
+        !matches!(
+            prim,
+            Prim::Polygon { .. }
+                | Prim::Quad { .. }
+                | Prim::Fan { .. }
+                | Prim::Rect { .. }
+                | Prim::Circle { .. }
+                | Prim::Area { .. }
+        )
+    });
+    triangles
+}
+
+fn fan(triangles: &mut Vec<GpuTriangle>, points: &[egui::Pos2], color: Color32) {
+    for index in 1..points.len().saturating_sub(1) {
+        triangles.push(GpuTriangle {
+            points: [points[0], points[index], points[index + 1]],
+            color,
+        });
+    }
 }
 
 #[cfg(test)]
