@@ -10,11 +10,19 @@ use egui_workbench::commands::CommandId;
 use egui_workbench::egui::{self, Event, Key, Modifiers, RawInput};
 
 fn directory(name: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!(
-        "egui-workbench-{name}-{}-{}",
-        std::process::id(),
-        std::thread::current().name().unwrap_or("test")
-    ))
+    let thread: String = std::thread::current()
+        .name()
+        .unwrap_or("test")
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    std::env::temp_dir().join(format!("egui-workbench-{name}-{}-{thread}", std::process::id()))
 }
 
 #[test]

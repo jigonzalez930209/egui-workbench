@@ -309,14 +309,28 @@ impl std::error::Error for RecoveryError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_directory(prefix: &str) -> std::path::PathBuf {
+        let thread: String = std::thread::current()
+            .name()
+            .unwrap_or("test")
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        std::env::temp_dir().join(format!("{prefix}-{}-{thread}", std::process::id()))
+    }
+
+    use super::*;
     use crate::app::session::WorkspaceDocument;
 
     fn directory() -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "egui-workbench-recovery-{}-{}",
-            std::process::id(),
-            std::thread::current().name().unwrap_or("test")
-        ))
+        test_directory("egui-workbench-recovery")
     }
 
     #[test]

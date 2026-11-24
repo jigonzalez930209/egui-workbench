@@ -13,6 +13,8 @@ crate root keeps the original function API; `components` adds builders.
 | `Documents<T>`, `Document` | struct, trait | [Documents](../app/documents.md) |
 | `CommandRegistry` | struct | [Commands](../app/commands-and-keymap.md) |
 | `History<S>` | struct | [History and sessions](../app/history-and-session.md) |
+| `Layout`, `LayoutNode`, `EditorGroup`, `LayoutTab`, `LayoutAction` | layout | [Workspace layouts](../app/workspace.md) |
+| `ActivityBar`, `ActivityBarItem` | builder | [Workspace layouts](../app/workspace.md) |
 | `CommandJournal`, `Macro`, `MacroLibrary` | struct | [History and sessions](../app/history-and-session.md) |
 | `Workspace`, `Stash`, `HotExit`, `Recovery` | struct | [History and sessions](../app/history-and-session.md) |
 | `DevToolsState`, `show_devtools` | struct/fn | [History and sessions](../app/history-and-session.md) |

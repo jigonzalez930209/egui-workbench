@@ -80,7 +80,7 @@ jobs:
         run: >
           cargo test --workspace
           --test app_runtime --test components --test controls --test dialogs
-          --test ime_hidpi --test keybindings_editor --test layout_icons --test line_limit
+          --test ime_hidpi --test keybindings_editor --test layout_icons --test layout_workspace --test line_limit
           --test palette_menu --test plot --test plot_axes --test plot_charts --test plot_export
           --test plot3d --test serde_roundtrip --test session_history --test tabs --test theme_window --test title_bar
           --test tree --test viewer

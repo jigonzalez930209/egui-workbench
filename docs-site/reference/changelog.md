@@ -15,6 +15,20 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
+### Added
+
+- `Layout`/`LayoutNode` editor-group tree, splits, tabs, pinned/preview tabs, and the
+  closed-tab stack.
+- `LayoutAction` keyboard equivalents, named layouts, and layout persistence in
+  `Workspace`.
+- `ActivityBar`, `examples/workspace`, and the Workspace guide.
+
+### Migration
+
+No removed items. A 0.5 workspace loads with a single empty group.
+
 ## [0.5.0] - 2026-11-24
 
 ### Added

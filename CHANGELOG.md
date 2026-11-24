@@ -7,6 +7,35 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
+### Added
+
+- `Layout` and `LayoutNode`: a serializable tree of editor groups and horizontal or
+  vertical splits, with tabs, pinned and preview tabs, active indices, and a 20-tab
+  closed stack.
+- Group and tab operations: split, close and promote the sibling, move a tab between
+  groups, close and reopen, pin, maximize, and Zen mode.
+- `LayoutAction`: keyboard equivalents for every split, focus, tab-move, close, maximize,
+  Zen, and reopen operation.
+- Named layouts stored in `Workspace` (`layout`, `named_layouts`, `active_layout`) and
+  switched from the palette; a 0.5 workspace migrates to a single empty group.
+- `ActivityBar` with icons, an active marker, badges, tooltips, and AccessKit `Tab` roles.
+- `examples/workspace`: three editor groups from one layout, a floating panel, and a
+  native detached viewport.
+- The Workspace guide page.
+
+### Changed
+
+- `Workspace` gained the layout fields; `serde(default)` keeps older files loading.
+- `show_workbench` and `WorkbenchApp` keep their one-group behavior; the layout API is
+  additive.
+
+### Migration
+
+No removed or renamed items. A 0.5 `workspace.json` loads with one empty editor group and
+the new fields defaulted.
+
 ## [0.5.0] - 2026-11-24
 
 ### Added

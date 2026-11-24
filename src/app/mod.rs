@@ -47,6 +47,7 @@ mod journal;
 #[cfg(feature = "serde")]
 mod journal_panel;
 mod keymap;
+mod layout;
 #[cfg(feature = "serde")]
 mod recovery;
 #[cfg(feature = "serde")]
@@ -65,6 +66,9 @@ pub use journal::{CommandJournal, JournalEntry, JournalError, Macro, MacroLibrar
 #[cfg(feature = "serde")]
 pub use journal_panel::{JournalLabels, show_journal};
 pub use keymap::Keymap;
+pub use layout::{
+    EditorGroup, EditorGroupId, Layout, LayoutAction, LayoutError, LayoutNode, LayoutTab, SplitDirection,
+};
 #[cfg(feature = "serde")]
 pub use recovery::{HotExit, Recovery, RecoveryError, SessionPaths, Stash, StashDocument, recover};
 #[cfg(feature = "serde")]

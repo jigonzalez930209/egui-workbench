@@ -591,6 +591,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/app/settings-persistence.md`](references/app/settings-persistence.md): Persist theme, motion, density, corners, text size, and brand accent atomically in the platform config directory.
 - [`references/app/window.md`](references/app/window.md): Undecorated native options, resize edges, window actions, and title synchronization.
 - [`references/app/workbench.md`](references/app/workbench.md): WorkbenchApp, the fixed panel order, optional right and bottom panels, responsive widths, and the command flow.
+- [`references/app/workspace.md`](references/app/workspace.md): Serialized editor groups, splits, tabs, named layouts, focus tools, and the activity bar.
 
 **Components**
 

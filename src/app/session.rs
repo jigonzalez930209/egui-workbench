@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::ThemeId;
 
+use super::layout::Layout;
+
 /// One open document in the workspace.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -116,6 +118,12 @@ pub struct Workspace {
     pub bottom_height: f32,
     /// Plot views by plot id.
     pub plot_views: BTreeMap<String, WorkspacePlotView>,
+    /// The current editor layout.
+    pub layout: Layout,
+    /// Named layouts ("Analysis", "Review") that can be switched from the palette.
+    pub named_layouts: BTreeMap<String, Layout>,
+    /// The name of the active named layout.
+    pub active_layout: String,
 }
 
 impl Default for Workspace {
@@ -133,6 +141,9 @@ impl Default for Workspace {
             right_width: 280.0,
             bottom_height: 180.0,
             plot_views: BTreeMap::new(),
+            layout: Layout::default(),
+            named_layouts: BTreeMap::new(),
+            active_layout: "Default".to_owned(),
         }
     }
 }
@@ -185,6 +196,28 @@ impl Workspace {
         self.sidebar_width = self.sidebar_width.clamp(120.0, 800.0);
         self.right_width = self.right_width.clamp(120.0, 800.0);
         self.bottom_height = self.bottom_height.clamp(80.0, 600.0);
+        self.layout.normalize();
+        if self.active_layout.is_empty() {
+            self.active_layout = "Default".to_owned();
+        }
+    }
+
+    /// Save the current layout under a name and return the name.
+    pub fn save_layout(&mut self, name: impl Into<String>) -> String {
+        let name = name.into();
+        self.named_layouts.insert(name.clone(), self.layout.clone());
+        self.active_layout = name.clone();
+        name
+    }
+
+    /// Switch to a named layout. Returns whether it existed.
+    pub fn switch_layout(&mut self, name: &str) -> bool {
+        let Some(layout) = self.named_layouts.get(name).cloned() else {
+            return false;
+        };
+        self.layout = layout;
+        self.active_layout = name.to_owned();
+        true
     }
 
     /// Serialize as pretty JSON.
@@ -279,6 +312,22 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn test_directory(prefix: &str) -> std::path::PathBuf {
+        let thread: String = std::thread::current()
+            .name()
+            .unwrap_or("test")
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        std::env::temp_dir().join(format!("{prefix}-{}-{thread}", std::process::id()))
+    }
+
     #[test]
     fn documents_and_panels_round_trip() {
         let mut workspace = Workspace::new();
@@ -291,10 +340,16 @@ mod tests {
         workspace
             .plot_views
             .insert("main".to_owned(), WorkspacePlotView::new([0.0, 1.0], [2.0, 3.0]));
+        workspace
+            .layout
+            .split(crate::app::EditorGroupId(0), crate::app::SplitDirection::Horizontal);
+        workspace.save_layout("Review");
         let json = workspace.to_json().expect("serialize");
         let back = Workspace::from_json(&json).expect("parse");
         assert_eq!(back, workspace);
         assert_eq!(back.active_document().map(|doc| doc.title.as_str()), Some("Two"));
+        assert_eq!(back.active_layout, "Review");
+        assert!(back.named_layouts.contains_key("Review"));
     }
 
     #[test]
@@ -330,11 +385,7 @@ mod tests {
 
     #[test]
     fn save_and_load_are_atomic() {
-        let directory = std::env::temp_dir().join(format!(
-            "egui-workbench-workspace-{}-{}",
-            std::process::id(),
-            std::thread::current().name().unwrap_or("test")
-        ));
+        let directory = test_directory("egui-workbench-workspace");
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).expect("create");
         let path = directory.join("workspace.json");
