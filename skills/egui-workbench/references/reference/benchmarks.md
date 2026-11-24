@@ -42,3 +42,17 @@ them as an artifact, so a regression has a comparable history.
 
 Reference machine: AMD Ryzen 9 6900HX, Linux 7.0, Rust 1.97.1, X11 under Xvfb. Compare
 on the same machine; a change larger than 10 % is reviewed.
+
+## 0.7 data probe
+
+`cargo test --release --test data_budget -- --ignored --nocapture` reports:
+
+| Step | Time |
+|---|---|
+| Open 1M × 20 CSV + type inference | 3.7 s |
+| Typed payload | 152 MiB |
+| Filter `column_3 > 5000000` | 17.9 ms |
+| Sort one numeric column | 8.2 ms |
+
+The typed payload is far below the 0.3 string-cell baseline. The filter sits just above a
+60 Hz frame and is the scan 0.9's level-of-detail work targets.
