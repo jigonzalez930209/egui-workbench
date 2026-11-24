@@ -181,7 +181,23 @@ impl Projector {
             self.frame.center().x + (x * scale) as f32,
             self.frame.center().y - (y * scale) as f32,
         );
-        pos.is_finite().then_some((pos, z))
+        if !pos.is_finite() {
+            return None;
+        }
+        // A point just in front of the near plane can project thousands of pixels
+        // away. Treat that as behind the camera instead of painting a line to the
+        // frame edge.
+        let limit = f64::from(self.frame.width().max(self.frame.height()).max(1.0)) * 8.0;
+        let (left, right) = (
+            f64::from(self.frame.left()) - limit,
+            f64::from(self.frame.right()) + limit,
+        );
+        let (top, bottom) = (
+            f64::from(self.frame.top()) - limit,
+            f64::from(self.frame.bottom()) + limit,
+        );
+        let (px, py) = (f64::from(pos.x), f64::from(pos.y));
+        (px >= left && px <= right && py >= top && py <= bottom).then_some((pos, z))
     }
 
     pub fn eye(&self) -> [f64; 3] {
@@ -247,5 +263,18 @@ fn normalize(vector: [f64; 3]) -> [f64; 3] {
         [0.0; 3]
     } else {
         [vector[0] / length, vector[1] / length, vector[2] / length]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn points_far_outside_the_frame_are_rejected() {
+        let frame = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0));
+        let projector = Projector::new(Camera3D::default(), frame);
+        assert!(projector.project([0.0, 0.0, 0.0]).is_some());
+        assert!(projector.project([1e12, 0.0, 0.0]).is_none());
     }
 }
