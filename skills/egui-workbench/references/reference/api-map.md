@@ -21,6 +21,7 @@ crate root keeps the original function API; `components` adds builders.
 | `find_peaks`, `savgol`, `spectrum`, `fit_model`, `Statistics` | analysis | [Analysis](../charts/analysis-and-publication.md) |
 | `PlotAnnotation`, `Colormap`, `ExportPreset`, `to_unicode_math` | publication | [Analysis](../charts/analysis-and-publication.md) |
 | `HostSpec`, `Host`, `Patch`, `Message`, `CustomWidget` | host | [Host](../app/host.md) |
+| Python `Workbench`, `Command`, `Context`, widgets | python | [Python](../guide/python.md) |
 | `DatasetPlot`, `PlotGrid`, `ViewHistory` | linked plots | [Linked views](../app/linked-views.md) |
 | `Dataset`, `Column`, `DataSource`, `Query`, `DataGrid` | data | [Data fabric](../app/data.md) |
 | `ViewerRegistry`, `ViewerFile`, `ViewerKind` | viewer | [Data fabric](../app/data.md) |

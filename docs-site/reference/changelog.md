@@ -15,6 +15,19 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-24
+
+### Added
+
+- `pip install egui-workbench`: PyO3/maturin abi3 wheels, Pythonic `Workbench` and
+  widgets, event handlers, `app.post`, asyncio, NumPy/pandas/Polars/PyArrow data, and
+  headless `app.step`.
+- Python guide and CI wheel workflow.
+
+### Migration
+
+Additive; Python is a separate package on the same 0.12 host spec.
+
 ## [0.11.0] - 2026-11-24
 
 ### Added

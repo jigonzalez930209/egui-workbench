@@ -28,7 +28,7 @@ pub use custom::{CustomWidget, CustomWidgetRegistry};
 pub use data::DataBuffer;
 pub use patch::{Patch, PatchError};
 pub use protocol::{FrameError, Message, PROTOCOL_VERSION, ProtocolError, Request, Response, read_frame, write_frame};
-pub use runtime::{Host, HostError, HostEvent};
+pub use runtime::{ActionQueue, Host, HostAction, HostError, HostEvent};
 pub use spec::{
     CommandSpec, DialogSpec, GroupSpec, HostSpec, LayoutSpec, MenuItemSpec, MenuSpec, PanelsSpec, SPEC_VERSION,
     SeriesSpec, StatusSpec, TabSpec, ThemeSpec, ToastSpec, TreeSpec, WidgetSpec, WindowSpec,

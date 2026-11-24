@@ -17,8 +17,17 @@
 
 ```toml
 [dependencies]
-egui-workbench = "0.11"
+egui-workbench = "0.12"
 ```
+
+## Python
+
+```bash
+pip install egui-workbench
+```
+
+The wheel includes the native host; no Rust toolchain is needed. See the
+[Python guide](../guide/python.md) for widgets, events, threads, asyncio, and data.
 
 For the declarative host (spec, patches, protocol, sidecar), add the separate crate:
 
@@ -26,7 +35,7 @@ For the declarative host (spec, patches, protocol, sidecar), add the separate cr
 
 ```toml
 [dependencies]
-egui-workbench-host = "0.11"
+egui-workbench-host = "0.12"
 ```
 
 Or follow the repository's `main` branch:

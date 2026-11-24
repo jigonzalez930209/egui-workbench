@@ -55,6 +55,12 @@ jobs:
             echo "::error::egui-workbench-host version $host does not match $GITHUB_REF_NAME"
             exit 1
           fi
+          python=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "egui-workbench-python") | .version')
+          if [ "v$python" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::egui-workbench-python version $python does not match $GITHUB_REF_NAME"
+            exit 1
+          fi
       - name: Agent skill is current
         run: python3 docs-site/scripts/build-skill.py --check
       - name: Changelog has this version

@@ -139,6 +139,27 @@ persistence, and unsaved-changes prompts for both the window and dirty tabs. The
 product seams are `src/model.rs` (`TabData`), `src/content.rs` (the screen), and
 `App::save_tab` (persistence). Read [`docs/NEW_PROJECT.md`](docs/NEW_PROJECT.md).
 
+## Python
+
+```bash
+pip install egui-workbench
+```
+
+```python
+from egui_workbench import Workbench, Label, Button
+
+app = Workbench(title="My App")
+app.add(Label("Hello from Python"), Button("go", "Go"))
+
+@app.on("go")
+def go(ctx):
+    ctx.toast.success("Saved")
+
+app.run()
+```
+
+See the [Python guide](https://jigonzalez930209.github.io/egui-workbench/guide/python.html).
+
 ## Declarative host
 
 The separate [`egui-workbench-host`](crates/egui-workbench-host) crate runs an
@@ -156,7 +177,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "0.11"
+egui-workbench = "0.12"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

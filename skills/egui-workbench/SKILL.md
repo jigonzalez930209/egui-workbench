@@ -580,6 +580,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/guide/first-app.md`](references/guide/first-app.md): Build a small workbench from scratch: window, title bar, tabs, content, status bar, palette, shortcuts, and close guard.
 - [`references/guide/installation.md`](references/guide/installation.md): Add egui-workbench to a new or existing Rust application from crates.io or git, choose features, and keep one copy of egui.
 - [`references/guide/platforms.md`](references/guide/platforms.md): The Linux, macOS, and Windows CI matrix, the repeatable IME and HiDPI pass, and the egui upgrade policy.
+- [`references/guide/python.md`](references/guide/python.md): Install egui-workbench from PyPI, build a native window from a Python script, and feed NumPy, pandas, Polars, and Arrow data into grids and plots.
 - [`references/guide/quick-start.md`](references/guide/quick-start.md): Generate a complete application from templates/app and learn what each generated file is for.
 
 **Application runtime**

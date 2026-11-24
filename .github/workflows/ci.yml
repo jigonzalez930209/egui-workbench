@@ -58,6 +58,36 @@ jobs:
           python3 docs-site/scripts/build-skill.py --check
           bash docs-site/scripts/check-examples.sh
 
+
+  python:
+    # The bindings have their own job: maturin builds the abi3 extension, then pytest
+    # drives the native step path, NumPy/pandas, and the Arrow C data interface.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev \
+            mesa-vulkan-drivers libvulkan1 xvfb
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the wheel
+        run: |
+          python -m pip install --upgrade pip maturin pytest numpy pandas pyarrow
+          maturin build --release --locked --out dist \
+            --manifest-path crates/egui-workbench-python/Cargo.toml
+          python -m pip install dist/*.whl
+      - name: Python tests
+        run: python -m pytest crates/egui-workbench-python/tests -q
+
   desktop:
     # Behavior tests on the other two desktops. Pixel snapshots stay pinned to Linux;
     # this job covers the platform-sensitive chrome, input, and interaction paths.

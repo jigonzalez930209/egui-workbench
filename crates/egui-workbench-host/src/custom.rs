@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::HostEvent;
 
 /// A native widget registered by a Rust extension.
-pub trait CustomWidget {
+pub trait CustomWidget: Send {
     /// Draw the widget and return any events.
     fn show(&mut self, ui: &mut Ui, props: &Value) -> Vec<HostEvent>;
 }
@@ -16,7 +16,7 @@ pub trait CustomWidget {
 /// Registered custom widgets by kind.
 #[derive(Default)]
 pub struct CustomWidgetRegistry {
-    widgets: BTreeMap<String, Box<dyn CustomWidget>>,
+    widgets: BTreeMap<String, Box<dyn CustomWidget + Send>>,
 }
 
 impl CustomWidgetRegistry {

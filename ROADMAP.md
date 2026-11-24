@@ -17,7 +17,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 0.11.0
+## Where we are: 0.12.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -25,7 +25,7 @@ palette, toasts, a shadcn-style component layer, 2,410 Lucide icons, the Materia
 icons, `Plot` (many chart families, legend animations, SVG/PNG export), `Plot3D`, a
 read-only `FileViewer`, the optional runtime (`ThemeState`, `Documents`, `Keymap`,
 `CloseGuard`, `show_workbench`), a starter template, an agent skill, and a documentation
-site whose demos run the real library in WebAssembly. About 520 tests and pixel
+site whose demos run the real library in WebAssembly. About 530 tests and pixel
 snapshots protect it.
 
 0.4.0 added the `CommandRegistry` and `when` contexts, rebindable chords with conflict
@@ -61,6 +61,11 @@ GPU filled-surface path for `Plot3D`.
 0.11.0 added the host: `egui-workbench-host` with a versioned spec and JSON Schema, the
 patch model, the runtime, data buffers, the transport protocol and frames, the sidecar
 binary, native custom widgets, hot reload, and conformance fixtures.
+
+0.12.0 added the Python package: abi3 wheels from PyO3/maturin, the Pythonic `Workbench`
+and dataclass widgets, event handlers with `app.post` and asyncio, NumPy/pandas/Polars/
+PyArrow data through the Arrow C data interface, headless `app.step`, type stubs, CI
+wheels, and a PyPI Trusted Publishing workflow.
 
 What stands between this and a 1.0 that people can build products on, and the release
 that closes each gap:

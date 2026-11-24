@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 use egui_workbench::Icons;
@@ -15,7 +15,7 @@ use crate::custom::CustomWidgetRegistry;
 use crate::data::{Datasets, dataset_from_columns};
 use crate::patch::Patch;
 use crate::protocol::{Message, Request, Response};
-use crate::spec::{HostSpec, SPEC_VERSION, WidgetSpec};
+use crate::spec::{HostSpec, SPEC_VERSION, ToastSpec, WidgetSpec};
 
 /// Something the host reports to the embedding application.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -57,6 +57,55 @@ pub enum HostEvent {
     },
     /// The host window was closed.
     Closed,
+}
+
+/// An action queued by an event handler and applied on the next frame.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum HostAction {
+    /// Apply a patch to the spec.
+    Patch(Patch),
+    /// Show a toast.
+    Toast(ToastSpec),
+    /// Change the window title.
+    SetTitle(String),
+    /// Request another frame.
+    Repaint,
+    /// Close the window.
+    Close,
+}
+
+/// A cloneable handle to the action queue, safe from any thread.
+///
+/// The queue also holds the current egui context, so a push from a worker thread wakes
+/// the window instead of waiting for the next input event.
+#[derive(Clone, Default)]
+pub struct ActionQueue {
+    actions: Arc<Mutex<VecDeque<HostAction>>>,
+    waker: Arc<Mutex<Option<egui::Context>>>,
+}
+
+impl ActionQueue {
+    /// Queue an action and wake the window, when it is running.
+    pub fn push(&self, action: HostAction) {
+        {
+            let mut actions = self.actions.lock().unwrap_or_else(|error| error.into_inner());
+            actions.push_back(action);
+        }
+        if let Some(ctx) = self.waker.lock().unwrap_or_else(|error| error.into_inner()).as_ref() {
+            ctx.request_repaint();
+        }
+    }
+
+    /// Remember the context used to wake the window.
+    pub fn set_waker(&self, ctx: &egui::Context) {
+        *self.waker.lock().unwrap_or_else(|error| error.into_inner()) = Some(ctx.clone());
+    }
+
+    fn drain(&self) -> Vec<HostAction> {
+        let mut actions = self.actions.lock().unwrap_or_else(|error| error.into_inner());
+        actions.drain(..).collect()
+    }
 }
 
 /// Why a host operation failed.
@@ -102,6 +151,8 @@ pub struct Host {
     pub(crate) plot_states: BTreeMap<String, egui_workbench::components::plot::PlotState>,
     pub(crate) icons: Icons,
     pub(crate) toasts: Toasts,
+    headless_context: Option<egui::Context>,
+    actions: ActionQueue,
     revision: u64,
 }
 
@@ -111,6 +162,14 @@ impl Host {
     /// # Errors
     /// When the spec version is newer than this host.
     pub fn new(spec: HostSpec) -> Result<Self, HostError> {
+        Self::with_actions(spec, ActionQueue::default())
+    }
+
+    /// A host that applies queued actions from an existing queue.
+    ///
+    /// # Errors
+    /// When the spec version is newer than this host.
+    pub fn with_actions(spec: HostSpec, actions: ActionQueue) -> Result<Self, HostError> {
         if spec.version > SPEC_VERSION {
             return Err(HostError::UnsupportedVersion(spec.version));
         }
@@ -130,9 +189,12 @@ impl Host {
             plot_states: BTreeMap::new(),
             icons: Icons::new(),
             toasts: Toasts::new(),
+            headless_context: None,
+            actions,
             revision: 0,
         };
         host.seed_values();
+        host.seed_toasts();
         Ok(host)
     }
 
@@ -159,6 +221,42 @@ impl Host {
     /// The current spec as JSON (the patch target).
     pub fn json(&self) -> &Value {
         &self.json
+    }
+
+    /// How many toasts are queued or visible.
+    pub fn toast_count(&self) -> usize {
+        self.toasts.len()
+    }
+
+    /// The action queue, shared with event handlers and other threads.
+    pub fn actions(&self) -> ActionQueue {
+        self.actions.clone()
+    }
+
+    /// Drain and apply queued actions. Returns `true` when the window should close.
+    pub fn apply_actions(&mut self) -> bool {
+        let queued = self.actions.drain();
+        let mut close = false;
+        for action in queued {
+            match action {
+                HostAction::Patch(patch) => {
+                    if let Err(error) = self.apply(&patch) {
+                        self.events.push_back(HostEvent::Custom {
+                            kind: "host.error".to_owned(),
+                            payload: Value::String(error.to_string()),
+                        });
+                    }
+                }
+                HostAction::Toast(toast) => self.push_toast(&toast),
+                HostAction::SetTitle(title) => {
+                    self.spec.window.title = title;
+                    self.json["window"]["title"] = Value::String(self.spec.window.title.clone());
+                }
+                HostAction::Repaint => {}
+                HostAction::Close => close = true,
+            }
+        }
+        close
     }
 
     /// The source path, when loaded from a file.
@@ -335,21 +433,61 @@ impl Host {
     /// When eframe cannot create the window.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn run(self) -> eframe::Result {
+        self.run_with(|_| {})
+    }
+
+    /// Run a native window and call `on_event` for each host event.
+    ///
+    /// The callback runs on the UI thread with the event loop, so keep it short. This is
+    /// the hook a Python binding or an embedding application uses to dispatch commands.
+    ///
+    /// # Errors
+    /// When eframe cannot create the window.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn run_with<F>(self, on_event: F) -> eframe::Result
+    where
+        F: FnMut(&HostEvent) + 'static,
+    {
+        self.run_with_frame(on_event, || {})
+    }
+
+    /// Run a native window, call `on_event` for each host event, and call `on_frame` once
+    /// per frame after the UI is drawn.
+    ///
+    /// Both callbacks run on the UI thread. `on_frame` is where an embedding turns posted
+    /// work from another thread into spec patches.
+    ///
+    /// # Errors
+    /// When eframe cannot create the window.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn run_with_frame<E, F>(self, on_event: E, on_frame: F) -> eframe::Result
+    where
+        E: FnMut(&HostEvent) + 'static,
+        F: FnMut() + 'static,
+    {
         let title = self.spec.window.title.clone();
         let width = self.spec.window.width;
         let height = self.spec.window.height;
         let native = egui_workbench::native_options_sized(&title, [width, height], [640.0, 420.0]);
+        let mut on_event = Some(Box::new(on_event) as crate::view::EventCallback);
+        let mut on_frame = Some(Box::new(on_frame) as crate::view::FrameCallback);
         eframe::run_native(
             &title,
             native,
             Box::new(move |cc| {
+                self.actions.set_waker(&cc.egui_ctx);
                 let mut theme = egui_workbench::app::ThemeState::new(
                     &cc.egui_ctx,
                     egui_workbench::ThemeId::from_setting(&self.spec.theme.id),
                     self.spec.theme.follow_system,
                 );
                 theme.set_reduced_motion(&cc.egui_ctx, self.spec.theme.reduced_motion);
-                Ok(Box::new(crate::view::HostApp { host: self, theme }))
+                Ok(Box::new(crate::view::HostApp {
+                    host: self,
+                    theme,
+                    on_event: on_event.take(),
+                    on_frame: on_frame.take(),
+                }))
             }),
         )
     }
@@ -361,6 +499,47 @@ impl Host {
     #[cfg(target_arch = "wasm32")]
     pub fn run(self) -> Result<(), HostError> {
         Err(HostError::Io("the native host cannot run in a browser".to_owned()))
+    }
+
+    fn seed_toasts(&mut self) {
+        let toasts = self.spec.toasts.clone();
+        for toast in &toasts {
+            self.push_toast(toast);
+        }
+    }
+
+    fn push_toast(&mut self, spec: &ToastSpec) {
+        use egui_workbench::components::{Toast, ToastKind};
+        let kind = match spec.kind.as_str() {
+            "success" => ToastKind::Success,
+            "warning" => ToastKind::Warning,
+            "error" => ToastKind::Error,
+            "loading" => ToastKind::Loading,
+            _ => ToastKind::Info,
+        };
+        let mut toast = Toast::new(kind, spec.title.clone());
+        if let Some(description) = &spec.description {
+            toast = toast.description(description.clone());
+        }
+        self.toasts.add(toast);
+    }
+
+    /// Run one headless frame and return the events it produced.
+    ///
+    /// This renders with a default `egui::Context` and applies the action queue first,
+    /// so a test or a Python `step` sees the same tree and events as a window.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn frame(&mut self) -> Vec<HostEvent> {
+        let _ = self.apply_actions();
+        let ctx = self.headless_context.get_or_insert_with(egui::Context::default).clone();
+        let size = egui::vec2(self.spec.window.width, self.spec.window.height);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| self.ui(ui));
+        output.textures_delta.clear();
+        self.poll_events()
     }
 
     fn seed_values(&mut self) {

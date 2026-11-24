@@ -9,10 +9,15 @@ use egui_workbench::title_menu;
 use crate::runtime::{Host, HostEvent};
 use crate::spec::{HostSpec, SeriesSpec, WidgetSpec};
 
+pub(crate) type EventCallback = Box<dyn FnMut(&HostEvent)>;
+pub(crate) type FrameCallback = Box<dyn FnMut()>;
+
 /// The eframe application that owns a [`Host`].
 pub(crate) struct HostApp {
     pub(crate) host: Host,
     pub(crate) theme: ThemeState,
+    pub(crate) on_event: Option<EventCallback>,
+    pub(crate) on_frame: Option<FrameCallback>,
 }
 
 impl eframe::App for HostApp {
@@ -22,7 +27,18 @@ impl eframe::App for HostApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if self.host.apply_actions() {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+        }
         self.host.ui(ui);
+        if let Some(callback) = &mut self.on_event {
+            for event in self.host.poll_events() {
+                callback(&event);
+            }
+        }
+        if let Some(callback) = &mut self.on_frame {
+            callback();
+        }
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {

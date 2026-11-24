@@ -1,0 +1,133 @@
+name: Python wheels
+
+# abi3 wheels for CPython 3.9+ on Linux (x86_64 and aarch64), macOS (universal2), and
+# Windows. Wheels are attached to the workflow run; the publish job uses PyPI Trusted
+# Publishing when the project has a trusted publisher for this repository and the
+# PYPI_TRUSTED_PUBLISHING repository variable is "true". A PYPI_API_TOKEN secret is the
+# fallback for projects that cannot use OIDC yet.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: linux (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  macos:
+    name: macos (universal2)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: universal2-apple-darwin
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos
+          path: dist
+
+  windows:
+    name: windows (x86_64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: x86_64-pc-windows-msvc
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows
+          path: dist
+
+  sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+  publish:
+    name: publish to PyPI
+    needs: [linux, macos, windows, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/egui-workbench
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish with Trusted Publishing
+        if: vars.PYPI_TRUSTED_PUBLISHING == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Publish with an API token
+        if: vars.PYPI_TRUSTED_PUBLISHING != 'true' && env.PYPI_API_TOKEN != ''
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Explain a skipped upload
+        if: vars.PYPI_TRUSTED_PUBLISHING != 'true' && env.PYPI_API_TOKEN == ''
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "::warning::wheels were built but not uploaded: configure a PyPI trusted publisher and set PYPI_TRUSTED_PUBLISHING=true, or add the PYPI_API_TOKEN secret"
+
+  release:
+    name: attach wheels to the GitHub release
+    needs: [linux, macos, windows, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Upload wheels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 30); do
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break
+            sleep 10
+          done
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber

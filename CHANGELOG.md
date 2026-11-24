@@ -7,6 +7,29 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-24
+
+### Added
+
+- PyPI package `egui-workbench`: a PyO3/maturin extension built for abi3 on CPython 3.9+
+  with wheels for Linux x86_64/aarch64, macOS universal2, and Windows, plus an sdist.
+- The Pythonic layer: `Workbench`, `Command`, dataclass widgets, `@app.on(...)`,
+  `app.run()`, `app.emit()`, `app.save()`, `app.schema()`, and `app.step()` for headless
+  tests.
+- Event handlers on the UI thread with a `Context` for JSON-pointer patches, toasts,
+  title changes, quit, and local command dispatch.
+- Thread-safe `app.post(callback)` and asyncio integration, including `async` handlers
+  and `await app.run_async()`.
+- Data ingestion from NumPy, pandas, Polars, PyArrow tables/record batches/arrays through
+  the Arrow C data interface, plus mappings and row dictionaries.
+- `py.typed`, `_native.pyi`, and the host JSON Schema exposed to Python.
+- A Python guide, CI wheel builds, and a PyPI wheel workflow with Trusted Publishing.
+
+### Migration
+
+Additive. The Python package is published separately from the Rust crates; it pins the
+same 0.12 host spec.
+
 ## [0.11.0] - 2026-11-24
 
 ### Added

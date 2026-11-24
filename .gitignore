@@ -17,3 +17,14 @@ docs-site/public/demo/pkg/
 
 # Pasted screenshots
 Pasted image*.png
+
+# Python build output and test caches
+crates/egui-workbench-python/dist/
+crates/egui-workbench-python/.venv/
+__pycache__/
+.pytest_cache/
+
+# maturin develop output in the source tree
+crates/egui-workbench-python/python/**/*.so
+crates/egui-workbench-python/python/**/*.pyd
+crates/egui-workbench-python/python/**/*.dylib

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "egui-workbench"
+version = "0.12.0"
+description = "Native, IDE-grade workbench windows from a Python script."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "Jose Ignacio Gonzalez" }]
+keywords = ["egui", "gui", "workbench", "data", "plots"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: User Interfaces",
+]
+dependencies = []
+
+[project.optional-dependencies]
+data = ["numpy>=1.23"]
+test = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/jigonzalez930209/egui-workbench"
+Documentation = "https://jigonzalez930209.github.io/egui-workbench/guide/python.html"
+Repository = "https://github.com/jigonzalez930209/egui-workbench"
+
+[tool.maturin]
+python-source = "python"
+module-name = "egui_workbench._native"
+features = ["extension-module"]
+strip = true

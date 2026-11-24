@@ -110,3 +110,62 @@ fn a_spec_file_loads_and_reloads() {
     assert!(!host.reload_if_changed());
     let _ = std::fs::remove_file(path);
 }
+
+#[test]
+fn queued_actions_apply_on_the_next_frame() {
+    use egui_workbench_host::{HostAction, ToastSpec};
+
+    let spec = HostSpec {
+        version: SPEC_VERSION,
+        widgets: vec![WidgetSpec::Label {
+            text: "before".to_owned(),
+            size: 13.0,
+            tone: "default".to_owned(),
+            strong: false,
+        }],
+        ..HostSpec::default()
+    };
+    let mut host = Host::new(spec).expect("host");
+    let actions = host.actions();
+    actions.push(HostAction::Patch(Patch::Set {
+        path: "/widgets/0/text".to_owned(),
+        value: json!("after"),
+    }));
+    actions.push(HostAction::Toast(ToastSpec {
+        kind: "success".to_owned(),
+        title: "Saved".to_owned(),
+        description: None,
+    }));
+    assert!(!host.apply_actions());
+    assert_eq!(host.json()["widgets"][0]["text"], "after");
+    let _ = host.frame();
+}
+
+#[test]
+fn initial_toasts_are_seeded_from_the_spec() {
+    use egui_workbench_host::ToastSpec;
+
+    let spec = HostSpec {
+        version: SPEC_VERSION,
+        toasts: vec![ToastSpec {
+            kind: "success".to_owned(),
+            title: "Ready".to_owned(),
+            description: None,
+        }],
+        ..HostSpec::default()
+    };
+    let host = Host::new(spec).expect("host");
+    assert_eq!(host.toast_count(), 1);
+}
+
+#[test]
+fn a_newer_spec_version_is_rejected() {
+    let spec = HostSpec {
+        version: SPEC_VERSION + 1,
+        ..HostSpec::default()
+    };
+    assert!(matches!(
+        Host::new(spec),
+        Err(egui_workbench_host::HostError::UnsupportedVersion(_))
+    ));
+}
