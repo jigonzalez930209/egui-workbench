@@ -15,6 +15,19 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-24
+
+### Added
+
+- WebAssembly host and npm package with ESM and schema-generated TypeScript types.
+- Remote UI server over WebSocket with the 0.11 protocol.
+- C ABI, header, and Go/C conformance clients.
+- Browser and remote tests plus the web guide.
+
+### Migration
+
+Additive; new crates and the npm package use the 0.13 spec.
+
 ## [0.12.0] - 2026-11-24
 
 ### Added

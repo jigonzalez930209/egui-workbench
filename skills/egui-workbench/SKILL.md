@@ -582,6 +582,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/guide/platforms.md`](references/guide/platforms.md): The Linux, macOS, and Windows CI matrix, the repeatable IME and HiDPI pass, and the egui upgrade policy.
 - [`references/guide/python.md`](references/guide/python.md): Install egui-workbench from PyPI, build a native window from a Python script, and feed NumPy, pandas, Polars, and Arrow data into grids and plots.
 - [`references/guide/quick-start.md`](references/guide/quick-start.md): Generate a complete application from templates/app and learn what each generated file is for.
+- [`references/guide/web.md`](references/guide/web.md): Run the same host spec in a browser with WebAssembly, render a server over WebSocket, and drive it from C, Go, and other languages.
 
 **Application runtime**
 

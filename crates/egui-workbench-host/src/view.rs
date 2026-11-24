@@ -1,6 +1,7 @@
 //! The native host view and its eframe runner.
 
 use egui::{RichText, Ui};
+#[cfg(not(target_arch = "wasm32"))]
 use egui_workbench::app::ThemeState;
 use egui_workbench::components::prelude::*;
 use egui_workbench::components::{DataGrid, DataGridEvent};
@@ -9,10 +10,13 @@ use egui_workbench::title_menu;
 use crate::runtime::{Host, HostEvent};
 use crate::spec::{HostSpec, SeriesSpec, WidgetSpec};
 
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) type EventCallback = Box<dyn FnMut(&HostEvent)>;
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) type FrameCallback = Box<dyn FnMut()>;
 
 /// The eframe application that owns a [`Host`].
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct HostApp {
     pub(crate) host: Host,
     pub(crate) theme: ThemeState,
@@ -20,6 +24,7 @@ pub(crate) struct HostApp {
     pub(crate) on_frame: Option<FrameCallback>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl eframe::App for HostApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.theme.sync_system(ctx);

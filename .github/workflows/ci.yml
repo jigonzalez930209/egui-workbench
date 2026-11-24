@@ -88,6 +88,67 @@ jobs:
       - name: Python tests
         run: python -m pytest crates/egui-workbench-python/tests -q
 
+
+  wasm:
+    # The browser host has its own target and its own tests: wasm-pack, a Chrome canvas,
+    # and the remote server driven by the npm client.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev \
+            mesa-vulkan-drivers libvulkan1 xvfb
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the npm package
+        run: |
+          cd crates/egui-workbench-wasm
+          npm run build
+          npm run types:check
+          npm pack --dry-run
+      - name: Browser tests
+        run: |
+          cd crates/egui-workbench-wasm
+          wasm-pack test --headless --chrome --release
+          bash scripts/remote-browser-test.sh
+
+  clients:
+    # Two reference clients beyond Rust and Python: Go speaks the sidecar protocol and C
+    # links the C ABI. Both apply the shared conformance fixture.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev \
+            mesa-vulkan-drivers libvulkan1 xvfb
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: C ABI
+        run: bash crates/egui-workbench-c/check.sh
+      - name: Go client
+        run: bash clients/go/check.sh
+
   desktop:
     # Behavior tests on the other two desktops. Pixel snapshots stay pinned to Linux;
     # this job covers the platform-sensitive chrome, input, and interaction paths.

@@ -160,6 +160,19 @@ app.run()
 
 See the [Python guide](https://jigonzalez930209.github.io/egui-workbench/guide/python.html).
 
+## Web and remote
+
+```bash
+npm install egui-workbench
+```
+
+`createWorkbench` mounts the same spec on a canvas with WebAssembly; `connectRemote`
+renders a host running on a server over WebSocket. The C ABI in
+`crates/egui-workbench-c/include/egui_workbench.h` exposes the host to C, C++, Go, Zig,
+and C#. The Go reference client is in `clients/go`.
+
+See the [Web and remote guide](https://jigonzalez930209.github.io/egui-workbench/guide/web.html).
+
 ## Declarative host
 
 The separate [`egui-workbench-host`](crates/egui-workbench-host) crate runs an
@@ -177,7 +190,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "0.12"
+egui-workbench = "0.13"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

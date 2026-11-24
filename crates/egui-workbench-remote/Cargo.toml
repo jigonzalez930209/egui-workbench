@@ -1,0 +1,20 @@
+[package]
+name = "egui-workbench-remote"
+version = "0.13.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+description = "Remote UI server for egui-workbench: the 0.11 protocol over WebSocket, localhost by default."
+readme = "README.md"
+repository = "https://github.com/jigonzalez930209/egui-workbench"
+publish = true
+
+[dependencies]
+egui-workbench-host = { path = "../egui-workbench-host", version = "0.13.0" }
+sha1 = "0.10"
+base64 = "0.22"
+serde_json = "1"
+
+[[bin]]
+name = "egui-workbench-remote"
+path = "src/bin/egui-workbench-remote.rs"

@@ -7,6 +7,28 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-24
+
+### Added
+
+- npm package `egui-workbench`: a WebAssembly host mounted on a canvas, an ESM wrapper
+  (`createWorkbench`, `connectRemote`), and TypeScript declarations generated from the
+  host JSON Schema.
+- `egui-workbench-remote`: a WebSocket server that carries the 0.11 messages, binds
+  localhost by default, and exposes an `on_command` hook.
+- The C ABI `libegui_workbench_c` with `include/egui_workbench.h` for C, C++, Go, Zig,
+  and C#.
+- Reference clients in Go (sidecar protocol) and C (C ABI) checked against the shared
+  conformance fixture.
+- Browser tests: wasm host tests in headless Chrome and a full canvas/remote test that
+  renders the spec and applies a patch.
+- Web, remote, C ABI, and reference-client documentation.
+
+### Migration
+
+Additive. The wasm, remote, and C crates are new; the npm package and the Python package
+share the 0.13 spec.
+
 ## [0.12.0] - 2026-11-24
 
 ### Added

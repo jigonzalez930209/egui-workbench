@@ -18,7 +18,7 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.12"
+egui-workbench = "0.13"
 ```
 
 ## Python
@@ -30,11 +30,21 @@ pip install egui-workbench
 The wheel includes the native host; no Rust toolchain is needed. See the
 [Python guide](/guide/python) for widgets, events, threads, asyncio, and data.
 
+## Web and remote
+
+```bash
+npm install egui-workbench
+```
+
+The npm package is the WebAssembly host, the `createWorkbench` ESM wrapper, and the
+TypeScript types generated from the schema. The remote server and C ABI are in the
+[Web and remote guide](/guide/web).
+
 For the declarative host (spec, patches, protocol, sidecar), add the separate crate:
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench-host = "0.12"
+egui-workbench-host = "0.13"
 ```
 
 Or follow the repository's `main` branch:

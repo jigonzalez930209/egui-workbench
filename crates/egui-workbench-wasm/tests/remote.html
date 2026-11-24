@@ -1,0 +1,21 @@
+<!doctype html>
+<html><body>
+<canvas id="canvas" width="420" height="300"></canvas>
+<script type="module">
+import { connectRemote } from "/js/index.js";
+const spec = {version:1, widgets:[{kind:"label", text:"before", size:13, tone:"default", strong:false}]};
+const remote = await connectRemote({
+  url: "ws://127.0.0.1:31339",
+  canvas: document.getElementById("canvas"),
+  spec,
+  wasmUrl: "/pkg/egui_workbench_wasm_bg.wasm",
+});
+setTimeout(() => {
+  remote.applyPatch({op:"set", path:"/widgets/0/text", value:"browser + remote"});
+}, 600);
+setTimeout(() => {
+  document.body.dataset.spec = JSON.stringify(remote.workbench.spec());
+  document.body.dataset.ready = "yes";
+}, 1600);
+</script>
+</body></html>

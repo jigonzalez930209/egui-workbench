@@ -40,6 +40,7 @@ export default defineConfig({
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick start', link: '/guide/quick-start' },
             { text: 'Python', link: '/guide/python' },
+            { text: 'Web and remote', link: '/guide/web' },
             { text: 'Build your first app', link: '/guide/first-app' },
             { text: 'Live demo', link: '/guide/live-demo' },
             { text: 'Desktop platforms', link: '/guide/platforms' },

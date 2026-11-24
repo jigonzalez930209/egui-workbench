@@ -151,6 +151,7 @@ pub struct Host {
     pub(crate) plot_states: BTreeMap<String, egui_workbench::components::plot::PlotState>,
     pub(crate) icons: Icons,
     pub(crate) toasts: Toasts,
+    #[cfg(not(target_arch = "wasm32"))]
     headless_context: Option<egui::Context>,
     actions: ActionQueue,
     revision: u64,
@@ -189,6 +190,7 @@ impl Host {
             plot_states: BTreeMap::new(),
             icons: Icons::new(),
             toasts: Toasts::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             headless_context: None,
             actions,
             revision: 0,
@@ -522,6 +524,14 @@ impl Host {
             toast = toast.description(description.clone());
         }
         self.toasts.add(toast);
+    }
+
+    /// Draw the host in a root `Ui` and collect its events.
+    ///
+    /// The native runner and the WebAssembly host both call this; the event queue is
+    /// drained with [`Self::poll_events`].
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.ui(ui);
     }
 
     /// Run one headless frame and return the events it produced.

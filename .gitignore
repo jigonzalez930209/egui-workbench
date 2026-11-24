@@ -28,3 +28,5 @@ __pycache__/
 crates/egui-workbench-python/python/**/*.so
 crates/egui-workbench-python/python/**/*.pyd
 crates/egui-workbench-python/python/**/*.dylib
+
+crates/egui-workbench-wasm/*.tgz

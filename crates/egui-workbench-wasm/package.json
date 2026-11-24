@@ -1,0 +1,28 @@
+{
+  "name": "egui-workbench",
+  "version": "0.13.0",
+  "description": "The egui-workbench host in WebAssembly: a spec-driven canvas and a remote UI client.",
+  "type": "module",
+  "main": "./js/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./js/index.js"
+    },
+    "./schema": {
+      "types": "./types/schema.d.ts"
+    },
+    "./pkg/*": "./pkg/*"
+  },
+  "files": ["js", "pkg", "types", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg --out-name egui_workbench_wasm && node scripts/generate-types.mjs && node scripts/clean-pkg.mjs",
+    "types": "node scripts/generate-types.mjs",
+    "types:check": "node scripts/generate-types.mjs --check"
+  },
+  "keywords": ["egui", "wasm", "workbench", "ui", "plots"],
+  "license": "MIT OR Apache-2.0",
+  "repository": "https://github.com/jigonzalez930209/egui-workbench"
+}
