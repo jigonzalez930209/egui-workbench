@@ -157,6 +157,12 @@ impl<'a> Plot<'a> {
         self
     }
 
+    /// Select the CPU or GPU data layer.
+    pub fn renderer(mut self, renderer: super::Renderer) -> Self {
+        self.config.renderer = renderer;
+        self
+    }
+
     /// The animation played while the pointer rests on a legend row (enabled by default).
     pub fn legend_animation(mut self, animation: LegendAnimation) -> Self {
         self.config.legend_hover.animation = animation;

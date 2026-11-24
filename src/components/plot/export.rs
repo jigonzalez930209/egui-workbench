@@ -320,7 +320,7 @@ impl Plot<'_> {
         };
         let theme = crate::theme::current(ctx);
         let scene = overlay::build_scene(
-            &measure, self, &layout, &transform, state, &colors, &theme, true, mode, 0.0, false,
+            &measure, self, &layout, &transform, state, &colors, &theme, true, mode, 0.0, false, false,
         );
         (scene, canvas)
     }

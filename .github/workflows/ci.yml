@@ -40,6 +40,7 @@ jobs:
           cargo check --no-default-features --features serde
           cargo check --no-default-features --features plot
           cargo check --no-default-features --features viewer
+          cargo check --no-default-features --features gpu
       - name: Test
         # WGPU_DEBUG=0 comes from .cargo/config.toml (concurrent devices + debug labels
         # crash the Vulkan loader).

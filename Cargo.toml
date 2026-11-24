@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "0.8.1"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -67,6 +67,8 @@ parquet = ["dep:parquet", "arrow", "dep:bytes"]
 sqlite = ["dep:rusqlite"]
 # Serializable component state and the stable event model.
 serde = ["dep:serde", "dep:serde_json", "egui/serde"]
+# GPU line/marker renderer through egui_wgpu paint callbacks.
+gpu = ["plot", "dep:egui-wgpu", "dep:bytemuck"]
 
 [dependencies]
 # Caret ranges: applications may pick any 0.37.x / 0.48.x patch release.
@@ -87,6 +89,8 @@ serde_yaml = { version = "0.9", optional = true }
 toml = { version = "0.8", optional = true }
 pulldown-cmark = { version = "0.13", optional = true, default-features = false }
 image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg"] }
+egui-wgpu = { version = "0.37", optional = true, default-features = false }
+bytemuck = { version = "1", features = ["derive"], optional = true }
 
 [lints.rust]
 unsafe_code = "forbid"

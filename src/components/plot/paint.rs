@@ -98,6 +98,8 @@ pub(super) struct Look {
     pub fill_opacity: f32,
     /// How lines pass through their points.
     pub smoothing: Smoothing,
+    /// Skip line/scatter primitives because the GPU layer draws them.
+    pub skip_gpu_lines: bool,
 }
 
 pub(super) fn dash(style: LineStyle, width: f32) -> Dash {
@@ -118,6 +120,9 @@ pub(super) fn series_prims(
     indices: &[usize],
     effect: Option<Effect>,
 ) {
+    if look.skip_gpu_lines && matches!(series.kind, Kind::Line { .. } | Kind::Scatter { .. }) {
+        return;
+    }
     let data = series.data();
     let frame = transform.frame;
     let color = effect.map_or(look.color, |effect| effect.color(look.color));

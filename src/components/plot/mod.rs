@@ -38,6 +38,11 @@ mod direction;
 mod export;
 mod extra;
 mod fit;
+#[cfg(feature = "gpu")]
+#[cfg(feature = "gpu")]
+mod gpu;
+#[cfg(feature = "gpu")]
+mod gpu_line;
 mod grid;
 mod history;
 mod interact;
@@ -61,10 +66,12 @@ use egui::{Color32, Id, Pos2, Rect, Sense, Ui, vec2};
 pub use animation::{AnimationEasing, LegendAnimation, LegendHoverConfig};
 pub use axis::{Bounds, Scale};
 pub use chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
-pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, SeriesStyle, TitleAlign};
+pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, Renderer, SeriesStyle, TitleAlign};
 pub use dataset::{DatasetPlot, DatasetPlotKind};
 pub use export::ExportOptions;
 pub use fit::{Fit, FitKind};
+#[cfg(feature = "gpu")]
+pub use gpu::set_output_format;
 pub use grid::PlotGrid;
 pub use history::ViewHistory;
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
@@ -365,11 +372,38 @@ impl Plot<'_> {
         let theme = crate::theme::current(ui.ctx());
         let colors = overlay::Colors::resolve(&self.config, ui.visuals());
         let mut scene = overlay::build_scene(
-            &measure, &self, &layout, &transform, state, &colors, &theme, false, mode, now, motion,
+            &measure,
+            &self,
+            &layout,
+            &transform,
+            state,
+            &colors,
+            &theme,
+            false,
+            mode,
+            now,
+            motion,
+            {
+                #[cfg(feature = "gpu")]
+                {
+                    self.config.renderer == Renderer::Gpu
+                }
+                #[cfg(not(feature = "gpu"))]
+                {
+                    false
+                }
+            },
         );
         // The points each series drew; hover searches these instead of every point.
         let drawn = std::mem::take(&mut scene.drawn);
         let painter = ui.painter_at(rect);
+        #[cfg(feature = "gpu")]
+        let gpu = self.config.renderer == Renderer::Gpu;
+        #[cfg(feature = "gpu")]
+        if gpu {
+            let lines = gpu::collect(&self, &transform, state, &theme);
+            gpu::paint_lines(ui, layout.frame, &lines, self.id);
+        }
         scene::paint(&painter, &painter.with_clip_rect(layout.frame), scene);
         if let (Some(Drag::Box { start, select }), Some(current)) = (state.drag, response.interact_pointer_pos()) {
             let fill = colors.selection.gamma_multiply(if select { 0.12 } else { 0.06 });
@@ -459,29 +493,4 @@ impl IconComponent for Plot<'_> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn special_series_choose_the_chart_mode() {
-        let pie = Plot::new("pie").series(Series::pie("a", 1.0));
-        assert_eq!(pie.chart_mode(), ChartMode::Pie);
-        let radar = Plot::new("radar").series(Series::radar("a", [1.0, 2.0, 3.0]));
-        assert_eq!(radar.chart_mode(), ChartMode::Radar);
-        let gauge = Plot::new("gauge").series(Series::gauge("a", 4.0, 0.0..=10.0));
-        assert_eq!(gauge.chart_mode(), ChartMode::Gauge);
-        let candles = Plot::new("candles").series(Series::candles("a", vec![[0.0, 1.0, 2.0, 0.5, 1.5]]));
-        assert_eq!(candles.chart_mode(), ChartMode::Cartesian);
-    }
-
-    #[test]
-    fn direction_and_legend_hover_builders_write_the_config() {
-        let plot = Plot::new("p")
-            .direction_arrow(true)
-            .direction_points(9)
-            .legend_animation(LegendAnimation::DashMarch);
-        assert!(plot.config.direction.enabled);
-        assert_eq!(plot.config.direction.points, 9);
-        assert_eq!(plot.config.legend_hover.animation, LegendAnimation::DashMarch);
-    }
-}
+mod tests;

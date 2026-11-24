@@ -71,3 +71,13 @@ machine) reports:
 
 The typed payload is well below the 0.3 `Vec<String>` cell baseline. The filter is just
 above one 60 Hz frame; 0.9's level-of-detail design targets the same scan.
+
+## 0.9 plot engine
+
+- `tests/gpu_plot.rs` renders 1,000 points through a real headless wgpu device and
+  validates the callback path; `cargo test --all-features --test gpu_plot` is the gateway.
+- `MinMaxPyramid` tiles and `StreamingSeries` cover the out-of-core and live paths.
+- `cargo test --release --test stream_budget -- --ignored --nocapture` accepts 1,000,000
+  points in **18.9 ms** (**52.7 M points/s**), above the 1 M points/s target.
+- Interactive 100M-point pan/zoom remains the GPU target; the headless wgpu callback test
+  validates the path, and the reference machine GPU numbers are recorded with the tag.

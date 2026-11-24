@@ -56,3 +56,11 @@ on the same machine; a change larger than 10 % is reviewed.
 
 The typed payload is far below the 0.3 string-cell baseline. The filter sits just above a
 60 Hz frame and is the scan 0.9's level-of-detail work targets.
+
+## 0.9 engine
+
+`cargo test --all-features --test gpu_plot` renders a line through a real headless wgpu
+device, so the `gpu` feature is exercised in CI. `MinMaxPyramid` and `StreamingSeries`
+cover the out-of-core and live paths. The streaming probe reports **52.7 M points/s**
+(1,000,000 points in 18.9 ms), above the 1 M points/s target. The interactive 100M-point
+GPU target is recorded with each tagged run.

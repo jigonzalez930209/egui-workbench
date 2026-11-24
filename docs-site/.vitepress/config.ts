@@ -87,6 +87,7 @@ export default defineConfig({
             { text: 'Export', link: '/charts/export' },
             { text: 'Live data', link: '/charts/live-data' },
             { text: 'Performance', link: '/charts/performance' },
+            { text: 'Plot engine', link: '/charts/plot-engine' },
           ],
         },
       ],

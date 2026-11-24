@@ -59,6 +59,7 @@ pub(super) fn look(plot: &Plot<'_>, index: usize, theme: &crate::theme::Theme) -
         radius: style.and_then(|style| style.marker_size).unwrap_or(radius) * config.marker_scale,
         fill_opacity: style.and_then(|style| style.fill_opacity).unwrap_or(fill),
         smoothing: style.and_then(|style| style.smoothing).unwrap_or(smoothing),
+        skip_gpu_lines: false,
     }
 }
 
@@ -93,6 +94,7 @@ pub(super) fn build_scene(
     mode: ChartMode,
     now: f64,
     motion: bool,
+    gpu: bool,
 ) -> Scene {
     let config = &plot.config;
     let frame = layout.frame;
@@ -129,7 +131,8 @@ pub(super) fn build_scene(
             if state.is_hidden(&series.name) {
                 continue;
             }
-            let look = look(plot, index, theme);
+            let mut look = look(plot, index, theme);
+            look.skip_gpu_lines = gpu;
             let effect = Effect::for_hover(config, state, index, now, theme, motion && !exporting);
             let transform = transform.for_axis(plot.axis_of(series));
             let sorted = series.sorted_x();

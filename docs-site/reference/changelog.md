@@ -15,6 +15,21 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-24
+
+### Added
+
+- Optional `gpu` renderer for line/scatter data layers through `egui_wgpu`, with
+  `Renderer::Gpu` and `set_output_format`.
+- `MinMaxPyramid` for lazy min/max tiles over paged sources.
+- `StreamingSeries` with live/frozen modes, rolling windows, and triggers.
+- `Scale::SymmetricLog`, `Scale::Time`, and `Scale::Category`.
+- The Plot engine guide.
+
+### Migration
+
+0.9 is additive; the CPU renderer remains the default.
+
 ## [0.8.1] - 2026-11-24
 
 ### Fixed

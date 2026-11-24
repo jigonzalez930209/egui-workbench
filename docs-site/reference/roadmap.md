@@ -25,7 +25,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 0.8.0
+## Where we are: 0.9.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -33,7 +33,7 @@ palette, toasts, a shadcn-style component layer, 2,410 Lucide icons, the Materia
 icons, `Plot` (many chart families, legend animations, SVG/PNG export), `Plot3D`, a
 read-only `FileViewer`, the optional runtime (`ThemeState`, `Documents`, `Keymap`,
 `CloseGuard`, `show_workbench`), a starter template, an agent skill, and a documentation
-site whose demos run the real library in WebAssembly. About 430 tests and pixel
+site whose demos run the real library in WebAssembly. About 460 tests and pixel
 snapshots protect it.
 
 0.4.0 added the `CommandRegistry` and `when` contexts, rebindable chords with conflict
@@ -56,6 +56,10 @@ query language, the typed `DataGrid`, and `ViewerRegistry`.
 0.8.0 added linked views: the `LinkHub` selection bus, dataset-bound plots with
 `color_by`, brush-to-row mapping, `PlotGrid` with shared state, table linking, and
 `ViewHistory`.
+
+0.9.0 added the plot engine: an optional `egui_wgpu` line/scatter renderer, the
+`MinMaxPyramid` level-of-detail cache, the live/frozen `StreamingSeries` with triggers,
+and symmetric-log, time, and category axes.
 
 What stands between this and a 1.0 that people can build products on, and the release
 that closes each gap:

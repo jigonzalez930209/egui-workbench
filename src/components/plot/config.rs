@@ -10,6 +10,19 @@ use super::axis::Scale;
 use super::chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
 use super::series::{LineStyle, Marker, Smoothing, YAxis};
 
+/// Which renderer draws the data layer.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Renderer {
+    /// The CPU painter: the reference, snapshots, and the fallback.
+    #[default]
+    Cpu,
+    /// GPU lines and scatter through the `gpu` feature; charts, axes, and legend stay CPU.
+    Gpu,
+}
+
 /// Where the chart title sits along the top.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
@@ -224,6 +237,8 @@ pub struct PlotConfig {
     pub colors: PlotColors,
     /// Per-series overrides.
     pub series: Vec<SeriesStyle>,
+    /// CPU or GPU data layer.
+    pub renderer: Renderer,
 }
 
 impl Default for PlotConfig {
@@ -264,6 +279,7 @@ impl Default for PlotConfig {
             waterfall: WaterfallConfig::default(),
             colors: PlotColors::default(),
             series: Vec::new(),
+            renderer: Renderer::Cpu,
         }
     }
 }

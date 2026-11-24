@@ -622,6 +622,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/charts/interaction.md`](references/charts/interaction.md): Pan, wheel zoom, box zoom, area selection, hover popups, legend toggles, tools, and annotations.
 - [`references/charts/live-data.md`](references/charts/live-data.md): Follow the newest x units, keep a bounded buffer, and repaint only while streaming.
 - [`references/charts/performance.md`](references/charts/performance.md): Per-pixel decimation, sorted data, million-point series, and what costs a frame.
+- [`references/charts/plot-engine.md`](references/charts/plot-engine.md): GPU data layers, level-of-detail pyramids, streaming series, and time, category, and symmetric-log axes.
 - [`references/charts/series.md`](references/charts/series.md): Lines, areas, steps, scatter, bars, candlesticks, heatmaps, waterfalls, pie slices, radar polygons, gauges, functions, reference lines, error bars, and markers.
 
 **Theming**

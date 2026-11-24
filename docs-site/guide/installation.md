@@ -18,7 +18,7 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.8"
+egui-workbench = "0.9"
 ```
 
 Or follow the repository's `main` branch:
@@ -44,6 +44,7 @@ egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 | `arrow` | no | Arrow IPC connector. |
 | `parquet` | no | Parquet connector (implies `arrow`). |
 | `sqlite` | no | SQLite connector (`rusqlite`). |
+| `gpu` | no | GPU line/scatter data layer through `egui_wgpu`. Implies `plot`. |
 | `serde` | yes | Stable event names and `Serialize`/`Deserialize` for component state and events. |
 | `svg` | yes | The `resvg`/`usvg` rasterizer. Icon packs and `plot` enable it; a minimal build with neither pays for no rasterizer. |
 

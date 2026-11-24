@@ -15,6 +15,8 @@ crate root keeps the original function API; `components` adds builders.
 | `History<S>` | struct | [History and sessions](../app/history-and-session.md) |
 | `Layout`, `LayoutNode`, `EditorGroup`, `LayoutTab`, `LayoutAction` | layout | [Workspace layouts](../app/workspace.md) |
 | `LinkHub`, `LinkMode`, `LinkSelection` | selection bus | [Linked views](../app/linked-views.md) |
+| `MinMaxPyramid`, `StreamingSeries`, `Trigger` | data engine | [Plot engine](../charts/plot-engine.md) |
+| `Renderer`, `set_output_format` | GPU | [Plot engine](../charts/plot-engine.md) |
 | `DatasetPlot`, `PlotGrid`, `ViewHistory` | linked plots | [Linked views](../app/linked-views.md) |
 | `Dataset`, `Column`, `DataSource`, `Query`, `DataGrid` | data | [Data fabric](../app/data.md) |
 | `ViewerRegistry`, `ViewerFile`, `ViewerKind` | viewer | [Data fabric](../app/data.md) |

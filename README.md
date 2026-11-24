@@ -143,7 +143,7 @@ product seams are `src/model.rs` (`TabData`), `src/content.rs` (the screen), and
 
 ```toml
 [dependencies]
-egui-workbench = "0.8"
+egui-workbench = "0.9"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

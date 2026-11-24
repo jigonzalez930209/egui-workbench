@@ -7,6 +7,28 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-24
+
+### Added
+
+- Feature `gpu`: a line/scatter renderer through an `egui_wgpu` paint callback, selected
+  per plot with `Renderer::Gpu`. `set_output_format` configures the surface format;
+  `tests/gpu_plot.rs` renders through a real headless wgpu device. Charts, axes, legend,
+  hover, selection, and export remain on the CPU reference painter.
+- `data::MinMaxPyramid`: lazily built min/max tiles over a paged `DataSource`, a tile
+  cache, level selection for a query budget, `range()` and `polyline()`.
+- `data::StreamingSeries`: live/frozen modes, capacity, a rolling x window, revisions, and
+  rising/falling `Trigger`s.
+- `Scale::SymmetricLog`, `Scale::Time` (calendar ticks in UTC), and `Scale::Category` with
+  `AxisConfig::categories`.
+- The Plot engine guide and the `gpu` feature build in CI.
+
+### Migration
+
+0.9 is additive. `PlotConfig::renderer` defaults to `Renderer::Cpu`, so existing plots and
+snapshots are unchanged. A host that selects `Renderer::Gpu` enables the `gpu` feature and
+calls `set_output_format` once at startup.
+
 ## [0.8.1] - 2026-11-24
 
 ### Fixed
