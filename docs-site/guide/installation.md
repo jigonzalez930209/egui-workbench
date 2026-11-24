@@ -18,7 +18,14 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.10"
+egui-workbench = "0.11"
+```
+
+For the declarative host (spec, patches, protocol, sidecar), add the separate crate:
+
+```toml [Cargo.toml]
+[dependencies]
+egui-workbench-host = "0.11"
 ```
 
 Or follow the repository's `main` branch:

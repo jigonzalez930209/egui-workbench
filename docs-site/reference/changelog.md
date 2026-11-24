@@ -15,6 +15,18 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-24
+
+### Added
+
+- `egui-workbench-host` crate: versioned spec and schema, host runtime, patches, data
+  buffers, protocol/frames, sidecar binary, custom widgets, and conformance fixtures.
+- Native hot reload and a headless render test.
+
+### Migration
+
+Additive; the host is a separate crate published from the same tag.
+
 ## [0.10.0] - 2026-11-24
 
 ### Added

@@ -7,6 +7,32 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-24
+
+### Added
+
+- New crate `egui-workbench-host`: a versioned `HostSpec` with window, theme, commands,
+  menus, explorer, editor groups, panels, status bar, widget tree, dialogs, and toasts;
+  JSON Schema generated from the Rust types.
+- `Host` runtime: `new`, `load`, `apply`, `poll_events`, `set_dataset`, `register_custom`,
+  `reload_if_changed`, and `run`, with native hot reload.
+- JSON-pointer patches (`set`, `replace`, `remove`, `append`, `batch`) validated before
+  they replace the spec.
+- A transport-agnostic protocol with `Hello`, `Request`, `Response`, `Event`, `Patch`,
+  `Data`, and `Error` messages, plus four-byte length-prefixed frames for stdio, sockets,
+  and WebSocket binary messages.
+- The `egui-workbench` sidecar binary: run a spec, speak `--stdio`, print `--schema`, and
+  hot reload.
+- Native `CustomWidget` escape hatch and data buffers that feed `Dataset` without a spec
+  copy.
+- Language-neutral `conformance/basic.json` fixture, runtime tests, and a headless wgpu
+  render test.
+
+### Migration
+
+0.11 is additive for `egui-workbench`. The host is a new crate; the release workflow
+publishes both crates from the same tag.
+
 ## [0.10.0] - 2026-11-24
 
 ### Added

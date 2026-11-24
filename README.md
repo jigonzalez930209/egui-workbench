@@ -139,11 +139,24 @@ persistence, and unsaved-changes prompts for both the window and dirty tabs. The
 product seams are `src/model.rs` (`TabData`), `src/content.rs` (the screen), and
 `App::save_tab` (persistence). Read [`docs/NEW_PROJECT.md`](docs/NEW_PROJECT.md).
 
+## Declarative host
+
+The separate [`egui-workbench-host`](crates/egui-workbench-host) crate runs an
+application described as a versioned JSON spec, applies JSON-pointer patches, and speaks
+a framed protocol from stdio, sockets, or a sidecar:
+
+```bash
+cargo install egui-workbench-host
+egui-workbench --spec app.json
+```
+
+See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.html).
+
 ## Use it as a dependency
 
 ```toml
 [dependencies]
-egui-workbench = "0.10"
+egui-workbench = "0.11"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

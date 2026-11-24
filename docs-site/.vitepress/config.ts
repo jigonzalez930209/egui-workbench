@@ -115,6 +115,7 @@ export default defineConfig({
             { text: 'Documents and close guard', link: '/app/documents' },
             { text: 'History, journal, and sessions', link: '/app/history-and-session' },
             { text: 'Workspace layouts', link: '/app/workspace' },
+            { text: 'Host', link: '/app/host' },
             { text: 'Data fabric', link: '/app/data' },
             { text: 'Linked views', link: '/app/linked-views' },
             { text: 'Window', link: '/app/window' },
