@@ -55,6 +55,7 @@
 pub mod app;
 pub mod commands;
 pub mod components;
+pub mod data;
 
 pub use commands::{
     ArgKind, ArgSchema, BindingError, Command, CommandId, CommandRegistry, CommandState, DIALOG_OPEN, DIRTY,

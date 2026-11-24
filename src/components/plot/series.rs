@@ -139,6 +139,24 @@ pub struct Series<'a> {
     pub(super) cells: Option<Cow<'a, [[f64; 3]]>>,
 }
 
+impl Series<'static> {
+    /// A line from two numeric columns of a [`crate::data::Dataset`].
+    ///
+    /// ```
+    /// # use egui_workbench::components::plot::Series;
+    /// # use egui_workbench::data::{Column, Dataset};
+    /// let data = Dataset::from_columns([
+    ///     Column::floats("t", vec![0.0, 1.0]),
+    ///     Column::floats("v", vec![1.0, 2.0]),
+    /// ]);
+    /// let series = Series::from_dataset(&data, "t", "v").expect("columns");
+    /// ```
+    pub fn from_dataset(data: &crate::data::Dataset, x: &str, y: &str) -> Option<Self> {
+        let points = data.xy_pairs(x, y)?;
+        Some(Self::line(format!("{y} vs {x}"), points))
+    }
+}
+
 impl<'a> Series<'a> {
     pub(super) fn new(name: impl Into<String>, data: Cow<'a, [[f64; 2]]>, kind: Kind) -> Self {
         Self {

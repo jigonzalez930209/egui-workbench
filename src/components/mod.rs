@@ -42,6 +42,7 @@ pub mod blocks;
 mod button;
 mod card;
 mod checkbox;
+mod data_grid;
 mod dialog;
 mod feedback;
 mod icon_grid;
@@ -74,6 +75,7 @@ pub use badge::Badge;
 pub use button::{Button, CloseButton, IconButton};
 pub use card::Card;
 pub use checkbox::Checkbox;
+pub use data_grid::{DataGrid, DataGridEvent, DataGridState, SortDirection};
 pub use dialog::{ConfirmDialog, Dialog, NameDialog, ProgressDialog, PromptAction};
 pub use feedback::{Banner, Popover};
 pub use icon_grid::{IconGrid, IconLayout, IconSize};
@@ -120,12 +122,12 @@ pub trait IconComponent {
 pub mod prelude {
     pub use super::{
         ActivityBar, ActivityBarItem, Badge, Banner, Button, ButtonVariant, Card, Checkbox, CloseButton,
-        CommandPalette, Component, ConfirmDialog, Dialog, IconButton, IconButtonSize, IconComponent, IconGrid,
-        IconLayout, IconPreview, IconSize, Label, Menu, MenuButton, MenuIconButton, MenuItem, MenuToggle, NameDialog,
-        NavTab, Orientation, PaletteItem, PaletteLabels, PaletteState, Popover, ProgressDialog, PromptAction, RowIcon,
-        SegmentedControl, Select, Separator, Size, StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip,
-        TextArea, TextField, Toast, ToastEvent, ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode,
-        TreeState,
+        CommandPalette, Component, ConfirmDialog, DataGrid, DataGridEvent, DataGridState, Dialog, IconButton,
+        IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview, IconSize, Label, Menu, MenuButton,
+        MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation, PaletteItem, PaletteLabels,
+        PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl, Select, Separator, Size,
+        StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField, Toast, ToastEvent,
+        ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
     };
     #[cfg(feature = "viewer")]
     pub use super::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
