@@ -321,7 +321,11 @@ impl ViewerRegistry {
             text.push_str("|\n");
         }
         ScrollArea::both().show(ui, |ui| {
-            ui.label(RichText::new(text).monospace().size(11.0));
+            ui.label(
+                RichText::new(text)
+                    .monospace()
+                    .size(crate::style::get(ui.ctx()).font_size(11.0)),
+            );
         });
         None
     }
@@ -338,15 +342,19 @@ impl ViewerRegistry {
             }
             let text = std::mem::take(paragraph);
             if code {
-                ui.label(RichText::new(text).monospace().size(11.5));
+                ui.label(
+                    RichText::new(text)
+                        .monospace()
+                        .size(crate::style::get(ui.ctx()).font_size(11.5)),
+                );
             } else {
                 let mut rich = RichText::new(text);
                 if let Some(level) = heading {
-                    rich = rich.strong().size(match level {
+                    rich = rich.strong().size(crate::style::get(ui.ctx()).font_size(match level {
                         1 => 20.0,
                         2 => 17.0,
                         _ => 15.0,
-                    });
+                    }));
                 }
                 ui.label(rich);
             }
@@ -411,7 +419,12 @@ impl ViewerRegistry {
                     Some(LogLevel::Warning) => ui.visuals().warn_fg_color,
                     _ => ui.visuals().text_color(),
                 };
-                ui.label(RichText::new(line).monospace().size(11.0).color(color));
+                ui.label(
+                    RichText::new(line)
+                        .monospace()
+                        .size(crate::style::get(ui.ctx()).font_size(11.0))
+                        .color(color),
+                );
             }
         });
         None
@@ -420,7 +433,11 @@ impl ViewerRegistry {
     fn mono(&mut self, ui: &mut Ui, file: &ViewerFile) -> Option<ViewerEvent> {
         let text = file.text().unwrap_or_default();
         ScrollArea::both().show(ui, |ui| {
-            ui.label(RichText::new(text).monospace().size(11.5));
+            ui.label(
+                RichText::new(text)
+                    .monospace()
+                    .size(crate::style::get(ui.ctx()).font_size(11.5)),
+            );
         });
         None
     }
