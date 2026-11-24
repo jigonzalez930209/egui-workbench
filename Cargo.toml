@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "0.15.0"
+version = "0.16.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ documentation = "https://docs.rs/egui-workbench"
 keywords = ["egui", "gui", "desktop", "workbench", "widgets"]
 categories = ["gui"]
 # Only the library and its embedded icons; examples, tests, and the docs site stay in git.
-include = ["/src/**", "/assets/**", "/README.md", "/CHANGELOG.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
+include = ["/src/**", "/assets/**", "/locales/**", "/README.md", "/CHANGELOG.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
 
 [package.metadata.docs.rs]
 all-features = true

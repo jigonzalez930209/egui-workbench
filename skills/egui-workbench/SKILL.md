@@ -584,6 +584,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/guide/platforms.md`](references/guide/platforms.md): The Linux, macOS, and Windows CI matrix, the repeatable IME and HiDPI pass, and the egui upgrade policy.
 - [`references/guide/python.md`](references/guide/python.md): Install egui-workbench from PyPI, build a native window from a Python script, and feed NumPy, pandas, Polars, and Arrow data into grids and plots.
 - [`references/guide/quick-start.md`](references/guide/quick-start.md): Generate a complete application from templates/app and learn what each generated file is for.
+- [`references/guide/theme-and-global.md`](references/guide/theme-and-global.md): Import VS Code themes, edit tokens with WCAG AA feedback, switch languages with Fluent plural rules, load fonts, and read the accessibility report.
 - [`references/guide/web.md`](references/guide/web.md): Run the same host spec in a browser with WebAssembly, render a server over WebSocket, and drive it from C, Go, and other languages.
 
 **Application runtime**
@@ -654,6 +655,7 @@ links to its live version with interactive demos. Read only the pages the task n
 
 **Reference**
 
+- [`references/reference/accessibility-report.md`](references/reference/accessibility-report.md): Automated contrast, focus, and spec-audit results for 0.16, plus the manual screen-reader checklist.
 - [`references/reference/agent-threat-model.md`](references/reference/agent-threat-model.md): What the MCP server trusts, what it refuses by default, and where the embedding application still owns the risk.
 - [`references/reference/api-map.md`](references/reference/api-map.md): The public surface grouped by module, with links to the guide pages.
 - [`references/reference/benchmarks.md`](references/reference/benchmarks.md): The criterion suites for plot decimation, a large tree, a one-million-row CSV, and palette filtering, with the recorded 0.3.1 baseline.

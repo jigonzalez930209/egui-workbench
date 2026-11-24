@@ -87,6 +87,10 @@ pub struct Theme {
     pub focus: Color32,
 }
 
+mod studio;
+#[cfg(feature = "serde")]
+pub use studio::ThemeImportError;
+
 impl Theme {
     /// GitHub Light.
     pub fn light() -> Self {
@@ -142,6 +146,8 @@ impl Theme {
         self
     }
 
+    /// A high-contrast variant of this theme: pure black or white surfaces, maximum text
+    /// contrast, stronger borders, and the brand accent kept readable.
     /// The pairs that miss WCAG AA (4.5:1 for text, 3:1 for the focus ring), with
     /// their ratio. Empty for every built-in theme; check your own themes with it.
     pub fn accessibility_issues(&self) -> Vec<(&'static str, f32)> {
@@ -289,6 +295,43 @@ mod tests {
                 let theme = Theme::for_id(id).with_accent(accent);
                 assert_eq!(theme.accessibility_issues(), Vec::new(), "{id:?} {accent:?}");
             }
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn vscode_themes_import_and_export() {
+        let text = r##"{
+            "colors": {
+                "editor.background": "#1e1e1e",
+                "foreground": "#d4d4d4",
+                "focusBorder": "#007acc",
+                "list.activeSelectionBackground": "#264f78",
+                "descriptionForeground": "#9d9d9d"
+            }
+        }"##;
+        let theme = Theme::from_vscode_json(text).expect("import");
+        assert_eq!(theme.background, Color32::from_rgb(0x1e, 0x1e, 0x1e));
+        assert_eq!(theme.text, Color32::from_rgb(0xd4, 0xd4, 0xd4));
+        assert!(theme.accessibility_issues().is_empty());
+        let css = theme.to_css_variables();
+        assert!(css.contains("--wb-background: #1e1e1e;"));
+        assert_eq!(theme.to_json()["background"], "#1e1e1e");
+        assert!(Theme::from_vscode_json("{\"colors\":{}}").is_err());
+    }
+
+    #[test]
+    fn high_contrast_keeps_aa() {
+        for theme in [Theme::dark().high_contrast(), Theme::light().high_contrast()] {
+            assert!(theme.accessibility_issues().is_empty());
+            assert_eq!(
+                theme.background,
+                if theme.is_dark() {
+                    Color32::BLACK
+                } else {
+                    Color32::WHITE
+                }
+            );
         }
     }
 

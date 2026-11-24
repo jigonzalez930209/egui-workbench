@@ -54,6 +54,8 @@ mod recovery;
 mod session;
 mod shell;
 mod theme_state;
+#[cfg(feature = "serde")]
+mod theme_studio;
 
 pub use close_guard::CloseGuard;
 #[cfg(feature = "serde")]
@@ -78,3 +80,5 @@ pub use shell::{
     SIDEBAR_PANEL, STATUS_BAR_PANEL, TAB_STRIP_PANEL, TITLE_BAR_PANEL, WorkbenchApp, show_workbench,
 };
 pub use theme_state::ThemeState;
+#[cfg(feature = "serde")]
+pub use theme_studio::{ThemeStudioState, show_theme_studio};

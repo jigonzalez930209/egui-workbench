@@ -7,6 +7,23 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-24
+
+### Added
+
+- Theme Studio: VS Code color-theme import with automatic WCAG AA adjustment, JSON and
+  CSS variable export, and a high-contrast theme derivation.
+- Fluent-shaped localization with built-in English and Spanish dictionaries, plural
+  rules, placeholders, runtime locale switching, `.ftl` overrides, and RTL detection.
+- A font loading API with named CJK, emoji, and math fallback families.
+- The accessibility report with automated contrast, focus, and spec-audit results plus
+  the manual screen-reader checklist and known gaps.
+
+### Migration
+
+Additive. Localization and fonts are new foundation modules; Theme Studio is additive to
+the 0.14 DevTools theme tab.
+
 ## [0.15.0] - 2026-11-24
 
 ### Added

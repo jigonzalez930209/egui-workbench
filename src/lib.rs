@@ -70,7 +70,8 @@ mod widgets;
 pub use foundation::icons::{FULL_UV, Icons};
 #[cfg(feature = "material-icons")]
 pub use foundation::material::MaterialIcons;
-pub use foundation::{metrics, style, theme};
+pub use foundation::{fonts, localization, metrics, style, theme};
+pub use localization::{LocalizationState, Localizer};
 
 pub use chrome::split::{STACK_BELOW, split_panes};
 pub use chrome::status::{

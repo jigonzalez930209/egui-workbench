@@ -3,6 +3,8 @@
 //! Nothing here draws a panel. `metrics` owns every chrome size, `theme` maps the
 //! nine palettes onto egui visuals, and the icon caches rasterize SVGs on demand.
 
+pub mod fonts;
+pub mod localization;
 pub mod metrics;
 pub mod style;
 pub mod theme;

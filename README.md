@@ -160,11 +160,18 @@ app.run()
 
 See the [Python guide](https://jigonzalez930209.github.io/egui-workbench/guide/python.html).
 
+## Theme Studio and global
+
+Theme Studio imports VS Code color themes, checks WCAG AA live, and exports JSON tokens
+or CSS variables. Fluent-shaped localization with English and Spanish dictionaries,
+plural rules, runtime switching, font fallbacks, and the accessibility report are in the
+[Theme Studio and global guide](https://jigonzalez930209.github.io/egui-workbench/guide/theme-and-global.html).
+
 ## Extensions
 
 ```toml
 [dependencies]
-egui-workbench-extensions = "0.15"
+egui-workbench-extensions = "0.16"
 ```
 
 Sandboxed WebAssembly extensions with a versioned manifest, capability grants, a host
@@ -216,7 +223,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "0.15"
+egui-workbench = "0.16"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

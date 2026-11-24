@@ -15,6 +15,18 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-24
+
+### Added
+
+- Theme Studio, VS Code import/export, high contrast, localization, fonts, and the
+  accessibility report.
+- Theme Studio and global guide.
+
+### Migration
+
+Additive.
+
 ## [0.15.0] - 2026-11-24
 
 ### Added
