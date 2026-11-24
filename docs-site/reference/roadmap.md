@@ -25,7 +25,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 0.17.0
+## Where we are: 1.0.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -96,6 +96,11 @@ font loading API, and the published accessibility report.
 0.17.0 is the freeze: the deprecated `Theme::radius()` is gone, the migration guide,
 security policy, and accessibility report are published, and the release pipeline is one
 tag-driven flow with a manual one-OS smoke test.
+
+1.0.0 states the promise: Semantic Versioning for every crate and package, egui 0.37 plus
+one following minor, MSRV 1.95, separately versioned spec/protocol/extension interface,
+and a single tag flow that publishes the crates, docs, npm, PyPI wheels, C ABI, and
+GitHub release.
 
 What stands between this and a 1.0 that people can build products on, and the release
 that closes each gap:

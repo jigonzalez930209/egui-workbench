@@ -15,6 +15,13 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-24
+
+### Stable
+
+SemVer promise, egui/MSRV policy, independent spec/protocol/extension versions, and the
+versioning/support guides.
+
 ## [0.17.0] - 2026-11-24
 
 ### Changed

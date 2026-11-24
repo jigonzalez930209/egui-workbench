@@ -7,6 +7,19 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-24
+
+### Stable
+
+No new features. The release states the promise: Semantic Versioning for every crate and
+package, egui 0.37 plus one following minor, MSRV 1.95, and independently versioned spec
+(1), protocol (1), and extension ABI (0.15).
+
+- `VERSIONING.md`, `SUPPORT.md`, and the versioning guide.
+- The single tag release flow publishes crates, docs, npm, PyPI wheels, the C ABI, and the
+  GitHub release from one cached run.
+- The accessibility report and migration guide are part of the documentation.
+
 ## [0.17.0] - 2026-11-24
 
 ### Changed

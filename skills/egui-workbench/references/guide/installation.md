@@ -17,7 +17,7 @@
 
 ```toml
 [dependencies]
-egui-workbench = "0.17"
+egui-workbench = "1.0"
 ```
 
 ## Python
@@ -39,7 +39,7 @@ accessibility report are described in the
 
 ```toml
 [dependencies]
-egui-workbench-extensions = "0.17"
+egui-workbench-extensions = "1.0"
 ```
 
 The sandboxed WebAssembly runtime, manifest, capabilities, manager view, and examples are
@@ -70,7 +70,7 @@ For the declarative host (spec, patches, protocol, sidecar), add the separate cr
 
 ```toml
 [dependencies]
-egui-workbench-host = "0.17"
+egui-workbench-host = "1.0"
 ```
 
 Or follow the repository's `main` branch:
