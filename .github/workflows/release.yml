@@ -223,7 +223,9 @@ jobs:
       - name: Publish npm package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish dist/egui-workbench-*.tgz --access public
+        run: |
+          tgz=$(realpath dist/egui-workbench-*.tgz)
+          npm publish "$tgz" --access public
       - name: Skill zip
         run: (cd skills && zip -qr ../egui-workbench-skill.zip egui-workbench)
       - name: GitHub release
