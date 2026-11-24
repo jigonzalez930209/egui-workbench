@@ -1,29 +1,29 @@
 name: Release
 
-# Continuous delivery: push a tag `vX.Y.Z` (matching `version` in Cargo.toml) to run the
-# checks, publish egui-workbench to crates.io, and create the GitHub release with that
-# version's changelog section and the agent skill (egui-workbench-skill.zip).
-#
-# Needs the repository secret CARGO_REGISTRY_TOKEN: a crates.io API token with the
-# `publish-new` and `publish-update` scopes (crates.io → Account Settings → API Tokens).
+# One tag-driven flow. Strict checks run locally before the tag; this workflow keeps the
+# release gate small, builds each target once, and publishes every artifact from the same
+# run. No push/PR workflow duplicates these builds.
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write # the GitHub release
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  publish:
+  test-build:
+    name: test, docs, npm, crates
     runs-on: ubuntu-latest
     env:
       CARGO_BUILD_JOBS: 4
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: System dependencies
         run: |
           sudo apt-get update
@@ -35,123 +35,202 @@ jobs:
         with:
           toolchain: "1.97.1"
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Tag matches Cargo.toml
+        with:
+          workspaces: |
+            . -> target
+            web -> target
+            crates/egui-workbench-wasm -> target
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            docs-site/package-lock.json
+      - name: Version, changelog, skill
         run: |
           version=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "egui-workbench") | .version')
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
-            exit 1
-          fi
-          plugin=$(jq -r .version .claude-plugin/plugin.json)
-          if [ "v$plugin" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::.claude-plugin/plugin.json version $plugin does not match $GITHUB_REF_NAME"
-            exit 1
-          fi
-          host=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "egui-workbench-host") | .version')
-          if [ "v$host" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::egui-workbench-host version $host does not match $GITHUB_REF_NAME"
-            exit 1
-          fi
-          python=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "egui-workbench-python") | .version')
-          if [ "v$python" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::egui-workbench-python version $python does not match $GITHUB_REF_NAME"
-            exit 1
-          fi
-          remote=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "egui-workbench-remote") | .version')
-          if [ "v$remote" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::egui-workbench-remote version $remote does not match $GITHUB_REF_NAME"
-            exit 1
-          fi
-          agent=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "egui-workbench-agent") | .version')
-          if [ "v$agent" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::egui-workbench-agent version $agent does not match $GITHUB_REF_NAME"
-            exit 1
-          fi
-          extensions=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "egui-workbench-extensions") | .version')
-          if [ "v$extensions" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::egui-workbench-extensions version $extensions does not match $GITHUB_REF_NAME"
-            exit 1
-          fi
-      - name: Agent skill is current
-        run: python3 docs-site/scripts/build-skill.py --check
-      - name: Changelog has this version
-        run: |
-          grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md \
-            || { echo "::error::CHANGELOG.md has no section for ${GITHUB_REF_NAME#v}"; exit 1; }
-      - name: Token is configured
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          [ -n "$CARGO_REGISTRY_TOKEN" ] \
-            || { echo "::error::add the CARGO_REGISTRY_TOKEN repository secret"; exit 1; }
-      - name: Checks
-        run: xvfb-run -a cargo xtask check
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --locked
-      - name: Publish the host to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          for attempt in $(seq 1 30); do
-            cargo publish -p egui-workbench-host --locked && exit 0
-            echo "host publish not ready (attempt $attempt); retrying"
-            sleep 10
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME != Cargo.toml $version"; exit 1; }
+          for name in egui-workbench-host egui-workbench-python egui-workbench-remote egui-workbench-agent egui-workbench-extensions; do
+            found=$(cargo metadata --no-deps --format-version 1 \
+              | jq -r --arg name "$name" '.packages[] | select(.name == $name) | .version')
+            [ "v$found" = "$GITHUB_REF_NAME" ] || { echo "::error::$name $found != $GITHUB_REF_NAME"; exit 1; }
           done
-          exit 1
-      - name: Publish extensions to crates.io
+          [ "v$(jq -r .version .claude-plugin/plugin.json)" = "$GITHUB_REF_NAME" ] || { echo "::error::plugin version"; exit 1; }
+          grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md || { echo "::error::missing changelog"; exit 1; }
+          python3 docs-site/scripts/build-skill.py --check
+      - name: Basic checks
+        run: |
+          cargo fmt --all --check
+          cargo xtask style-lint
+          xvfb-run -a cargo test --workspace --lib
+      - name: Docs dependencies
+        working-directory: docs-site
+        run: npm ci
+      - name: Build docs
+        working-directory: docs-site
+        env:
+          DOCS_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm run build:demo
+          npm run build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs-site/.vitepress/dist
+      - name: Build npm package
+        run: |
+          cd crates/egui-workbench-wasm
+          npm run build
+          npm run types:check
+          npm pack
+      - uses: actions/upload-artifact@v5
+        with:
+          name: npm
+          path: crates/egui-workbench-wasm/egui-workbench-*.tgz
+      - name: Publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          for attempt in $(seq 1 30); do
-            cargo publish -p egui-workbench-extensions --locked && exit 0
-            echo "extensions publish not ready (attempt $attempt); retrying"
-            sleep 10
-          done
-          exit 1
-      - name: Publish the agent to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          publish() {
+            for attempt in $(seq 1 20); do
+              cargo publish "$@" --locked && return 0
+              echo "waiting for $* (attempt $attempt)"
+              sleep 10
+            done
+            return 1
+          }
+          publish
+          publish -p egui-workbench-host
+          publish -p egui-workbench-extensions
+          publish -p egui-workbench-agent
+          publish -p egui-workbench-remote
+
+  linux-wheels:
+    name: linux wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
         run: |
-          for attempt in $(seq 1 30); do
-            cargo publish -p egui-workbench-agent --locked && exit 0
-            echo "agent publish not ready (attempt $attempt); retrying"
-            sleep 10
-          done
-          exit 1
-      - name: Publish the remote server to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          for attempt in $(seq 1 30); do
-            cargo publish -p egui-workbench-remote --locked && exit 0
-            echo "remote publish not ready (attempt $attempt); retrying"
-            sleep 10
-          done
-          exit 1
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: x86_64
+          manylinux: auto
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: aarch64
+          manylinux: auto
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
       - name: C ABI artifact
         run: |
           cargo build -p egui-workbench-c --release
           mkdir -p c-abi/include
           cp crates/egui-workbench-c/include/egui_workbench.h c-abi/include/
           cp target/release/libegui_workbench_c.so c-abi/
-          zip -qr egui-workbench-c-linux-x86_64.zip c-abi
+          zip -qr dist/egui-workbench-c-linux-x86_64.zip c-abi
+      - uses: actions/upload-artifact@v5
+        with:
+          name: linux
+          path: dist/*
+
+  macos-wheel:
+    name: macos universal2
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: universal2-apple-darwin
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: actions/upload-artifact@v5
+        with:
+          name: macos
+          path: dist/*
+
+  windows-wheel:
+    name: windows amd64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: x86_64-pc-windows-msvc
+          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows
+          path: dist/*
+
+  docs:
+    name: deploy docs
+    needs: test-build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+  publish:
+    name: publish
+    needs: [test-build, linux-wheels, macos-wheel, windows-wheel]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - name: Split Python distributions
+        run: |
+          mkdir -p python
+          mv dist/*.whl dist/*.tar.gz python/
+      - name: Publish Python wheels
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: python
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish dist/egui-workbench-*.tgz --access public
+      - name: Skill zip
+        run: (cd skills && zip -qr ../egui-workbench-skill.zip egui-workbench)
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f && !/^\[[^]]*\]: /' \
-            CHANGELOG.md > notes.md
-          # The agent skill as a zip, for agents that install skills by upload (claude.ai).
-          (cd skills && zip -qr ../egui-workbench-skill.zip egui-workbench)
+          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f && !/^\[[^]]*\]: /' CHANGELOG.md > notes.md
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag \
-            egui-workbench-skill.zip egui-workbench-c-linux-x86_64.zip
+            egui-workbench-skill.zip python/*.whl python/*.tar.gz dist/*.tgz dist/*.zip
