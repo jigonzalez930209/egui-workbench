@@ -4,6 +4,7 @@
 //! [`Command`] values, and [`App::handle`] is the only place that mutates state.
 
 use egui_workbench::app::{CloseGuard, Documents, ThemeState, show_workbench};
+use egui_workbench::app::{CommandJournal, DevToolsState, show_devtools};
 use egui_workbench::commands::{CommandId, CommandRegistry};
 use egui_workbench::components::{ToastEvent, Toasts};
 use egui_workbench::eframe;
@@ -84,6 +85,10 @@ pub struct App {
     pub guard: CloseGuard,
     /// The registry every chrome surface reads.
     pub registry: CommandRegistry,
+    /// Every handled command, for the journal and macros.
+    pub journal: CommandJournal,
+    /// The F12 journal viewer and state inspector.
+    pub devtools: DevToolsState,
     window_title: String,
     next_tab: u64,
 }
@@ -127,6 +132,8 @@ impl App {
             appearance: Appearance::from_settings(&stored),
             status: String::new(),
             registry: commands::registry(),
+            journal: CommandJournal::new(),
+            devtools: DevToolsState::default(),
             guard: CloseGuard::new(),
             window_title: String::new(),
             next_tab: 0,
@@ -171,6 +178,10 @@ impl App {
 
     /// Apply one command.
     pub fn handle(&mut self, ctx: &egui_workbench::egui::Context, command: Command) {
+        if let Some(id) = commands::id_for(command) {
+            self.journal
+                .append_at(ctx.input(|input| input.time), id, None, Some(format!("{command:?}")));
+        }
         self.log.push(format!("{command:?}"));
         if self.log.len() > 500 {
             self.log.drain(..100);
@@ -391,6 +402,13 @@ impl eframe::App for App {
                 self.status = "Toast action".to_owned();
             }
         }
+        let snapshot = serde_json::json!({
+            "tabs": self.tabs.len(),
+            "dirty": self.dirty(),
+            "journal": self.journal.len(),
+            "theme": self.theme.requested().as_setting(),
+        });
+        show_devtools(&ctx, &mut self.devtools, &self.journal, &snapshot, Default::default());
     }
 
     fn clear_color(&self, _visuals: &egui_workbench::egui::Visuals) -> [f32; 4] {

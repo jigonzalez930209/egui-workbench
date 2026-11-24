@@ -12,6 +12,10 @@ crate root keeps the original function API; `components` adds builders.
 | `ThemeState` | struct | [Themes](../theming/themes.md) |
 | `Documents<T>`, `Document` | struct, trait | [Documents](../app/documents.md) |
 | `CommandRegistry` | struct | [Commands](../app/commands-and-keymap.md) |
+| `History<S>` | struct | [History and sessions](../app/history-and-session.md) |
+| `CommandJournal`, `Macro`, `MacroLibrary` | struct | [History and sessions](../app/history-and-session.md) |
+| `Workspace`, `Stash`, `HotExit`, `Recovery` | struct | [History and sessions](../app/history-and-session.md) |
+| `DevToolsState`, `show_devtools` | struct/fn | [History and sessions](../app/history-and-session.md) |
 | `Command`, `CommandId`, `When`, `WhenContext`, `KeyChord`, `KeySequence`, `Keybindings` | metadata | [Commands](../app/commands-and-keymap.md) |
 | `Keymap<C>` | struct (legacy) | [Commands](../app/commands-and-keymap.md) |
 | `CloseGuard` | struct | [Documents](../app/documents.md) |

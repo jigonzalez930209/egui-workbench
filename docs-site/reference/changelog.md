@@ -15,6 +15,22 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-24
+
+### Added
+
+- `History<S>` undo tree with coalescing groups and the History panel.
+- `CommandJournal`, macros recorded from a journal range, and deterministic replay.
+- `Workspace` persistence, atomic writes, version migration, and plot views.
+- `Stash`, `HotExit`, and crash recovery with warnings for corrupt files.
+- DevTools F12: journal viewer and JSON state inspector.
+- `examples/session` and the starter's journal/DevTools integration.
+
+### Migration
+
+0.5 is additive; existing 0.4 calls keep working. See
+[History, journal, and sessions](/app/history-and-session).
+
 ## [0.4.0] - 2026-11-24
 
 ### Added

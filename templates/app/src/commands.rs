@@ -203,6 +203,33 @@ pub fn command_from_id(id: &CommandId) -> Option<Command> {
     })
 }
 
+/// The registry id of a command, when it has one.
+pub fn id_for(command: Command) -> Option<CommandId> {
+    let id = match command {
+        Command::NewTab => ids::NEW_TAB,
+        Command::Save => ids::SAVE,
+        Command::CloseTab => ids::CLOSE_TAB,
+        Command::Quit => ids::QUIT,
+        Command::NextTab => ids::NEXT_TAB,
+        Command::PreviousTab => ids::PREVIOUS_TAB,
+        Command::ToggleSidebar => ids::TOGGLE_SIDEBAR,
+        Command::ToggleInspector => ids::TOGGLE_INSPECTOR,
+        Command::ToggleOutput => ids::TOGGLE_OUTPUT,
+        Command::ToggleFollowSystem => ids::FOLLOW_SYSTEM,
+        Command::Settings => ids::SETTINGS,
+        Command::About => ids::ABOUT,
+        Command::Palette => ids::PALETTE,
+        Command::ShowDialog => "demo.dialog",
+        Command::ShowConfirm => "demo.confirm",
+        Command::ShowName => "demo.name",
+        Command::ShowProgress => "demo.progress",
+        Command::KeyboardMenu => "demo.keyboard-menu",
+        Command::SetTheme(theme) => return Some(CommandId::new(format!("theme.{}", theme.as_setting()))),
+        Command::OpenExample(section) => return Some(CommandId::new(section.command_id())),
+    };
+    Some(CommandId::new(id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

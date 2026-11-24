@@ -7,6 +7,38 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-24
+
+### Added
+
+- `History<S>`: transactional undo/redo over a tree, not a stack. Undoing and then
+  editing keeps the abandoned branch; `begin_group` coalesces typing and drags; `jump_to`
+  time-travels. The History panel renders the tree.
+- `CommandJournal`: an append-only, versioned, serializable log of every command with its
+  arguments and timestamp, with atomic save/load.
+- Macros: record a journal range as a named `macro.<name>` command, register it in a
+  registry, and replay the recorded `(command, args)` sequence deterministically.
+- `Workspace` persistence: open documents, active tab, explorer expansion, panel sizes and
+  visibility, theme preferences, and plot views in one versioned file. Writes are atomic;
+  version 0 migrates through `serde(default)` and newer versions are rejected.
+- Hot exit and crash recovery: `Stash` captures unsaved buffers, `HotExit` writes the
+  workspace, stash, and journal on a timer and on close, and `recover` restores what
+  parses and reports corrupt files as warnings.
+- DevTools, first slice: F12 opens the journal viewer and a JSON state inspector.
+- `examples/session`: a runnable history/journal/workspace/DevTools application.
+- The starter application journals every command and opens DevTools with F12.
+
+### Changed
+
+- The web build enables `plot`, `plot3d`, `viewer`, and `serde` explicitly, so the
+  documentation scenes keep rendering with the new feature gates.
+
+### Migration
+
+0.5 is additive: existing 0.4 calls keep working. Put `workspace.json`, `stash.json`, and
+`journal.json` in one session directory (or keep your own paths) and use the new
+`app::Workspace`, `app::Stash`, and `app::CommandJournal` types.
+
 ## [0.4.0] - 2026-11-24
 
 ### Added

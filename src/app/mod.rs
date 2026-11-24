@@ -37,14 +37,38 @@
 //! ```
 
 mod close_guard;
+#[cfg(feature = "serde")]
+mod devtools;
 mod documents;
+mod history;
+mod history_panel;
+#[cfg(feature = "serde")]
+mod journal;
+#[cfg(feature = "serde")]
+mod journal_panel;
 mod keymap;
+#[cfg(feature = "serde")]
+mod recovery;
+#[cfg(feature = "serde")]
+mod session;
 mod shell;
 mod theme_state;
 
 pub use close_guard::CloseGuard;
+#[cfg(feature = "serde")]
+pub use devtools::{DevToolsLabels, DevToolsState, DevToolsTab, show_devtools, show_state_tree};
 pub use documents::{Document, Documents};
+pub use history::{GroupId, History, HistoryError, HistoryNode, NodeId};
+pub use history_panel::{HistoryLabels, show_history_tree};
+#[cfg(feature = "serde")]
+pub use journal::{CommandJournal, JournalEntry, JournalError, Macro, MacroLibrary};
+#[cfg(feature = "serde")]
+pub use journal_panel::{JournalLabels, show_journal};
 pub use keymap::Keymap;
+#[cfg(feature = "serde")]
+pub use recovery::{HotExit, Recovery, RecoveryError, SessionPaths, Stash, StashDocument, recover};
+#[cfg(feature = "serde")]
+pub use session::{SessionError, Workspace, WorkspaceDocument, WorkspacePanels, WorkspacePlotView};
 pub use shell::{
     BOTTOM_PANEL, BOTTOM_PANEL_MIN_HEIGHT, CONTENT_MIN_WIDTH, RIGHT_PANEL, RIGHT_PANEL_MIN_WIDTH, SIDEBAR_MIN_WIDTH,
     SIDEBAR_PANEL, STATUS_BAR_PANEL, TAB_STRIP_PANEL, TITLE_BAR_PANEL, WorkbenchApp, show_workbench,

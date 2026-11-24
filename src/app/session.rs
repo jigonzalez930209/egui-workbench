@@ -1,0 +1,349 @@
+//! Versioned workspace persistence: documents, active tab, explorer, panels, theme,
+//! and plot views in one atomically written file.
+
+use std::collections::BTreeMap;
+use std::fmt;
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+
+use crate::ThemeId;
+
+/// One open document in the workspace.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct WorkspaceDocument {
+    /// Stable application id.
+    pub id: String,
+    /// Tab title.
+    pub title: String,
+    /// Unsaved changes.
+    pub dirty: bool,
+    /// Path on disk, when the document has one.
+    pub path: Option<PathBuf>,
+    /// Application-specific payload (cursor, scroll offset, model data).
+    #[serde(default)]
+    pub payload: serde_json::Value,
+}
+
+impl WorkspaceDocument {
+    /// A document with no path and no payload.
+    pub fn new(id: impl Into<String>, title: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            title: title.into(),
+            dirty: false,
+            path: None,
+            payload: serde_json::Value::Null,
+        }
+    }
+}
+
+/// Which panels are visible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct WorkspacePanels {
+    /// Explorer.
+    pub sidebar: bool,
+    /// Right inspector.
+    pub inspector: bool,
+    /// Bottom output.
+    pub output: bool,
+    /// Status bar.
+    pub status_bar: bool,
+}
+
+impl Default for WorkspacePanels {
+    fn default() -> Self {
+        Self {
+            sidebar: true,
+            inspector: false,
+            output: false,
+            status_bar: true,
+        }
+    }
+}
+
+/// A serializable plot view: the visible x and y ranges plus hidden series.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct WorkspacePlotView {
+    /// Visible x range.
+    pub x: [f64; 2],
+    /// Visible y range.
+    pub y: [f64; 2],
+    /// Hidden series names.
+    #[serde(default)]
+    pub hidden: Vec<String>,
+}
+
+impl WorkspacePlotView {
+    /// A view from two ranges.
+    pub fn new(x: [f64; 2], y: [f64; 2]) -> Self {
+        Self {
+            x,
+            y,
+            hidden: Vec::new(),
+        }
+    }
+}
+
+/// The persisted workspace.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Workspace {
+    /// File format version.
+    pub version: u32,
+    /// Requested theme.
+    pub theme: ThemeId,
+    /// Follow the desktop light/dark preference.
+    pub follow_system: bool,
+    /// Reduced motion.
+    pub reduced_motion: bool,
+    /// Open documents, in tab order.
+    pub documents: Vec<WorkspaceDocument>,
+    /// Active document index (clamped on load).
+    pub active: usize,
+    /// Expanded explorer keys.
+    pub explorer: Vec<String>,
+    /// Visible panels.
+    pub panels: WorkspacePanels,
+    /// Left panel width.
+    pub sidebar_width: f32,
+    /// Right panel width.
+    pub right_width: f32,
+    /// Bottom panel height.
+    pub bottom_height: f32,
+    /// Plot views by plot id.
+    pub plot_views: BTreeMap<String, WorkspacePlotView>,
+}
+
+impl Default for Workspace {
+    fn default() -> Self {
+        Self {
+            version: Self::VERSION,
+            theme: ThemeId::GithubLight,
+            follow_system: false,
+            reduced_motion: false,
+            documents: Vec::new(),
+            active: 0,
+            explorer: Vec::new(),
+            panels: WorkspacePanels::default(),
+            sidebar_width: 240.0,
+            right_width: 280.0,
+            bottom_height: 180.0,
+            plot_views: BTreeMap::new(),
+        }
+    }
+}
+
+impl Workspace {
+    /// The current file version.
+    pub const VERSION: u32 = 1;
+
+    /// A workspace with the current version and default panel sizes.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A workspace with documents.
+    pub fn with_documents(documents: Vec<WorkspaceDocument>) -> Self {
+        Self {
+            documents,
+            ..Self::default()
+        }
+    }
+
+    /// Add a document and return its index.
+    pub fn add_document(&mut self, document: WorkspaceDocument) -> usize {
+        self.documents.push(document);
+        self.documents.len() - 1
+    }
+
+    /// The active document.
+    pub fn active_document(&self) -> Option<&WorkspaceDocument> {
+        self.documents.get(self.active)
+    }
+
+    /// Select an existing document.
+    pub fn set_active(&mut self, index: usize) -> bool {
+        if index < self.documents.len() {
+            self.active = index;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Clamp the active index and the panel sizes after a load.
+    pub fn normalize(&mut self) {
+        if self.documents.is_empty() {
+            self.active = 0;
+        } else {
+            self.active = self.active.min(self.documents.len() - 1);
+        }
+        self.sidebar_width = self.sidebar_width.clamp(120.0, 800.0);
+        self.right_width = self.right_width.clamp(120.0, 800.0);
+        self.bottom_height = self.bottom_height.clamp(80.0, 600.0);
+    }
+
+    /// Serialize as pretty JSON.
+    ///
+    /// # Errors
+    /// When serialization fails (it does not for this type).
+    pub fn to_json(&self) -> Result<String, SessionError> {
+        serde_json::to_string_pretty(self).map_err(|error| SessionError::Json(error.to_string()))
+    }
+
+    /// Parse a workspace, migrating an older version and rejecting a newer one.
+    ///
+    /// # Errors
+    /// When the JSON is malformed or the version is newer than [`Self::VERSION`].
+    pub fn from_json(json: &str) -> Result<Self, SessionError> {
+        let mut value: serde_json::Value =
+            serde_json::from_str(json).map_err(|error| SessionError::Json(error.to_string()))?;
+        let version = value.get("version").and_then(serde_json::Value::as_u64).unwrap_or(0) as u32;
+        if version > Self::VERSION {
+            return Err(SessionError::UnsupportedVersion(version));
+        }
+        if version < 1 {
+            // Version 0 had no `version` field and no plot views. `serde(default)` fills
+            // every field added since; write the current version before deserializing.
+            if let Some(object) = value.as_object_mut() {
+                object.insert("version".to_owned(), serde_json::Value::from(Self::VERSION));
+            }
+        }
+        let mut workspace: Self =
+            serde_json::from_value(value).map_err(|error| SessionError::Json(error.to_string()))?;
+        workspace.normalize();
+        Ok(workspace)
+    }
+
+    /// Write the workspace atomically.
+    ///
+    /// # Errors
+    /// When serialization or the write fails.
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<(), SessionError> {
+        let json = self.to_json()?;
+        atomic_write(path.as_ref(), json.as_bytes()).map_err(SessionError::Io)
+    }
+
+    /// Read a workspace from disk.
+    ///
+    /// # Errors
+    /// When the file cannot be read or parsed.
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, SessionError> {
+        let text = std::fs::read_to_string(path).map_err(|error| SessionError::Io(error.to_string()))?;
+        Self::from_json(&text)
+    }
+}
+
+/// Why a workspace could not be read or written.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SessionError {
+    /// The JSON is malformed.
+    Json(String),
+    /// The file version is newer than this crate understands.
+    UnsupportedVersion(u32),
+    /// The file could not be read or written.
+    Io(String),
+}
+
+impl fmt::Display for SessionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Json(error) => write!(formatter, "invalid workspace JSON: {error}"),
+            Self::UnsupportedVersion(version) => write!(formatter, "unsupported workspace version {version}"),
+            Self::Io(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl std::error::Error for SessionError {}
+
+/// Write a file through a temporary sibling and a rename, so a crash leaves either the
+/// old file or the new one, never a partial write.
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let temp = path.with_extension(format!("tmp-{}", std::process::id()));
+    std::fs::write(&temp, bytes).map_err(|error| error.to_string())?;
+    if path.exists() {
+        // Windows refuses to rename over an existing file. The temporary file is still
+        // complete, so a crash here leaves recoverable data in the sibling.
+        std::fs::remove_file(path).map_err(|error| error.to_string())?;
+    }
+    std::fs::rename(&temp, path).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn documents_and_panels_round_trip() {
+        let mut workspace = Workspace::new();
+        workspace.add_document(WorkspaceDocument::new("one", "One"));
+        workspace.add_document(WorkspaceDocument::new("two", "Two"));
+        workspace.set_active(1);
+        workspace.theme = ThemeId::Dracula;
+        workspace.explorer = vec!["src".to_owned()];
+        workspace.panels.inspector = true;
+        workspace
+            .plot_views
+            .insert("main".to_owned(), WorkspacePlotView::new([0.0, 1.0], [2.0, 3.0]));
+        let json = workspace.to_json().expect("serialize");
+        let back = Workspace::from_json(&json).expect("parse");
+        assert_eq!(back, workspace);
+        assert_eq!(back.active_document().map(|doc| doc.title.as_str()), Some("Two"));
+    }
+
+    #[test]
+    fn missing_fields_and_version_zero_migrate() {
+        let json = r#"{"documents":[{"id":"a","title":"A","dirty":true,"path":null}]}"#;
+        let workspace = Workspace::from_json(json).expect("migrate");
+        assert_eq!(workspace.version, Workspace::VERSION);
+        assert_eq!(workspace.documents.len(), 1);
+        assert!(workspace.panels.sidebar);
+        assert_eq!(workspace.active, 0);
+    }
+
+    #[test]
+    fn a_newer_version_is_rejected() {
+        let error = Workspace::from_json(r#"{"version": 9}"#).expect_err("newer");
+        assert!(matches!(error, SessionError::UnsupportedVersion(9)));
+    }
+
+    #[test]
+    fn normalize_clamps_active_and_sizes() {
+        let mut workspace = Workspace::new();
+        workspace.add_document(WorkspaceDocument::new("a", "A"));
+        workspace.active = 99;
+        workspace.sidebar_width = 1.0;
+        workspace.right_width = 9999.0;
+        workspace.bottom_height = 1.0;
+        workspace.normalize();
+        assert_eq!(workspace.active, 0);
+        assert_eq!(workspace.sidebar_width, 120.0);
+        assert_eq!(workspace.right_width, 800.0);
+        assert_eq!(workspace.bottom_height, 80.0);
+    }
+
+    #[test]
+    fn save_and_load_are_atomic() {
+        let directory = std::env::temp_dir().join(format!(
+            "egui-workbench-workspace-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).expect("create");
+        let path = directory.join("workspace.json");
+        let mut workspace = Workspace::new();
+        workspace.add_document(WorkspaceDocument::new("a", "A"));
+        workspace.save(&path).expect("save");
+        let back = Workspace::load(&path).expect("load");
+        assert_eq!(back, workspace);
+        assert!(!path.with_extension(format!("tmp-{}", std::process::id())).exists());
+        let _ = std::fs::remove_dir_all(directory);
+    }
+}

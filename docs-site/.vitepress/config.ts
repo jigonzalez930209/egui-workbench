@@ -111,6 +111,7 @@ export default defineConfig({
             { text: 'Workbench layout', link: '/app/workbench' },
             { text: 'Commands and keymap', link: '/app/commands-and-keymap' },
             { text: 'Documents and close guard', link: '/app/documents' },
+            { text: 'History, journal, and sessions', link: '/app/history-and-session' },
             { text: 'Window', link: '/app/window' },
             { text: 'Settings persistence', link: '/app/settings-persistence' },
             { text: 'Internationalization', link: '/app/i18n' },
