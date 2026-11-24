@@ -18,7 +18,7 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.4"
+egui-workbench = "0.7"
 ```
 
 Or follow the repository's `main` branch:
@@ -36,7 +36,14 @@ egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 | `material-icons` | yes | The VS Code Material Icon Theme (MIT), about 5 MB; resolves file and folder names to full-color icons. |
 | `plot` | yes | `Plot`, its chart families, legend animations, and SVG/PNG export. |
 | `plot3d` | yes | `Plot3D` and `Series3D`. Implies `plot`. |
-| `viewer` | yes | The read-only workbook and delimited-file viewer (`calamine`). |
+| `viewer` | yes | The file viewer, `ViewerRegistry`, JSON/YAML/TOML trees, Markdown, and PNG/JPEG. |
+| `csv` | yes | The CSV/TSV data connector. |
+| `workbook` | yes | The spreadsheet connector (`calamine`; implies `viewer`). |
+| `ring` | yes | The in-memory ring-buffer connector. |
+| `channel` | yes | The channel/socket/serial snapshot connector. |
+| `arrow` | no | Arrow IPC connector. |
+| `parquet` | no | Parquet connector (implies `arrow`). |
+| `sqlite` | no | SQLite connector (`rusqlite`). |
 | `serde` | yes | Stable event names and `Serialize`/`Deserialize` for component state and events. |
 | `svg` | yes | The `resvg`/`usvg` rasterizer. Icon packs and `plot` enable it; a minimal build with neither pays for no rasterizer. |
 

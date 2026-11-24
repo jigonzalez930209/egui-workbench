@@ -143,7 +143,7 @@ product seams are `src/model.rs` (`TabData`), `src/content.rs` (the screen), and
 
 ```toml
 [dependencies]
-egui-workbench = "0.4"
+egui-workbench = "0.7"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```
@@ -152,7 +152,8 @@ The crate builds on egui and eframe **0.37** from crates.io and re-exports both
 (`egui_workbench::egui`, `egui_workbench::eframe`); use the re-exports, or the same 0.37
 versions, so your app links one copy. Disable the ~5 MB Material file icons with
 `default-features = false` if your app has no files, and add the `plot`, `plot3d`,
-`viewer`, and `serde` features you use. Every one is on by default.
+`viewer`, `serde`, and data-connector features you use. CSV, workbook, ring, and channel
+are default; Arrow, Parquet, and SQLite are opt-in.
 
 ```rust
 use egui_workbench::{egui, eframe, metrics::*, theme, Icons, ThemeId};

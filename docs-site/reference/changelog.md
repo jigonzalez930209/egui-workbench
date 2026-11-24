@@ -15,6 +15,26 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-24
+
+### Added
+
+- Typed `Dataset`/`Column` model with validity, units, metadata, slices, statistics, and
+  `xy_pairs`.
+- Paged `DataSource` and CSV, workbook, Arrow IPC, Parquet, SQLite, ring, and channel
+  connectors behind features.
+- Safe query language with positioned errors and bound column indices.
+- `DataGrid` with sort, filter, search, hidden columns, selection, statistics, and
+  TSV/Markdown/JSON copy.
+- `ViewerRegistry` for tables, JSON/YAML/TOML, PNG/JPEG, SVG, Markdown, logs, code, hex,
+  and text.
+- The one-million-row CSV budget probe.
+
+### Migration
+
+0.7 is additive. Enable `viewer` for the registry and the connector feature you use;
+`arrow`, `parquet`, and `sqlite` are opt-in.
+
 ## [0.6.0] - 2026-11-24
 
 ### Added

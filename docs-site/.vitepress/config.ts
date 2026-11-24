@@ -113,6 +113,7 @@ export default defineConfig({
             { text: 'Documents and close guard', link: '/app/documents' },
             { text: 'History, journal, and sessions', link: '/app/history-and-session' },
             { text: 'Workspace layouts', link: '/app/workspace' },
+            { text: 'Data fabric', link: '/app/data' },
             { text: 'Window', link: '/app/window' },
             { text: 'Settings persistence', link: '/app/settings-persistence' },
             { text: 'Internationalization', link: '/app/i18n' },

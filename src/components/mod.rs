@@ -68,7 +68,10 @@ mod tree;
 pub mod viewer;
 
 #[cfg(feature = "viewer")]
-pub use viewer::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
+pub use viewer::{
+    Cell, CellKind, Document, FileFormat, FileViewer, LogLevel, Sheet, Table, TextFile, ViewerError, ViewerEvent,
+    ViewerFile, ViewerKind, ViewerRegistry, Workbook,
+};
 
 pub use activity_bar::{ActivityBar, ActivityBarItem};
 pub use badge::Badge;
@@ -130,5 +133,8 @@ pub mod prelude {
         ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
     };
     #[cfg(feature = "viewer")]
-    pub use super::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
+    pub use super::{
+        Cell, CellKind, Document, FileFormat, FileViewer, LogLevel, Sheet, Table, TextFile, ViewerError, ViewerEvent,
+        ViewerFile, ViewerKind, ViewerRegistry, Workbook,
+    };
 }

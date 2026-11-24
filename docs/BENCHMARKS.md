@@ -56,3 +56,18 @@ quick check.
 
 A regression larger than 10 % on the same machine fails review. The budget gates land in
 0.9 and 0.17; until then the workflow is a recorded trend, not a hard gate.
+
+## 0.7 data probe
+
+`cargo test --release --test data_budget -- --ignored --nocapture` (same reference
+machine) reports:
+
+| Step | 0.7.0 |
+|---|---|
+| Open 1M × 20 CSV + type inference | 3.7 s |
+| Typed payload | 152 MiB |
+| Filter `column_3 > 5000000` | 17.9 ms |
+| Sort one numeric column | 8.2 ms |
+
+The typed payload is well below the 0.3 `Vec<String>` cell baseline. The filter is just
+above one 60 Hz frame; 0.9's level-of-detail design targets the same scan.

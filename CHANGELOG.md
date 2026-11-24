@@ -7,6 +7,43 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-24
+
+### Added
+
+- `data::Dataset` and `Column`: typed columns (float, int, bool, text, date, time,
+  category), validity masks, units, metadata, zero-copy-backed `Arc` storage, slices,
+  `take`, statistics, and `xy_pairs`.
+- `DataSource`, a synchronous paged trait with `schema`, `row_count`, `read_range`,
+  `revision`, and `cancel`.
+- Connectors behind features: CSV/TSV (`csv`), spreadsheet sheets (`workbook`), Arrow IPC
+  (`arrow`), Parquet (`parquet`, Arrow-backed), SQLite (`sqlite`), the in-memory ring
+  buffer (`ring`), and channel snapshots (`channel`). `csv`, `workbook`, `ring`, and
+  `channel` are in the default set; `arrow`, `parquet`, and `sqlite` are opt-in.
+- The safe query language: comparisons, `&&`, `||`, `!`, parentheses, `in 2..5`,
+  `in [1, 4]`, strings, booleans, numbers, and null, with positioned errors and
+  once-per-query column binding.
+- `components::DataGrid`: typed virtualized rows, sort, query filter, quick search,
+  hidden columns, row/cell selection, header statistics, and TSV/Markdown/JSON copy.
+- `ViewerRegistry`: extension and content detection for tables, JSON, YAML, TOML,
+  PNG/JPEG, SVG, Markdown, logs with level filters, code, hex, and text, all through one
+  `show` call.
+- `Series::from_dataset(&data, "t", "v")`.
+- `tests/data_budget.rs`, the ignored release probe for the one-million-row CSV.
+
+### Changed
+
+- The `viewer` feature now includes `viewer-formats` (JSON/YAML/TOML trees, Markdown, and
+  PNG/JPEG); the image and tree dependencies are optional behind it.
+- The default build adds the dependency-free CSV, ring, and channel connectors and the
+  workbook connector.
+
+### Migration
+
+0.7 is additive. A `default-features = false` build that wants the viewer must enable
+`viewer`; a build that wants a data connector enables its feature. The 0.6 `FileViewer`
+stays available, and `DataGrid` is the typed successor for new tables.
+
 ## [0.6.0] - 2026-11-24
 
 ### Added

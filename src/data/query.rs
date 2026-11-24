@@ -11,7 +11,7 @@ use super::Dataset;
 mod ast;
 mod parser;
 
-use ast::Expr;
+use ast::{BoundExpr, Expr};
 use parser::{Lexer, Parser};
 
 /// A parsed filter expression.
@@ -42,15 +42,40 @@ impl Query {
         &self.source
     }
 
-    /// Whether the row matches. A missing column is an error at evaluation time and
-    /// evaluates to false.
+    /// Bind column names to indices once, for repeated evaluation.
+    pub fn bind(&self, data: &Dataset) -> BoundQuery {
+        BoundQuery {
+            expression: self.expression.bind(data),
+        }
+    }
+
+    /// Whether the row matches. A missing column evaluates to null.
     pub fn matches(&self, data: &Dataset, row: usize) -> bool {
         self.expression.evaluate(data, row).is_truthy()
     }
 
     /// The matching rows, in order.
     pub fn matching_rows(&self, data: &Dataset) -> Vec<usize> {
-        (0..data.row_count()).filter(|row| self.matches(data, *row)).collect()
+        self.bind(data).matching_rows(data)
+    }
+}
+
+/// A query with column names resolved to indices.
+pub struct BoundQuery {
+    expression: BoundExpr,
+}
+
+impl BoundQuery {
+    /// Whether the row matches.
+    pub fn matches(&self, data: &Dataset, row: usize) -> bool {
+        self.expression.evaluate(data, row).is_truthy()
+    }
+
+    /// The matching rows, in order.
+    pub fn matching_rows(&self, data: &Dataset) -> Vec<usize> {
+        (0..data.row_count())
+            .filter(|row| self.expression.evaluate(data, *row).is_truthy())
+            .collect()
     }
 }
 

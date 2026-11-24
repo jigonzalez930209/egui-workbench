@@ -29,6 +29,9 @@ change is a bug in the test.
 | `tests/ime_hidpi.rs` | IME pre-edit/commit composition and a 2× pixels-per-point frame, on all three desktops |
 | `tests/serde_roundtrip.rs` | Every built-in state and event round-trips through JSON |
 | `tests/keybindings_editor.rs` | The registry editor records a chord and applies it |
+| `tests/data_fabric.rs` | CSV/query/paging, grid sort/filter/copy, ring and channel sources |
+| `tests/data_budget.rs` | Ignored release probe: 1M × 20 CSV open/filter/sort timings |
+| `src/data/**` | Column/validity metadata, query grammar, and every connector fixture |
 | `tests/app_runtime.rs` | Panel order, command collection order, hidden panels, right/bottom panel sizing |
 | `tests/components.rs` | Every builder variant, disabled state, labels, typing, switch/checkbox, select/stepper, dialog Escape |
 | `tests/theme_window.rs` | `apply_id` sets every visual and style; reduced motion; follow system; native options; resize edges; window actions |

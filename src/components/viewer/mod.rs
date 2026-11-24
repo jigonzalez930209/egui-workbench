@@ -23,6 +23,7 @@
 
 mod delimited;
 mod excel;
+mod registry;
 mod table;
 mod text;
 
@@ -31,6 +32,7 @@ use std::path::{Path, PathBuf};
 
 use egui::Ui;
 
+pub use registry::{LogLevel, ViewerEvent, ViewerFile, ViewerKind, ViewerRegistry};
 pub use table::{Cell, CellKind, Sheet, Table, Workbook};
 pub use text::TextFile;
 

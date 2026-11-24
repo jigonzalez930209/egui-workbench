@@ -14,6 +14,8 @@ crate root keeps the original function API; `components` adds builders.
 | `CommandRegistry` | struct | [Commands](../app/commands-and-keymap.md) |
 | `History<S>` | struct | [History and sessions](../app/history-and-session.md) |
 | `Layout`, `LayoutNode`, `EditorGroup`, `LayoutTab`, `LayoutAction` | layout | [Workspace layouts](../app/workspace.md) |
+| `Dataset`, `Column`, `DataSource`, `Query`, `DataGrid` | data | [Data fabric](../app/data.md) |
+| `ViewerRegistry`, `ViewerFile`, `ViewerKind` | viewer | [Data fabric](../app/data.md) |
 | `ActivityBar`, `ActivityBarItem` | builder | [Workspace layouts](../app/workspace.md) |
 | `CommandJournal`, `Macro`, `MacroLibrary` | struct | [History and sessions](../app/history-and-session.md) |
 | `Workspace`, `Stash`, `HotExit`, `Recovery` | struct | [History and sessions](../app/history-and-session.md) |

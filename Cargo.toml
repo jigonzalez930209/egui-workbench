@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -24,7 +24,18 @@ members = ["xtask"]
 resolver = "3"
 
 [features]
-default = ["material-icons", "lucide-icons", "plot", "plot3d", "viewer", "serde"]
+default = [
+    "material-icons",
+    "lucide-icons",
+    "plot",
+    "plot3d",
+    "viewer",
+    "serde",
+    "csv",
+    "workbook",
+    "ring",
+    "channel",
+]
 # Rasterize SVG glyphs. Icon packs and the plot exporter need it; a build with no icon
 # packs and no plot pays neither `resvg` nor `usvg`.
 svg = ["dep:resvg", "dep:usvg"]
@@ -37,7 +48,23 @@ plot = ["svg"]
 # `Plot3D` and `Series3D`; implies `plot`.
 plot3d = ["plot"]
 # The read-only workbook and delimited-file viewer.
-viewer = ["dep:calamine"]
+viewer = ["dep:calamine", "viewer-formats"]
+# JSON/YAML/TOML trees, Markdown, and PNG/JPEG in the viewer registry.
+viewer-formats = ["dep:serde_json", "dep:serde_yaml", "dep:toml", "dep:pulldown-cmark", "dep:image"]
+# Delimited data connector.
+csv = []
+# Spreadsheet connector through `calamine`.
+workbook = ["viewer"]
+# In-memory ring buffer connector.
+ring = []
+# Channel/socket/serial adapter.
+channel = []
+# Arrow IPC connector.
+arrow = ["dep:arrow"]
+# Parquet connector (Arrow-backed).
+parquet = ["dep:parquet", "arrow", "dep:bytes"]
+# SQLite connector.
+sqlite = ["dep:rusqlite"]
 # Serializable component state and the stable event model.
 serde = ["dep:serde", "dep:serde_json", "egui/serde"]
 
@@ -51,6 +78,14 @@ rust-embed = "8"
 calamine = { version = "0.38", default-features = false, optional = true }
 serde = { version = "1", features = ["derive", "rc"], optional = true }
 serde_json = { version = "1", optional = true }
+arrow = { version = "60", optional = true, default-features = false, features = ["ipc"] }
+parquet = { version = "60", optional = true, default-features = false, features = ["arrow", "snap", "flate2-zlib-rs"] }
+bytes = { version = "1", optional = true }
+rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
+serde_yaml = { version = "0.9", optional = true }
+toml = { version = "0.8", optional = true }
+pulldown-cmark = { version = "0.13", optional = true, default-features = false }
+image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg"] }
 
 [lints.rust]
 unsafe_code = "forbid"
