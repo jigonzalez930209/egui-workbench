@@ -1105,6 +1105,7 @@ dependencies = [
  "arrow",
  "bytes",
  "calamine",
+ "chrono",
  "criterion",
  "eframe",
  "egui",

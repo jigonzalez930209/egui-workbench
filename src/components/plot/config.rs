@@ -71,6 +71,8 @@ pub struct AxisConfig {
     /// Tick labels and tick marks; the theme when `None`. Coloring the right axis like
     /// its series tells the two axes apart.
     pub tick_color: Option<Color32>,
+    /// Labels for [`Scale::Category`], in index order.
+    pub categories: Option<Vec<String>>,
 }
 
 impl Default for AxisConfig {
@@ -89,6 +91,7 @@ impl Default for AxisConfig {
             label_size: None,
             label_color: None,
             tick_color: None,
+            categories: None,
         }
     }
 }

@@ -86,6 +86,12 @@ pub enum Scale {
     Linear,
     /// Decades evenly spaced; values ≤ 0 are not drawn.
     Log10,
+    /// A signed log scale: zero is the origin and both signs expand logarithmically.
+    SymmetricLog,
+    /// Seconds since the Unix epoch, formatted as calendar tick labels in UTC.
+    Time,
+    /// Evenly spaced category indices, labeled from [`super::AxisConfig::categories`].
+    Category,
 }
 
 impl Scale {
@@ -99,13 +105,16 @@ impl Scale {
                     f64::NAN
                 }
             }
+            Self::SymmetricLog => value.signum() * (1.0 + value.abs()).log10(),
+            Self::Time | Self::Category => value,
         }
     }
 
     pub(super) fn inverse(self, value: f64) -> f64 {
         match self {
-            Self::Linear => value,
+            Self::Linear | Self::Time | Self::Category => value,
             Self::Log10 => 10f64.powf(value),
+            Self::SymmetricLog => value.signum() * (10f64.powf(value.abs()) - 1.0),
         }
     }
 }
@@ -119,27 +128,37 @@ pub(super) struct Tick {
 }
 
 /// Overrides for tick placement, from [`super::AxisConfig`].
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct TickRules {
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct TickRules<'a> {
     /// Fixed major step (decades on log axes).
     pub step: Option<f64>,
     pub minor: super::config::Minor,
     pub decimals: Option<u8>,
+    /// Category labels.
+    pub categories: Option<&'a [String]>,
 }
 
-impl TickRules {
-    pub fn of(axis: &super::config::AxisConfig) -> Self {
+impl<'a> TickRules<'a> {
+    pub fn of(axis: &'a super::config::AxisConfig) -> Self {
         Self {
             step: axis.major_step,
             minor: axis.minor,
             decimals: axis.decimals,
+            categories: axis.categories.as_deref(),
         }
     }
 }
 
 /// "Nice" ticks (1, 2, 5 × 10ⁿ) in `[min, max]` (scaled space), about `pixels / spacing`
 /// of them, with labels formatted to the step's precision, plus minor ticks.
-pub(super) fn ticks(scale: Scale, min: f64, max: f64, pixels: f32, spacing: f32, rules: TickRules) -> Vec<Tick> {
+pub(super) fn ticks<'a>(
+    scale: Scale,
+    min: f64,
+    max: f64,
+    pixels: f32,
+    spacing: f32,
+    rules: TickRules<'a>,
+) -> Vec<Tick> {
     if max <= min || !min.is_finite() || !max.is_finite() {
         return Vec::new();
     }
@@ -147,6 +166,9 @@ pub(super) fn ticks(scale: Scale, min: f64, max: f64, pixels: f32, spacing: f32,
     match scale {
         Scale::Linear => linear_ticks(min, max, target, pixels, rules),
         Scale::Log10 => log_ticks(min, max, target, rules),
+        Scale::SymmetricLog => symmetric_log_ticks(min, max, target, pixels, rules),
+        Scale::Time => time_ticks(min, max, target, rules),
+        Scale::Category => category_ticks(min, max, rules),
     }
 }
 
@@ -167,7 +189,113 @@ pub(super) fn nice_step(span: f64, target: f64) -> f64 {
     nice * magnitude
 }
 
-fn linear_ticks(min: f64, max: f64, target: f64, pixels: f32, rules: TickRules) -> Vec<Tick> {
+fn symmetric_log_ticks(min: f64, max: f64, target: f64, pixels: f32, rules: TickRules<'_>) -> Vec<Tick> {
+    let decimals = rules.decimals.unwrap_or(3) as usize;
+    let mut ticks = linear_ticks(min, max, target, pixels, rules);
+    for tick in &mut ticks {
+        let value = Scale::SymmetricLog.inverse(tick.value);
+        tick.label = format_number(value, decimals);
+    }
+    ticks
+}
+
+fn time_ticks(min: f64, max: f64, target: f64, rules: TickRules<'_>) -> Vec<Tick> {
+    let span = max - min;
+    let step = rules
+        .step
+        .filter(|step| *step > 0.0 && span / *step <= 500.0)
+        .unwrap_or_else(|| nice_time_step(span, target));
+    let first = (min / step).ceil() as i64;
+    let last = (max / step).floor() as i64;
+    if last - first > 1000 {
+        return Vec::new();
+    }
+    let mut ticks = Vec::new();
+    for index in first..=last {
+        let value = index as f64 * step;
+        ticks.push(Tick {
+            value,
+            label: format_timestamp(value, span),
+            major: true,
+        });
+    }
+    ticks
+}
+
+fn nice_time_step(span: f64, target: f64) -> f64 {
+    const STEPS: [f64; 19] = [
+        1.0,
+        2.0,
+        5.0,
+        10.0,
+        15.0,
+        30.0,
+        60.0,
+        300.0,
+        900.0,
+        1800.0,
+        3600.0,
+        10_800.0,
+        21_600.0,
+        43_200.0,
+        86_400.0,
+        172_800.0,
+        604_800.0,
+        2_592_000.0,
+        31_536_000.0,
+    ];
+    let ideal = span / target.max(1.0);
+    STEPS
+        .iter()
+        .copied()
+        .find(|step| *step >= ideal)
+        .unwrap_or(31_536_000.0)
+}
+
+fn format_timestamp(seconds: f64, span: f64) -> String {
+    let Some(time) = chrono::DateTime::from_timestamp(seconds as i64, 0) else {
+        return format_number(seconds, 0);
+    };
+    let format = if span >= 2.0 * 86_400.0 {
+        "%Y-%m-%d"
+    } else if span >= 86_400.0 {
+        "%m-%d %H:%M"
+    } else if span >= 3_600.0 {
+        "%H:%M"
+    } else {
+        "%H:%M:%S"
+    };
+    time.format(format).to_string()
+}
+
+fn format_number(value: f64, decimals: usize) -> String {
+    if decimals == 0 {
+        format!("{value:.0}")
+    } else {
+        format!("{value:.decimals$}")
+    }
+}
+
+fn category_ticks(min: f64, max: f64, rules: TickRules<'_>) -> Vec<Tick> {
+    let first = min.floor().max(0.0) as usize;
+    let last = max.ceil().max(0.0) as usize;
+    if last.saturating_sub(first) > 500 {
+        return Vec::new();
+    }
+    (first..=last)
+        .map(|index| Tick {
+            value: index as f64,
+            label: rules
+                .categories
+                .and_then(|categories| categories.get(index))
+                .cloned()
+                .unwrap_or_else(|| index.to_string()),
+            major: true,
+        })
+        .collect()
+}
+
+fn linear_ticks(min: f64, max: f64, target: f64, pixels: f32, rules: TickRules<'_>) -> Vec<Tick> {
     let auto = nice_step(max - min, target);
     // A fixed step that would draw thousands of ticks falls back to the automatic one.
     let step = rules.step.filter(|step| (max - min) / step <= 500.0).unwrap_or(auto);
@@ -320,111 +448,4 @@ pub(super) fn format_readout(value: f64) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use egui::{Rect, pos2};
-
-    #[test]
-    fn nice_steps_are_one_two_five() {
-        assert_eq!(nice_step(10.0, 10.0), 1.0);
-        assert_eq!(nice_step(10.0, 4.0), 5.0);
-        assert!((nice_step(0.9, 5.0) - 0.2).abs() < 1e-12);
-        assert_eq!(nice_step(1000.0, 5.0), 200.0);
-    }
-
-    #[test]
-    fn linear_ticks_cover_the_range_with_clean_labels() {
-        let ticks = ticks(Scale::Linear, -0.05, 1.05, 500.0, 50.0, TickRules::default());
-        let labels: Vec<_> = ticks
-            .iter()
-            .filter(|tick| tick.major)
-            .map(|tick| tick.label.as_str())
-            .collect();
-        assert_eq!(labels, ["0.0", "0.2", "0.4", "0.6", "0.8", "1.0"]);
-    }
-
-    #[test]
-    fn log_ticks_are_decades() {
-        let ticks = ticks(Scale::Log10, 0.0, 3.0, 300.0, 40.0, TickRules::default());
-        let majors: Vec<_> = ticks
-            .iter()
-            .filter(|tick| tick.major)
-            .map(|tick| tick.label.clone())
-            .collect();
-        assert_eq!(majors, ["1", "10", "100", "1000"]);
-        let wide = super::ticks(Scale::Log10, 0.0, 6.0, 120.0, 40.0, TickRules::default());
-        let labels: Vec<_> = wide
-            .iter()
-            .filter(|tick| tick.major)
-            .map(|tick| tick.label.as_str())
-            .collect();
-        assert_eq!(labels, ["1e0", "1e2", "1e4", "1e6"], "one notation per axis");
-        assert_eq!(
-            wide.iter().filter(|tick| tick.value.fract() == 0.0).count(),
-            7,
-            "every decade keeps a grid line"
-        );
-    }
-
-    #[test]
-    fn fixed_steps_minor_divisions_and_decimals() {
-        let rules = TickRules {
-            step: Some(0.25),
-            minor: super::super::config::Minor::Divisions(5),
-            decimals: Some(3),
-        };
-        let ticks = ticks(Scale::Linear, 0.0, 1.0, 400.0, 50.0, rules);
-        let majors: Vec<_> = ticks
-            .iter()
-            .filter(|tick| tick.major)
-            .map(|tick| tick.label.as_str())
-            .collect();
-        assert_eq!(majors, ["0.000", "0.250", "0.500", "0.750", "1.000"]);
-        assert_eq!(
-            ticks.iter().filter(|tick| !tick.major).count(),
-            16,
-            "4 minors in each of 4 intervals"
-        );
-        let off = super::ticks(
-            Scale::Linear,
-            0.0,
-            1.0,
-            400.0,
-            50.0,
-            TickRules {
-                minor: super::super::config::Minor::Off,
-                ..TickRules::default()
-            },
-        );
-        assert!(off.iter().all(|tick| tick.major));
-    }
-
-    #[test]
-    fn transform_round_trips() {
-        let transform = Transform {
-            frame: Rect::from_min_max(pos2(10.0, 10.0), pos2(410.0, 210.0)),
-            view: Bounds::from_corners([0.0, -1.0], [4.0, 1.0]),
-            x_scale: Scale::Linear,
-            y_scale: Scale::Linear,
-            y2: Some(SecondAxis {
-                min: 0.0,
-                max: 100.0,
-                scale: Scale::Linear,
-            }),
-        };
-        let right = transform.for_axis(super::super::series::YAxis::Right);
-        assert_eq!(right.to_screen([1.0, 75.0]), pos2(110.0, 60.0));
-        let screen = transform.to_screen([1.0, 0.5]);
-        assert_eq!(screen, pos2(110.0, 60.0));
-        let back = transform.to_data(screen);
-        assert!((back[0] - 1.0).abs() < 1e-6 && (back[1] - 0.5).abs() < 1e-6);
-    }
-
-    #[test]
-    fn readouts_are_short() {
-        assert_eq!(format_readout(5.432_109), "5.432");
-        assert_eq!(format_readout(1234.5678), "1235");
-        assert_eq!(format_readout(0.0), "0");
-        assert_eq!(format_readout(2.5e-7), "2.500e-7");
-    }
-}
+mod tests;

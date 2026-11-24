@@ -17,12 +17,14 @@ mod dataset;
 mod link;
 #[cfg(feature = "parquet")]
 mod parquet_file;
+mod pyramid;
 mod query;
 #[cfg(feature = "ring")]
 mod ring;
 mod source;
 #[cfg(feature = "sqlite")]
 mod sqlite;
+mod stream;
 #[cfg(feature = "workbook")]
 mod workbook;
 
@@ -37,11 +39,13 @@ pub use dataset::{ColumnStats, Dataset};
 pub use link::{LinkHub, LinkMode, LinkSelection};
 #[cfg(feature = "parquet")]
 pub use parquet_file::{ParquetSource, read_parquet_bytes};
+pub use pyramid::{LodTile, MinMaxPyramid};
 pub use query::{Query, QueryError};
 #[cfg(feature = "ring")]
 pub use ring::RingBuffer;
 pub use source::{ColumnSchema, DataError, DataSource, MemorySource};
 #[cfg(feature = "sqlite")]
 pub use sqlite::{SqliteSource, read_sqlite};
+pub use stream::{StreamMode, StreamingSeries, Trigger};
 #[cfg(feature = "workbook")]
 pub use workbook::WorkbookSource;

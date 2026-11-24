@@ -71,6 +71,7 @@ serde = ["dep:serde", "dep:serde_json", "egui/serde"]
 [dependencies]
 # Caret ranges: applications may pick any 0.37.x / 0.48.x patch release.
 egui = "0.37"
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 eframe = { version = "0.37", default-features = false, features = ["glow", "x11", "wayland", "default_fonts", "clipboard"] }
 resvg = { version = "0.48", optional = true }
 usvg = { version = "0.48", optional = true }
