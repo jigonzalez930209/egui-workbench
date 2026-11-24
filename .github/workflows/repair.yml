@@ -1,0 +1,66 @@
+name: Repair registry publication
+
+# One-off repair for tags whose registry upload was skipped or used a bad tarball path.
+# Remove this workflow after the missing versions are published.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (v0.16.0, v0.17.0)
+        required: true
+      run_id:
+        description: Run id containing the Python wheels and sdist
+        required: true
+      publish_pypi:
+        description: Upload the Python distributions
+        type: boolean
+        default: false
+      npm_from_release:
+        description: Download the npm tarball from the GitHub release
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - name: Download run artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh run download "${{ inputs.run_id }}" -D dist
+      - name: Download npm tarball from the release
+        if: inputs.npm_from_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release download "${{ inputs.tag }}" -p '*.tgz' -D npm
+      - name: Split Python distributions
+        if: inputs.publish_pypi
+        run: |
+          mkdir -p python
+          find dist -name '*.whl' -exec cp {} python/ \;
+          find dist -name '*.tar.gz' -exec cp {} python/ \;
+          ls python
+      - name: Publish PyPI
+        if: inputs.publish_pypi
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: python
+      - name: Publish npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          tgz=$(find dist npm -name 'egui-workbench-*.tgz' | head -1)
+          test -n "$tgz"
+          npm publish "$(realpath "$tgz")" --access public
