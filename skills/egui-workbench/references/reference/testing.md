@@ -31,6 +31,7 @@ change is a bug in the test.
 | `tests/keybindings_editor.rs` | The registry editor records a chord and applies it |
 | `tests/data_fabric.rs` | CSV/query/paging, grid sort/filter/copy, ring and channel sources |
 | `tests/data_budget.rs` | Ignored release probe: 1M × 20 CSV open/filter/sort timings |
+| `tests/linked_views.rs` | Dataset plots, brush-to-row publishing, selection bus, shared grid state |
 | `src/data/**` | Column/validity metadata, query grammar, and every connector fixture |
 | `tests/app_runtime.rs` | Panel order, command collection order, hidden panels, right/bottom panel sizing |
 | `tests/components.rs` | Every builder variant, disabled state, labels, typing, switch/checkbox, select/stepper, dialog Escape |

@@ -14,6 +14,8 @@ crate root keeps the original function API; `components` adds builders.
 | `CommandRegistry` | struct | [Commands](../app/commands-and-keymap.md) |
 | `History<S>` | struct | [History and sessions](../app/history-and-session.md) |
 | `Layout`, `LayoutNode`, `EditorGroup`, `LayoutTab`, `LayoutAction` | layout | [Workspace layouts](../app/workspace.md) |
+| `LinkHub`, `LinkMode`, `LinkSelection` | selection bus | [Linked views](../app/linked-views.md) |
+| `DatasetPlot`, `PlotGrid`, `ViewHistory` | linked plots | [Linked views](../app/linked-views.md) |
 | `Dataset`, `Column`, `DataSource`, `Query`, `DataGrid` | data | [Data fabric](../app/data.md) |
 | `ViewerRegistry`, `ViewerFile`, `ViewerKind` | viewer | [Data fabric](../app/data.md) |
 | `ActivityBar`, `ActivityBarItem` | builder | [Workspace layouts](../app/workspace.md) |

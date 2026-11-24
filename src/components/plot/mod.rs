@@ -32,11 +32,14 @@ mod axis;
 mod builder;
 mod chart_config;
 mod config;
+mod dataset;
 mod decimate;
 mod direction;
 mod export;
 mod extra;
 mod fit;
+mod grid;
+mod history;
 mod interact;
 mod layout;
 mod legend;
@@ -59,8 +62,11 @@ pub use animation::{AnimationEasing, LegendAnimation, LegendHoverConfig};
 pub use axis::{Bounds, Scale};
 pub use chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
 pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, SeriesStyle, TitleAlign};
+pub use dataset::{DatasetPlot, DatasetPlotKind};
 pub use export::ExportOptions;
 pub use fit::{Fit, FitKind};
+pub use grid::PlotGrid;
+pub use history::ViewHistory;
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
 pub use three::{
     Bounds3D, Camera3D, Plot3D, Plot3DConfig, Plot3DHover, Plot3DResponse, Plot3DState, Plot3DTool, Projection,
@@ -146,6 +152,11 @@ impl PlotState {
     /// Whether the view follows the data (no zoom or pan since the last reset).
     pub fn is_auto(&self) -> bool {
         self.view.is_none()
+    }
+
+    /// The explicit view, or `None` while automatic.
+    pub fn view(&self) -> Option<Bounds> {
+        self.view
     }
 
     /// Show `bounds` (data coordinates, linear axes) on the x and left y axes.

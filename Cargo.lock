@@ -1100,7 +1100,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "arrow",
  "bytes",

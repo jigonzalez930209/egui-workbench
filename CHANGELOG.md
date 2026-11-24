@@ -7,6 +7,29 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
+### Added
+
+- `data::LinkHub`, `LinkSelection`, and `LinkMode` (Highlight, Filter, Isolate): one
+  selection bus per dataset with a revision, a publisher name, and an optional predicate.
+- `Plot::from_dataset(&data).x("t").y("v").color_by("state")`, with `scatter`, `title`,
+  and `height`; a text/category `color_by` becomes one colored series per value.
+- `DatasetPlot::show_linked`, which maps a plot brush back to dataset rows and publishes
+  them; Filter/Isolate modes hide the points outside the selection.
+- `PlotGrid`: rows × columns of plots sharing one `PlotState` for linked pan, zoom,
+  hidden series, and selection.
+- `DataGrid::link(&hub)`: table filtering/isolating and highlight from a linked
+  selection.
+- `ViewHistory`: bounded back/forward zoom levels and `PlotState::view()`.
+- `examples/linked`: a colored scatter, a line/scatter grid, and a linked table over one
+  dataset.
+
+### Migration
+
+0.8 is additive. `Plot` and `DataGrid` keep their existing constructors; the linked
+methods are opt-in.
+
 ## [0.7.0] - 2026-11-24
 
 ### Added

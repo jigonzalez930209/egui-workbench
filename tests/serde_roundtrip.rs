@@ -17,6 +17,7 @@ use egui_workbench::components::plot::{
 use egui_workbench::components::plot::{Camera3D, Plot3DState};
 use egui_workbench::components::viewer::{Cell, FileFormat, FileViewer, Table, TextFile, ViewerError};
 use egui_workbench::components::{PaletteState, ToastEvent, ToastId, ToastKind, ToastPosition};
+use egui_workbench::data::{LinkHub, LinkMode};
 use egui_workbench::egui::{self, Key, Modifiers};
 use egui_workbench::{
     KeyChord, KeyboardMenuState, PromptAction, TabEvent, Theme, ThemeId, ThemeMode, TreeEvent, TreeState, WindowAction,
@@ -73,6 +74,10 @@ fn runtime_states_round_trip() {
     round_trip(&Theme::dark());
     round_trip(&ThemeId::OneDarkPro);
     round_trip(&ThemeMode::Dark);
+    let mut hub = LinkHub::new("trace.csv");
+    hub.set_rows([1, 3], "plot");
+    hub.set_mode(LinkMode::Filter);
+    round_trip(&hub);
 }
 
 #[test]

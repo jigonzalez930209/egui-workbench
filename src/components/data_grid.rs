@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use egui::{Align2, RichText, ScrollArea, Sense, Ui};
 
 use crate::components::Component;
-use crate::data::{CellValue, Dataset, Query};
+use crate::data::{CellValue, Dataset, LinkHub, LinkMode, LinkSelection, Query};
 
 /// Sort direction of a column.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -198,6 +198,8 @@ pub struct DataGrid<'a> {
     state: &'a mut DataGridState,
     height: f32,
     row_height: f32,
+    linked: Option<&'a LinkSelection>,
+    linked_mode: LinkMode,
 }
 
 impl<'a> DataGrid<'a> {
@@ -208,7 +210,16 @@ impl<'a> DataGrid<'a> {
             state,
             height: 320.0,
             row_height: 22.0,
+            linked: None,
+            linked_mode: LinkMode::Highlight,
         }
+    }
+
+    /// Follow a selection bus.
+    pub fn link(mut self, hub: &'a LinkHub) -> Self {
+        self.linked = Some(hub.selection());
+        self.linked_mode = hub.mode();
+        self
     }
 
     /// Set the viewport height.
@@ -325,7 +336,8 @@ impl<'a> DataGrid<'a> {
                     .show_rows(ui, self.row_height, rows.len(), |ui, range| {
                         for index in range {
                             let row = rows[index];
-                            let selected = self.state.selected_rows.contains(&row);
+                            let selected = self.state.selected_rows.contains(&row)
+                                || self.linked.is_some_and(|selection| selection.contains(row));
                             let (rect, response) = ui.allocate_exact_size(
                                 egui::vec2(total_width.max(ui.available_width()), self.row_height),
                                 Sense::click(),

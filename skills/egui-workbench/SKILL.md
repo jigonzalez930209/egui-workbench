@@ -589,6 +589,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/app/documents.md`](references/app/documents.md): Documents<T>, the Document trait, dirty tabs, CloseGuard, and the Save / Discard / Cancel prompt.
 - [`references/app/history-and-session.md`](references/app/history-and-session.md): An undo tree, an append-only command journal, macros, workspace persistence, crash recovery, and the first DevTools slice.
 - [`references/app/i18n.md`](references/app/i18n.md): Translate at the call site, keep ellipses, and lay out for longer text.
+- [`references/app/linked-views.md`](references/app/linked-views.md): A selection bus shared by plots and tables, dataset-bound plots, plot grids, and zoom history.
 - [`references/app/settings-persistence.md`](references/app/settings-persistence.md): Persist theme, motion, density, corners, text size, and brand accent atomically in the platform config directory.
 - [`references/app/window.md`](references/app/window.md): Undecorated native options, resize edges, window actions, and title synchronization.
 - [`references/app/workbench.md`](references/app/workbench.md): WorkbenchApp, the fixed panel order, optional right and bottom panels, responsive widths, and the command flow.

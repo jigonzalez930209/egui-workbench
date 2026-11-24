@@ -165,6 +165,26 @@ impl Dataset {
         Some(points)
     }
 
+    /// One (x, y) point at `row`, when both values are finite numbers.
+    pub fn point_at_row(&self, x: &str, y: &str, row: usize) -> Option<[f64; 2]> {
+        let x = self.column_named(x)?;
+        let y = self.column_named(y)?;
+        let x = super::column::DataValue::as_f64(&x.cell(row).to_owned_value())?;
+        let y = super::column::DataValue::as_f64(&y.cell(row).to_owned_value())?;
+        (x.is_finite() && y.is_finite()).then_some([x, y])
+    }
+
+    /// Rows whose two numeric columns fall inside `bounds`.
+    pub fn rows_in_bounds(&self, x: &str, y: &str, bounds: crate::components::plot::Bounds) -> Vec<usize> {
+        (0..self.row_count())
+            .filter(|row| {
+                self.point_at_row(x, y, *row).is_some_and(|[x, y]| {
+                    x >= bounds.min_x && x <= bounds.max_x && y >= bounds.min_y && y <= bounds.max_y
+                })
+            })
+            .collect()
+    }
+
     /// Statistics for one column: count, min, max, mean, and nulls.
     pub fn stats(&self, column: usize) -> Option<ColumnStats> {
         let column = self.columns.get(column)?;

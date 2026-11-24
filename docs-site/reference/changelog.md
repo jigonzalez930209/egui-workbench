@@ -15,6 +15,20 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
+### Added
+
+- `LinkHub` selection bus with Highlight/Filter/Isolate modes, predicates, and revisions.
+- Dataset-bound plots (`Plot::from_dataset(...).x(...).y(...).color_by(...)`), brush
+  publishing, and `DataGrid::link`.
+- `PlotGrid` with a shared state and `ViewHistory` back/forward zoom.
+- `examples/linked` and the Linked views guide.
+
+### Migration
+
+0.8 is additive; the linked methods are opt-in.
+
 ## [0.7.0] - 2026-11-24
 
 ### Added

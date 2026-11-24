@@ -14,6 +14,7 @@ mod column;
 #[cfg(feature = "csv")]
 mod csv;
 mod dataset;
+mod link;
 #[cfg(feature = "parquet")]
 mod parquet_file;
 mod query;
@@ -33,6 +34,7 @@ pub use column::{CellValue, Column, ColumnType, ColumnValues, DataValue};
 #[cfg(feature = "csv")]
 pub use csv::{CsvOptions, CsvSource, parse_csv};
 pub use dataset::{ColumnStats, Dataset};
+pub use link::{LinkHub, LinkMode, LinkSelection};
 #[cfg(feature = "parquet")]
 pub use parquet_file::{ParquetSource, read_parquet_bytes};
 pub use query::{Query, QueryError};
