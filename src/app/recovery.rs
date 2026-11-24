@@ -326,7 +326,6 @@ mod tests {
         std::env::temp_dir().join(format!("{prefix}-{}-{thread}", std::process::id()))
     }
 
-    use super::*;
     use crate::app::session::WorkspaceDocument;
 
     fn directory() -> PathBuf {
