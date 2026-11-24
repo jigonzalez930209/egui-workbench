@@ -130,6 +130,7 @@ jobs:
       - name: Upload wheels
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           for _ in $(seq 1 30); do
