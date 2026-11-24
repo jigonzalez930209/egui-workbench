@@ -15,6 +15,12 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-24
+
+### Fixed
+
+- `Dataset::rows_in_bounds` is gated behind `plot`, restoring the minimal feature builds.
+
 ## [0.8.0] - 2026-11-24
 
 ### Added

@@ -7,6 +7,13 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-24
+
+### Fixed
+
+- `Dataset::rows_in_bounds` is behind the `plot` feature, so
+  `cargo check --no-default-features` and the other feature builds compile again.
+
 ## [0.8.0] - 2026-11-24
 
 ### Added

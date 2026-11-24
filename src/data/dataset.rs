@@ -175,6 +175,7 @@ impl Dataset {
     }
 
     /// Rows whose two numeric columns fall inside `bounds`.
+    #[cfg(feature = "plot")]
     pub fn rows_in_bounds(&self, x: &str, y: &str, bounds: crate::components::plot::Bounds) -> Vec<usize> {
         (0..self.row_count())
             .filter(|row| {
