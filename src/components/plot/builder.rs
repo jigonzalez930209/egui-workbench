@@ -169,6 +169,12 @@ impl<'a> Plot<'a> {
         self
     }
 
+    /// Add every series from an iterator, for multi-series families such as box plots.
+    pub fn series_all(mut self, series: impl IntoIterator<Item = super::Series<'a>>) -> Self {
+        self.series.extend(series);
+        self
+    }
+
     /// Replace the direction-arrow settings.
     pub fn direction(mut self, config: DirectionArrowConfig) -> Self {
         self.config.direction = config;

@@ -136,6 +136,8 @@ pub struct HeatmapConfig {
     pub opacity: f32,
     /// Draw a value scale at the right edge.
     pub colorbar: bool,
+    /// Color scale.
+    pub colormap: super::Colormap,
 }
 
 impl Default for HeatmapConfig {
@@ -143,6 +145,7 @@ impl Default for HeatmapConfig {
         Self {
             opacity: 1.0,
             colorbar: true,
+            colormap: super::Colormap::Theme,
         }
     }
 }

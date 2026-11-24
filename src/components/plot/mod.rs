@@ -27,18 +27,20 @@
 //! The view, the selection, the active tool, and hidden series live in a
 //! [`PlotState`] the caller owns, like every other component.
 
+mod analysis;
 mod animation;
 mod axis;
 mod builder;
 mod chart_config;
+mod colormap;
 mod config;
 mod dataset;
 mod decimate;
 mod direction;
 mod export;
 mod extra;
+mod families;
 mod fit;
-#[cfg(feature = "gpu")]
 #[cfg(feature = "gpu")]
 mod gpu;
 #[cfg(feature = "gpu")]
@@ -60,33 +62,35 @@ mod three;
 mod transform;
 mod types;
 mod widgets;
-
-use egui::{Color32, Id, Pos2, Rect, Sense, Ui, vec2};
-
+use crate::Icons;
+use crate::components::IconComponent;
+pub use analysis::{
+    Complex, Model, ModelFit, Peak, Statistics, derivative, fft, find_peaks, fit_model, integral, remove_baseline,
+    resample, rolling_baseline, savgol, savgol_derivative, spectrum,
+};
 pub use animation::{AnimationEasing, LegendAnimation, LegendHoverConfig};
 pub use axis::{Bounds, Scale};
+use axis::{SecondAxis, Transform};
 pub use chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
+pub use colormap::Colormap;
 pub use config::{AxisConfig, Minor, PlotColors, PlotConfig, Renderer, SeriesStyle, TitleAlign};
 pub use dataset::{DatasetPlot, DatasetPlotKind};
+use egui::{Color32, Id, Pos2, Rect, Sense, Ui, vec2};
 pub use export::ExportOptions;
+pub use families::{box_plot, contour, hexbin, histogram, histogram_density, polar, show_colorbar, smith, violin};
 pub use fit::{Fit, FitKind};
 #[cfg(feature = "gpu")]
 pub use gpu::set_output_format;
 pub use grid::PlotGrid;
 pub use history::ViewHistory;
+use scene::Measure;
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
 pub use three::{
     Bounds3D, Camera3D, Plot3D, Plot3DConfig, Plot3DHover, Plot3DResponse, Plot3DState, Plot3DTool, Projection,
     Series3D, Series3DStyle, Surface, Surface3DConfig,
 };
-
-pub use types::{ChartMode, ExportFormat, LegendPosition, PlotHover, PlotResponse, PlotTool};
-
-use crate::Icons;
-use crate::components::IconComponent;
-use axis::{SecondAxis, Transform};
-use scene::Measure;
 use types::Drag;
+pub use types::{ChartMode, ExportFormat, LegendPosition, PlotHover, PlotResponse, PlotTool};
 
 /// The interactive state of one plot. Keep it in the application model.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

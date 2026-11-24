@@ -133,7 +133,7 @@ fn heatmap(
             continue;
         }
         let t = ((cell[2] - min) / span) as f32;
-        let color = heat_color(t, theme);
+        let color = config.heatmap.colormap.sample(t, theme);
         let color = effect.map_or(color, |effect| mix(color, effect.highlight, 0.45 * effect.wave()));
         out.push(Prim::Rect {
             rect,
@@ -152,6 +152,7 @@ fn heatmap(
             theme,
             opacity,
             config.tick_size,
+            config.heatmap.colormap,
         );
     }
 }
@@ -166,6 +167,7 @@ fn colorbar(
     theme: &crate::theme::Theme,
     opacity: f32,
     label_size: f32,
+    colormap: super::Colormap,
 ) {
     const BANDS: usize = 24;
     let height = (frame.height() * 0.55).max(40.0);
@@ -186,7 +188,7 @@ fn colorbar(
                 vec2(width, band + 0.5),
             ),
             radius: 0.0,
-            fill: heat_color(t, theme).gamma_multiply(opacity),
+            fill: colormap.sample(t, theme).gamma_multiply(opacity),
             stroke: None,
         });
     }
