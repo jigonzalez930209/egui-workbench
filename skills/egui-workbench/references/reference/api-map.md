@@ -24,6 +24,7 @@ crate root keeps the original function API; `components` adds builders.
 | Python `Workbench`, `Command`, `Context`, widgets | python | [Python](../guide/python.md) |
 | `WebWorkbench`, `createWorkbench`, `connectRemote`, `RemoteServer`, `wb_host_*` | web | [Web and remote](../guide/web.md) |
 | `McpServer`, `Permissions`, `Automation`, `AccessNode`, `show_agent_panel`, `DevToolsState` | agent | [Agents and DevTools](../guide/agents.md) |
+| `ExtensionManager`, `ExtensionManifest`, `Capability`, `show_extension_manager` | extensions | [Extensions](../guide/extensions.md) |
 | `DatasetPlot`, `PlotGrid`, `ViewHistory` | linked plots | [Linked views](../app/linked-views.md) |
 | `Dataset`, `Column`, `DataSource`, `Query`, `DataGrid` | data | [Data fabric](../app/data.md) |
 | `ViewerRegistry`, `ViewerFile`, `ViewerKind` | viewer | [Data fabric](../app/data.md) |

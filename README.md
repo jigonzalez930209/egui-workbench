@@ -160,6 +160,19 @@ app.run()
 
 See the [Python guide](https://jigonzalez930209.github.io/egui-workbench/guide/python.html).
 
+## Extensions
+
+```toml
+[dependencies]
+egui-workbench-extensions = "0.15"
+```
+
+Sandboxed WebAssembly extensions with a versioned manifest, capability grants, a host
+API, a manager view, hot reload, and C and Rust examples live in
+`crates/egui-workbench-extensions`.
+
+See the [Extensions guide](https://jigonzalez930209.github.io/egui-workbench/guide/extensions.html).
+
 ## Agents and DevTools
 
 The MCP server exposes the spec, commands, accessibility tree, and patches with a
@@ -203,7 +216,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "0.14"
+egui-workbench = "0.15"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

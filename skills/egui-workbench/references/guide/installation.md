@@ -17,7 +17,7 @@
 
 ```toml
 [dependencies]
-egui-workbench = "0.14"
+egui-workbench = "0.15"
 ```
 
 ## Python
@@ -28,6 +28,16 @@ pip install egui-workbench
 
 The wheel includes the native host; no Rust toolchain is needed. See the
 [Python guide](../guide/python.md) for widgets, events, threads, asyncio, and data.
+
+## Extensions
+
+```toml
+[dependencies]
+egui-workbench-extensions = "0.15"
+```
+
+The sandboxed WebAssembly runtime, manifest, capabilities, manager view, and examples are
+in the [Extensions guide](../guide/extensions.md).
 
 ## Agents
 
@@ -54,7 +64,7 @@ For the declarative host (spec, patches, protocol, sidecar), add the separate cr
 
 ```toml
 [dependencies]
-egui-workbench-host = "0.14"
+egui-workbench-host = "0.15"
 ```
 
 Or follow the repository's `main` branch:

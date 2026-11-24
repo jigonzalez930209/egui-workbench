@@ -1,0 +1,25 @@
+[package]
+name = "egui-workbench-extensions"
+version = "0.15.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+description = "Sandboxed WebAssembly extensions for egui-workbench: manifests, capabilities, host API, manager, and hot reload."
+readme = "README.md"
+repository = "https://github.com/jigonzalez930209/egui-workbench"
+publish = true
+
+[features]
+default = ["wasm"]
+wasm = ["dep:wasmi"]
+
+[dependencies]
+egui-workbench-host = { path = "../egui-workbench-host", version = "0.15.0" }
+egui = "0.37"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+wasmi = { version = "2", optional = true }
+
+[dev-dependencies]
+tempfile = "3"

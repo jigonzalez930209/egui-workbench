@@ -11,7 +11,7 @@ tree. The host renders it with the component layer, accepts patches, and emits e
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench-host = "0.14"
+egui-workbench-host = "0.15"
 ```
 
 ## Spec

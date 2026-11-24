@@ -73,6 +73,12 @@ jobs:
             echo "::error::egui-workbench-agent version $agent does not match $GITHUB_REF_NAME"
             exit 1
           fi
+          extensions=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "egui-workbench-extensions") | .version')
+          if [ "v$extensions" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::egui-workbench-extensions version $extensions does not match $GITHUB_REF_NAME"
+            exit 1
+          fi
       - name: Agent skill is current
         run: python3 docs-site/scripts/build-skill.py --check
       - name: Changelog has this version
@@ -98,6 +104,16 @@ jobs:
           for attempt in $(seq 1 30); do
             cargo publish -p egui-workbench-host --locked && exit 0
             echo "host publish not ready (attempt $attempt); retrying"
+            sleep 10
+          done
+          exit 1
+      - name: Publish extensions to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          for attempt in $(seq 1 30); do
+            cargo publish -p egui-workbench-extensions --locked && exit 0
+            echo "extensions publish not ready (attempt $attempt); retrying"
             sleep 10
           done
           exit 1

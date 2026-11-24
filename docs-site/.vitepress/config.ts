@@ -42,6 +42,7 @@ export default defineConfig({
             { text: 'Python', link: '/guide/python' },
             { text: 'Web and remote', link: '/guide/web' },
             { text: 'Agents and DevTools', link: '/guide/agents' },
+            { text: 'Extensions', link: '/guide/extensions' },
             { text: 'Build your first app', link: '/guide/first-app' },
             { text: 'Live demo', link: '/guide/live-demo' },
             { text: 'Desktop platforms', link: '/guide/platforms' },

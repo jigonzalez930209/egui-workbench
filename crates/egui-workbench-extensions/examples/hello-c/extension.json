@@ -1,0 +1,8 @@
+{
+  "id": "com.example.hello",
+  "version": "0.1.0",
+  "name": "Hello",
+  "api": { "min": "0.15", "max": "0.16" },
+  "entry": "hello.wasm",
+  "capabilities": ["commands", "panels", "viewers", "data", "selection"]
+}

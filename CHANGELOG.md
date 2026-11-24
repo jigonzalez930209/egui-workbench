@@ -7,6 +7,26 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-24
+
+### Added
+
+- `egui-workbench-extensions`: a sandboxed WebAssembly runtime behind the default `wasm`
+  feature, a versioned manifest, capability grants, checksum verification, and hot
+  reload.
+- A host API for logging, command/panel/viewer contributions, dataset row metadata,
+  selection, and prefix-scoped filesystem reads; no WASI, network, or ambient filesystem.
+- An extension manager view that lists versions, grants, contributions, and enable,
+  disable, and reload actions.
+- C and no_std Rust example extensions that register commands and panels through the same
+  ABI, with install/grant/enable/invoke/reload tests.
+- The Extensions guide.
+
+### Migration
+
+Additive. The extension crate is new; applications that do not use extensions can build
+it with `default-features = false`.
+
 ## [0.14.0] - 2026-11-24
 
 ### Added

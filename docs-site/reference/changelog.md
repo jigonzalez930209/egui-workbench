@@ -15,6 +15,18 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-24
+
+### Added
+
+- Sandboxed WebAssembly extensions, versioned manifest, capabilities, manager view, hot
+  reload, and C/Rust examples.
+- Extensions guide.
+
+### Migration
+
+Additive; the extension runtime is feature-gated.
+
 ## [0.14.0] - 2026-11-24
 
 ### Added

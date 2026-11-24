@@ -578,6 +578,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/guide/agents.md`](references/guide/agents.md): Drive a workbench from an MCP client, approve proposed changes, replay flows headlessly, and inspect the running UI.
 - [`references/guide/architecture.md`](references/guide/architecture.md): The five layers of egui-workbench, the fixed panel order, and the flow of one frame.
 - [`references/guide/concepts.md`](references/guide/concepts.md): The state contract, commands, theming tokens, builders versus functions, accessibility, and repaint behavior.
+- [`references/guide/extensions.md`](references/guide/extensions.md): Install sandboxed WebAssembly extensions, grant capabilities, contribute commands and panels, and hot reload during development.
 - [`references/guide/first-app.md`](references/guide/first-app.md): Build a small workbench from scratch: window, title bar, tabs, content, status bar, palette, shortcuts, and close guard.
 - [`references/guide/installation.md`](references/guide/installation.md): Add egui-workbench to a new or existing Rust application from crates.io or git, choose features, and keep one copy of egui.
 - [`references/guide/platforms.md`](references/guide/platforms.md): The Linux, macOS, and Windows CI matrix, the repeatable IME and HiDPI pass, and the egui upgrade policy.

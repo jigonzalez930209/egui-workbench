@@ -1,0 +1,8 @@
+{
+  "id": "com.example.hello-rust",
+  "version": "0.1.0",
+  "name": "Hello from Rust",
+  "api": { "min": "0.15", "max": "0.16" },
+  "entry": "hello_extension.wasm",
+  "capabilities": ["commands", "panels"]
+}
