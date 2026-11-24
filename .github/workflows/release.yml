@@ -88,7 +88,7 @@ jobs:
           npm run build
           npm run types:check
           npm pack
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: npm
           path: crates/egui-workbench-wasm/egui-workbench-*.tgz
@@ -144,7 +144,7 @@ jobs:
           cp crates/egui-workbench-c/include/egui_workbench.h c-abi/include/
           cp target/release/libegui_workbench_c.so c-abi/
           zip -qr dist/egui-workbench-c-linux-x86_64.zip c-abi
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: dist/*
@@ -159,7 +159,7 @@ jobs:
           command: build
           target: universal2-apple-darwin
           args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: dist/*
@@ -174,7 +174,7 @@ jobs:
           command: build
           target: x86_64-pc-windows-msvc
           args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: dist/*
@@ -203,7 +203,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
