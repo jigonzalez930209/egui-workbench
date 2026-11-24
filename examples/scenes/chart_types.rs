@@ -171,10 +171,12 @@ impl Scene for NewCharts {
             let bytes = match format {
                 ExportFormat::Svg => plot.to_svg(ui.ctx(), &self.state, &options).into_bytes(),
                 ExportFormat::Png => plot.to_png(ui.ctx(), &self.state, &options).unwrap_or_default(),
+                _ => Vec::new(),
             };
             let (name, mime) = match format {
                 ExportFormat::Svg => ("chart-types.svg", "image/svg+xml"),
                 ExportFormat::Png => ("chart-types.png", "image/png"),
+                _ => ("chart-types.png", "image/png"),
             };
             if !bytes.is_empty() {
                 let place = (host.save)(name, mime, bytes);

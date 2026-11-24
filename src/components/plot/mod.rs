@@ -76,6 +76,7 @@ use scene::Measure;
 use types::Drag;
 
 /// The interactive state of one plot. Keep it in the application model.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct PlotState {
     view: Option<Bounds>,
@@ -84,7 +85,9 @@ pub struct PlotState {
     /// The selected area in data coordinates.
     pub selection: Option<Bounds>,
     hidden: Vec<String>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     drag: Option<Drag>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     export_menu: bool,
     /// The right axis range in scaled units, once zoomed or panned.
     y2_view: Option<[f64; 2]>,
@@ -92,10 +95,13 @@ pub struct PlotState {
     legend_pos: Option<[f32; 2]>,
     /// Series extents by [`Series::fingerprint`], so the automatic view does not walk
     /// every point of every series each frame.
+    #[cfg_attr(feature = "serde", serde(skip))]
     extents: Vec<(u64, Bounds)>,
     /// The series whose legend row the pointer is over.
+    #[cfg_attr(feature = "serde", serde(skip))]
     legend_hover: Option<usize>,
     /// When that hover began, for the animation clock.
+    #[cfg_attr(feature = "serde", serde(skip))]
     legend_hover_start: f64,
 }
 

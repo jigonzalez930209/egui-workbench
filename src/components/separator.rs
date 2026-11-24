@@ -5,7 +5,10 @@ use egui::{Stroke, Ui};
 use crate::components::Component;
 
 /// Horizontal or vertical separator.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Orientation {
     /// A full-width 1 pt line.
     #[default]

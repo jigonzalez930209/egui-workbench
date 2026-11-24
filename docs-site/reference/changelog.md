@@ -15,6 +15,33 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
+### Added
+
+- `CommandRegistry` with stable namespaced ids, titles, categories, icons, default
+  shortcuts, enabled/checked state, an optional argument schema, and one source for
+  menus, the palette, the title bar, the keyboard menu, and context menus.
+- `When`/`WhenContext` with the standard keys and `!`, `&&`, `||`, parentheses.
+- Rebindable keys, conflict detection, chords, the versioned keybindings JSON file, VS
+  Code import, and a keybindings editor built from the registry.
+- Palette v2 fuzzy ranking, recent commands, prefix modes, and background `PaletteFeed`.
+- Feature `serde`: stable event names and JSON round-trips for every built-in state.
+- Features `plot`, `plot3d`, `viewer`, and `svg`; `calamine` and `resvg`/`usvg` optional.
+- Registry views for menus, the keyboard menu, and the command palette.
+
+### Changed
+
+- The starter application's chrome reads one registry.
+- Public enums are `#[non_exhaustive]`.
+- `PaletteState` gained `recent`; the palette ranks and records choices.
+
+### Migration
+
+- Add the features a `default-features = false` build uses; all are on by default.
+- Prefer `CommandRegistry` over `Keymap`; construct `PaletteState` with
+  `..PaletteState::default()`; add wildcard arms for non-exhaustive enums.
+
 ## [0.3.2] - 2026-11-24
 
 ### Added

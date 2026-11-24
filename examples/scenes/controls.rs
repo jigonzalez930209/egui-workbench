@@ -235,7 +235,7 @@ impl Scene for Display {
                 host.report(format!("TabEvent::Select({index})"));
             }
             Some(TabEvent::Close(index)) => host.report(format!("TabEvent::Close({index}): the app decides")),
-            None => {}
+            Some(_) | None => {}
         }
         ui.add_space(10.0);
         ui.horizontal_top(|ui| {

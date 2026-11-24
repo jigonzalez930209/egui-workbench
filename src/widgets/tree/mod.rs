@@ -18,6 +18,7 @@ mod keyboard;
 
 /// The icon of a tree row.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum RowIcon {
     /// No icon; the slot stays empty.
     None,
@@ -82,7 +83,10 @@ impl<K> TreeNode<K> {
 }
 
 /// Something the application must apply to its model.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TreeEvent<K> {
     /// Expand or collapse a folder (click, Enter, Left, Right).
     Toggle(K),
@@ -92,6 +96,7 @@ pub enum TreeEvent<K> {
     Rename(K),
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Persistent tree state.
 #[derive(Clone, Debug)]
 pub struct TreeState<K> {

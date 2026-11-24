@@ -5,6 +5,7 @@ use egui::{Pos2, Rect, Response};
 use super::camera::{Camera3D, Projector};
 
 /// An axis-aligned range in 3D data space.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bounds3D {
     /// Smallest x.
@@ -107,7 +108,10 @@ impl Bounds3D {
 }
 
 /// What a primary-button drag does in a 3D plot.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Plot3DTool {
     /// Drag turns the camera around the data.
     #[default]
@@ -123,19 +127,25 @@ pub(super) enum Drag {
 }
 
 /// The interactive state of one 3D plot. Keep it in the application model.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct Plot3DState {
     camera: Option<Camera3D>,
     /// The tool the primary button uses.
     pub tool: Plot3DTool,
     hidden: Vec<String>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(super) drag: Option<Drag>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(super) export_menu: bool,
     /// Where the dragged legend sits: 0–1 across the room left in the frame.
     legend_pos: Option<[f32; 2]>,
     /// Series extents by fingerprint, so the automatic view does not walk every point.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(super) extents: Vec<(u64, Bounds3D)>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     legend_hover: Option<usize>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     legend_hover_start: f64,
 }
 

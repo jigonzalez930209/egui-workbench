@@ -65,6 +65,7 @@ fn strip<'a>(names: &[&str], width: f32) -> Harness<'a, State> {
                     state.dirty.remove(index);
                     state.active = state.active.min(state.names.len().saturating_sub(1));
                 }
+                _ => {}
             }
         }
     })

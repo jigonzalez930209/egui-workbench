@@ -7,6 +7,7 @@ use egui::Color32;
 /// The arrow uses the last `points` finite samples (5 by default), so a noisy stream
 /// still shows the direction the buffer is growing. Only cartesian lines, areas, steps,
 /// and candlesticks draw it; pie, radar, gauge, heatmap, and reference series do not.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DirectionArrowConfig {
     /// Draw the arrow.
@@ -36,6 +37,7 @@ impl Default for DirectionArrowConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Layout of pie and donut charts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PieConfig {
@@ -63,6 +65,7 @@ impl Default for PieConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Layout of radar charts. One series draws one closed polygon; several series overlay.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadarConfig {
@@ -97,6 +100,7 @@ impl RadarConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Layout of gauge charts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GaugeConfig {
@@ -124,6 +128,7 @@ impl Default for GaugeConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Layout of heatmaps.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HeatmapConfig {
@@ -142,6 +147,7 @@ impl Default for HeatmapConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Layout of waterfall charts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WaterfallConfig {

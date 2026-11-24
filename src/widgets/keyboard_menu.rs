@@ -25,6 +25,7 @@ pub struct MenuGroup<T> {
 }
 
 /// Persistent selection state.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct KeyboardMenuState {
     /// Whether the overlay is visible.

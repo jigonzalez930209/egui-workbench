@@ -19,6 +19,7 @@ use crate::foundation::theme::{self, Theme, ThemeId, ThemeMode};
 /// assert_eq!(theme.effective(), ThemeId::GithubDark);
 /// assert!(theme.is_dark());
 /// ```
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThemeState {
     requested: ThemeId,

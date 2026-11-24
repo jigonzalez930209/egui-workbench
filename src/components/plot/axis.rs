@@ -3,6 +3,7 @@
 pub(super) use super::transform::{SecondAxis, Transform};
 
 /// An axis-aligned range in data space.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bounds {
     /// Smallest x.
@@ -75,7 +76,10 @@ impl Bounds {
 }
 
 /// How values map onto an axis.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Scale {
     /// Evenly spaced values.
     #[default]

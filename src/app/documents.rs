@@ -34,6 +34,7 @@ pub trait Document {
 /// docs.remove(0);
 /// assert_eq!(docs.active_index(), 0);
 /// ```
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Documents<T> {
     items: Vec<T>,

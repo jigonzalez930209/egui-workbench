@@ -254,6 +254,7 @@ impl Showcase {
                 }
                 TreeEvent::Open(path) => menu_open = Some(path),
                 TreeEvent::Rename(_) => {}
+                _ => {}
             }
         }
         if let Some(path) = menu_open {
@@ -342,7 +343,7 @@ impl Showcase {
                 self.docs.set_active(index);
             }
             Some(TabEvent::Close(index)) => self.close(index),
-            None => {}
+            Some(_) | None => {}
         }
         out
     }

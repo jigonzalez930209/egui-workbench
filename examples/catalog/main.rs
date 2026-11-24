@@ -271,7 +271,7 @@ impl Catalog {
                 self.status = format!("Tab: {}", labels[index]);
             }
             Some(TabEvent::Close(index)) => self.status = format!("Close requested: {}", labels[index]),
-            None => {}
+            Some(_) | None => {}
         }
         ui.add_space(10.0);
         Card::new()

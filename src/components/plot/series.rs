@@ -7,7 +7,10 @@ use egui::Color32;
 use super::axis::{Bounds, Scale};
 
 /// Point markers for scatter series and line vertices.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Marker {
     /// Filled circle.
     #[default]
@@ -26,8 +29,11 @@ pub enum Marker {
     Ring,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// How a line is stroked.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LineStyle {
     /// Continuous.
     #[default]
@@ -38,8 +44,11 @@ pub enum LineStyle {
     Dotted,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// Which vertical axis a series is measured against.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum YAxis {
     /// The primary axis on the left.
     #[default]
@@ -48,8 +57,11 @@ pub enum YAxis {
     Right,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// How a line passes through its points.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Smoothing {
     /// Straight segments between points.
     #[default]

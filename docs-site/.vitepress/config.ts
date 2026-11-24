@@ -142,6 +142,7 @@ export default defineConfig({
             { text: 'Benchmarks', link: '/reference/benchmarks' },
             { text: 'xtask', link: '/reference/xtask' },
             { text: 'Changelog', link: '/reference/changelog' },
+            { text: 'Migrating to 0.4', link: '/reference/migration-0.4' },
             { text: 'Roadmap', link: '/reference/roadmap' },
             { text: 'FAQ', link: '/reference/faq' },
           ],

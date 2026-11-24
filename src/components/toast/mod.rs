@@ -8,7 +8,10 @@ use crate::theme;
 mod view;
 
 /// The meaning of a toast, which picks its icon and accent color.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ToastKind {
     /// Neutral information (accent color, `info` icon).
     #[default]
@@ -45,8 +48,11 @@ impl ToastKind {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// The corner (or edge center) the stack grows from.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ToastPosition {
     /// Top left corner.
     TopLeft,
@@ -70,11 +76,16 @@ impl ToastPosition {
 }
 
 /// The identity of a toast, for [`Toasts::update`] and [`Toasts::dismiss`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ToastId(pub(super) u64);
 
 /// What happened to a toast this frame.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ToastEvent {
     /// The action button was clicked; the toast closes.
     Action(ToastId),

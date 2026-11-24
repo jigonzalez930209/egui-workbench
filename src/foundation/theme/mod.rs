@@ -18,7 +18,10 @@ pub use apply::{
 pub use palette::ThemeId;
 
 /// The light or dark base of a theme.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ThemeMode {
     /// Light surfaces.
     #[default]
@@ -42,6 +45,7 @@ impl ThemeMode {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// The color tokens of one theme.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Theme {

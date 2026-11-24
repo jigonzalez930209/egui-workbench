@@ -10,6 +10,7 @@ use super::super::series::{LineStyle, Marker};
 use super::super::types::LegendPosition;
 use super::camera::Projection;
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Overrides for one 3D series, matched by name.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Series3DStyle {
@@ -44,6 +45,7 @@ impl Series3DStyle {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Fill, lines, and color scale of a surface.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Surface3DConfig {
@@ -66,6 +68,7 @@ impl Default for Surface3DConfig {
 }
 
 /// The complete appearance of a 3D plot.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Plot3DConfig {
     /// Title above the frame.

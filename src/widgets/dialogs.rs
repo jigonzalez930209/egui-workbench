@@ -11,7 +11,10 @@ use egui::{Color32, Context, Frame, Id, Key, Margin, Modal, RichText, Stroke, Ui
 use crate::{close_glyph, primary_button, secondary_button, text_field};
 
 /// What the user chose in a prompt.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PromptAction {
     /// Confirm the primary action.
     Submit,

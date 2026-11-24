@@ -121,6 +121,7 @@ fn reopening_clears_the_query() {
     let mut state = PaletteState {
         open: false,
         query: "old".into(),
+        ..PaletteState::default()
     };
     state.open();
     assert!(state.open && state.query.is_empty());

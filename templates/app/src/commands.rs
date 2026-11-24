@@ -1,20 +1,15 @@
-//! Commands, their shortcuts, and their palette rows.
+//! Commands, their shortcuts, and the registry every chrome surface reads.
 //!
-//! Keep every command in this enum. Menus, the palette, the keyboard map, and
-//! [`crate::content`] all produce it, so each action is reachable three ways.
+//! The application still owns a small `Command` enum for payloads. The registry holds
+//! the metadata, shortcuts, categories, and contexts; menus, the palette, the keyboard
+//! menu, and the keybindings editor are views of it.
 
-use egui_workbench::PaletteItem;
 use egui_workbench::ThemeId;
-use egui_workbench::app::Keymap;
-use egui_workbench::egui::{Key, Modifiers};
+use egui_workbench::commands::{Command as CommandMeta, CommandId, CommandRegistry, WhenContext};
 
 use crate::model::GallerySection;
 
 /// Every action the application can perform.
-///
-/// Add domain variants here, then add a shortcut, a palette row, a menu item, and an
-/// arm in `App::handle`. A variant can carry data (`DoSomething(u32)`) when the payload
-/// belongs to the command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
     /// New tab (opens the Buttons example).
@@ -59,62 +54,173 @@ pub enum Command {
     Quit,
 }
 
-/// The ordered shortcut table. Longer chords come first.
-pub fn keymap() -> Keymap<Command> {
-    Keymap::new()
-        .bind(Modifiers::COMMAND | Modifiers::SHIFT, Key::P, Command::Palette)
-        .bind(Modifiers::COMMAND | Modifiers::SHIFT, Key::Tab, Command::PreviousTab)
-        .bind(Modifiers::COMMAND | Modifiers::ALT, Key::B, Command::ToggleInspector)
-        .bind(Modifiers::COMMAND, Key::N, Command::NewTab)
-        .bind(Modifiers::COMMAND, Key::S, Command::Save)
-        .bind(Modifiers::COMMAND, Key::W, Command::CloseTab)
-        .bind(Modifiers::COMMAND, Key::B, Command::ToggleSidebar)
-        .bind(Modifiers::COMMAND, Key::J, Command::ToggleOutput)
-        .bind(Modifiers::COMMAND, Key::Comma, Command::Settings)
-        .bind(Modifiers::COMMAND, Key::Q, Command::Quit)
-        .bind(Modifiers::CTRL, Key::Tab, Command::NextTab)
+/// Stable ids of the commands the application uses outside the menu.
+pub mod ids {
+    /// New tab.
+    pub const NEW_TAB: &str = "file.new";
+    /// Save.
+    pub const SAVE: &str = "file.save";
+    /// Close tab.
+    pub const CLOSE_TAB: &str = "file.close";
+    /// Quit.
+    pub const QUIT: &str = "file.quit";
+    /// Next tab.
+    pub const NEXT_TAB: &str = "view.next-tab";
+    /// Previous tab.
+    pub const PREVIOUS_TAB: &str = "view.previous-tab";
+    /// Toggle the navigator.
+    pub const TOGGLE_SIDEBAR: &str = "view.navigator";
+    /// Toggle the inspector.
+    pub const TOGGLE_INSPECTOR: &str = "view.inspector";
+    /// Toggle the output.
+    pub const TOGGLE_OUTPUT: &str = "view.output";
+    /// Follow the system theme.
+    pub const FOLLOW_SYSTEM: &str = "theme.follow-system";
+    /// Settings.
+    pub const SETTINGS: &str = "workbench.settings";
+    /// About.
+    pub const ABOUT: &str = "workbench.about";
+    /// The palette itself is opened from the title bar or the shortcut.
+    pub const PALETTE: &str = "workbench.palette";
 }
 
-/// Palette rows: every command and its shortcut.
-pub fn palette_items() -> Vec<PaletteItem<Command>> {
-    let mut items: Vec<PaletteItem<Command>> = [
-        ("New tab", "Ctrl+N", Command::NewTab),
-        ("Example: Icons", "", Command::OpenExample(GallerySection::Icons)),
-        ("Example: Buttons", "", Command::OpenExample(GallerySection::Buttons)),
-        ("Example: Inputs", "", Command::OpenExample(GallerySection::Inputs)),
-        ("Example: Feedback", "", Command::OpenExample(GallerySection::Feedback)),
-        ("Example: Menus", "", Command::OpenExample(GallerySection::Menus)),
-        ("Example: Data", "", Command::OpenExample(GallerySection::Data)),
-        ("Example: Charts", "", Command::OpenExample(GallerySection::Charts)),
-        ("Example: Actions", "", Command::OpenExample(GallerySection::Actions)),
-        ("Save", "Ctrl+S", Command::Save),
-        ("Close tab", "Ctrl+W", Command::CloseTab),
-        ("Next tab", "Ctrl+Tab", Command::NextTab),
-        ("Previous tab", "Ctrl+Shift+Tab", Command::PreviousTab),
-        ("Toggle navigator", "Ctrl+B", Command::ToggleSidebar),
-        ("Toggle inspector", "Ctrl+Alt+B", Command::ToggleInspector),
-        ("Toggle output", "Ctrl+J", Command::ToggleOutput),
-        ("Settings…", "Ctrl+,", Command::Settings),
-        ("About", "", Command::About),
-        ("Dialog demo", "", Command::ShowDialog),
-        ("Confirm demo", "", Command::ShowConfirm),
-        ("Name demo", "", Command::ShowName),
-        ("Progress demo", "", Command::ShowProgress),
-        ("Keyboard menu", "F10", Command::KeyboardMenu),
-        ("Follow system", "", Command::ToggleFollowSystem),
-        ("Quit", "Ctrl+Q", Command::Quit),
-    ]
-    .into_iter()
-    .map(|(label, detail, command)| PaletteItem {
-        label: label.to_owned(),
-        detail: detail.to_owned(),
-        value: command,
+/// The registry: metadata, default shortcuts, and categories.
+pub fn registry() -> CommandRegistry {
+    let mut registry = CommandRegistry::new();
+    registry.register_all([
+        CommandMeta::new(ids::NEW_TAB, "New Tab")
+            .category("File")
+            .shortcut("Ctrl+N")
+            .icon("plus"),
+        CommandMeta::new(ids::SAVE, "Save")
+            .category("File")
+            .shortcut("Ctrl+S")
+            .icon("save"),
+        CommandMeta::new(ids::CLOSE_TAB, "Close Tab")
+            .category("File")
+            .shortcut("Ctrl+W")
+            .icon("close"),
+        CommandMeta::new(ids::QUIT, "Quit")
+            .category("File")
+            .shortcut("Ctrl+Q")
+            .icon("power"),
+        CommandMeta::new(ids::NEXT_TAB, "Next Tab")
+            .category("View")
+            .shortcut("Ctrl+Tab"),
+        CommandMeta::new(ids::PREVIOUS_TAB, "Previous Tab")
+            .category("View")
+            .shortcut("Ctrl+Shift+Tab"),
+        CommandMeta::new(ids::TOGGLE_SIDEBAR, "Navigator")
+            .category("View")
+            .shortcut("Ctrl+B")
+            .icon("sidebar"),
+        CommandMeta::new(ids::TOGGLE_INSPECTOR, "Inspector")
+            .category("View")
+            .shortcut("Ctrl+Alt+B")
+            .icon("panel-right"),
+        CommandMeta::new(ids::TOGGLE_OUTPUT, "Output")
+            .category("View")
+            .shortcut("Ctrl+J")
+            .icon("terminal"),
+        CommandMeta::new(ids::FOLLOW_SYSTEM, "Follow System Theme")
+            .category("Theme")
+            .icon("monitor"),
+        CommandMeta::new(ids::SETTINGS, "Settings…")
+            .category("Help")
+            .shortcut("Ctrl+,")
+            .icon("settings"),
+        CommandMeta::new(ids::ABOUT, "About").category("Help").icon("info"),
+        CommandMeta::new(ids::PALETTE, "Command Palette")
+            .category("Help")
+            .shortcut("Ctrl+Shift+P")
+            .icon("command"),
+        CommandMeta::new("demo.dialog", "Dialog Demo").category("Help"),
+        CommandMeta::new("demo.confirm", "Confirm Demo").category("Help"),
+        CommandMeta::new("demo.name", "Name Demo").category("Help"),
+        CommandMeta::new("demo.progress", "Progress Demo").category("Help"),
+        CommandMeta::new("demo.keyboard-menu", "Keyboard Menu")
+            .category("Help")
+            .shortcut("F10"),
+    ]);
+    for theme in ThemeId::ALL {
+        registry.register(
+            CommandMeta::new(format!("theme.{}", theme.as_setting()), theme.label())
+                .category("Theme")
+                .icon("palette"),
+        );
+    }
+    for section in GallerySection::ALL {
+        registry.register(
+            CommandMeta::new(section.command_id(), format!("Example: {}", section.label())).category("Examples"),
+        );
+    }
+    registry
+}
+
+/// The context keys this application publishes.
+pub fn context() -> WhenContext {
+    WhenContext::new()
+}
+
+/// The command for a registry id.
+pub fn command_from_id(id: &CommandId) -> Option<Command> {
+    let id = id.as_str();
+    if let Some(theme) = id.strip_prefix("theme.") {
+        return Some(Command::SetTheme(ThemeId::from_setting(theme)));
+    }
+    if let Some(example) = id.strip_prefix("example.") {
+        return GallerySection::ALL
+            .into_iter()
+            .find(|section| section.command_id() == id)
+            .map(Command::OpenExample)
+            .or_else(|| {
+                GallerySection::ALL
+                    .into_iter()
+                    .find(|section| section.label().eq_ignore_ascii_case(example))
+                    .map(Command::OpenExample)
+            });
+    }
+    Some(match id {
+        ids::NEW_TAB => Command::NewTab,
+        ids::SAVE => Command::Save,
+        ids::CLOSE_TAB => Command::CloseTab,
+        ids::QUIT => Command::Quit,
+        ids::NEXT_TAB => Command::NextTab,
+        ids::PREVIOUS_TAB => Command::PreviousTab,
+        ids::TOGGLE_SIDEBAR => Command::ToggleSidebar,
+        ids::TOGGLE_INSPECTOR => Command::ToggleInspector,
+        ids::TOGGLE_OUTPUT => Command::ToggleOutput,
+        ids::FOLLOW_SYSTEM => Command::ToggleFollowSystem,
+        ids::SETTINGS => Command::Settings,
+        ids::ABOUT => Command::About,
+        ids::PALETTE => Command::Palette,
+        "demo.dialog" => Command::ShowDialog,
+        "demo.confirm" => Command::ShowConfirm,
+        "demo.name" => Command::ShowName,
+        "demo.progress" => Command::ShowProgress,
+        "demo.keyboard-menu" => Command::KeyboardMenu,
+        _ => return None,
     })
-    .collect();
-    items.extend(ThemeId::ALL.into_iter().map(|id| PaletteItem {
-        label: format!("Theme: {}", id.label()),
-        detail: String::new(),
-        value: Command::SetTheme(id),
-    }));
-    items
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_registered_id_maps_to_a_command() {
+        let registry = registry();
+        for command in registry.iter() {
+            assert!(command_from_id(&command.id).is_some(), "{} has no handler", command.id);
+        }
+    }
+
+    #[test]
+    fn commands_keep_their_default_shortcuts() {
+        let registry = registry();
+        assert_eq!(
+            registry.binding(&CommandId::new(ids::SAVE)).map(ToString::to_string),
+            Some("Ctrl+S".to_owned())
+        );
+    }
 }

@@ -284,6 +284,7 @@ impl Scene for Shell {
                             }
                             TreeEvent::Open(key) => self.open(key),
                             TreeEvent::Rename(key) => host.report(format!("Rename {key}: the app shows a NameDialog")),
+                            _ => {}
                         }
                     }
                 });
@@ -329,7 +330,7 @@ impl Scene for Shell {
                     }
                     self.active = self.active.min(self.tabs.len().saturating_sub(1));
                 }
-                None => {}
+                Some(_) | None => {}
             }
         });
         egui::CentralPanel::default().show(ui, |ui| {

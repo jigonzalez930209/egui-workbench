@@ -5,13 +5,12 @@
 //! product screen itself lives in [`crate::content`], not here.
 
 use egui_workbench::app::WorkbenchApp;
-use egui_workbench::components::PaletteLabels;
+use egui_workbench::commands::{command_menu_groups, show_command_menu, show_command_palette};
 use egui_workbench::components::prelude::*;
 use egui_workbench::egui::{self, RichText};
 use egui_workbench::{
-    MenuEntry, MenuGroup, SettingsDialog, StatusItem, ThemeId, TitleBar, apply_window_action, combo, is_maximized,
-    settings_row, settings_section, settings_switch, show_choice_window, show_settings_dialog, show_title_bar,
-    title_menu,
+    SettingsDialog, StatusItem, ThemeId, TitleBar, apply_window_action, combo, is_maximized, settings_row,
+    settings_section, settings_switch, show_choice_window, show_settings_dialog, show_title_bar, title_menu,
 };
 
 use crate::app::{App, CloseChoice, CloseRequest};
@@ -41,64 +40,33 @@ impl WorkbenchApp for App {
         let mut bar = TitleBar::new(tab.map_or("", |tab| tab.title.as_str()));
         bar.dirty = tab.is_some_and(|tab| tab.dirty);
         bar.maximized = is_maximized(ui.ctx());
-        let (sidebar, theme, follow) = (self.sidebar_open, self.theme.requested(), self.theme.follow_system());
-        let (inspector, output) = (self.inspector_open, self.output_open);
         let has_tabs = self.tabs.len() > 1;
         let palette_open = self.palette.open;
+        let registry = self.registry.clone();
+        let context = commands::context();
         let result = show_title_bar(
             ui,
             &mut self.icons,
             &bar,
             |ui, icons| {
                 title_menu(ui, "File", 230.0, |ui| {
-                    if MenuButton::new("New Tab").show(ui) {
-                        command = Some(Command::NewTab);
-                    }
-                    if MenuButton::new("Save").show(ui) {
-                        command = Some(Command::Save);
-                    }
-                    ui.separator();
-                    if MenuButton::new("Close Tab").show(ui) {
-                        command = Some(Command::CloseTab);
-                    }
-                    ui.separator();
-                    if MenuButton::new("Quit").show(ui) {
-                        command = Some(Command::Quit);
+                    if let Some(id) = show_command_menu(ui, icons, &registry, &context, "File") {
+                        command = commands::command_from_id(&id);
                     }
                 });
                 title_menu(ui, "View", 230.0, |ui| {
-                    if MenuToggle::new("Navigator", sidebar).show(ui) {
-                        command = Some(Command::ToggleSidebar);
+                    if let Some(id) = show_command_menu(ui, icons, &registry, &context, "View") {
+                        command = commands::command_from_id(&id);
                     }
-                    if MenuToggle::new("Inspector", inspector).show(ui) {
-                        command = Some(Command::ToggleInspector);
+                });
+                title_menu(ui, "Theme", 230.0, |ui| {
+                    if let Some(id) = show_command_menu(ui, icons, &registry, &context, "Theme") {
+                        command = commands::command_from_id(&id);
                     }
-                    if MenuToggle::new("Output", output).show(ui) {
-                        command = Some(Command::ToggleOutput);
-                    }
-                    ui.separator();
-                    Menu::new("Appearance").show(ui, |ui| {
-                        if MenuToggle::new("Follow system", follow).show(ui) {
-                            command = Some(Command::ToggleFollowSystem);
-                        }
-                        ui.separator();
-                        for family in ["GitHub", "Dracula", "One Dark Pro"] {
-                            Menu::new(family).show(ui, |ui| {
-                                for id in ThemeId::ALL.into_iter().filter(|id| id.family() == family) {
-                                    if MenuToggle::new(id.label(), id == theme).show(ui) {
-                                        command = Some(Command::SetTheme(id));
-                                    }
-                                }
-                            });
-                        }
-                    });
                 });
                 title_menu(ui, "Help", 210.0, |ui| {
-                    if MenuButton::new("Settings…").show(ui) {
-                        command = Some(Command::Settings);
-                    }
-                    if MenuButton::new("About").show(ui) {
-                        command = Some(Command::About);
+                    if let Some(id) = show_command_menu(ui, icons, &registry, &context, "Help") {
+                        command = commands::command_from_id(&id);
                     }
                 });
                 ui.add_space(6.0);
@@ -192,7 +160,7 @@ impl WorkbenchApp for App {
                 self.tabs.set_active(index);
             }
             Some(TabEvent::Close(index)) => self.close_tab(index),
-            None => {}
+            None | Some(_) => {}
         }
         commands
     }
@@ -242,53 +210,21 @@ impl WorkbenchApp for App {
     fn overlays(&mut self, ui: &mut egui::Ui) -> Vec<Command> {
         let ctx = ui.ctx().clone();
         let mut commands = Vec::new();
-        let labels = PaletteLabels {
-            title: "Command Palette",
-            hint: "Type to filter…",
-            empty: "No matches",
-            close: "Close",
-        };
-        if let Some(command) = CommandPalette::new(&mut self.palette, labels, &commands::palette_items()).show(&ctx) {
+        let labels = egui_workbench::commands::CommandPaletteLabels::default();
+        let context = commands::context();
+        if let Some(id) = show_command_palette(&ctx, &mut self.palette, labels, &mut self.registry, &context)
+            && let Some(command) = commands::command_from_id(&id)
+        {
             commands.push(command);
         }
-        let groups = vec![
-            MenuGroup {
-                label: "File".to_owned(),
-                entries: vec![
-                    MenuEntry {
-                        label: "New tab".to_owned(),
-                        value: Command::NewTab,
-                    },
-                    MenuEntry {
-                        label: "Save".to_owned(),
-                        value: Command::Save,
-                    },
-                    MenuEntry {
-                        label: "Close tab".to_owned(),
-                        value: Command::CloseTab,
-                    },
-                ],
-            },
-            MenuGroup {
-                label: "Help".to_owned(),
-                entries: vec![
-                    MenuEntry {
-                        label: "Settings".to_owned(),
-                        value: Command::Settings,
-                    },
-                    MenuEntry {
-                        label: "About".to_owned(),
-                        value: Command::About,
-                    },
-                ],
-            },
-        ];
-        if let Some(command) = egui_workbench::show_keyboard_menu(
+        let groups = command_menu_groups(&self.registry, &context);
+        if let Some(id) = egui_workbench::show_keyboard_menu(
             &ctx,
             &mut self.keyboard_menu,
             &groups,
             "Arrows navigate · Enter runs · Esc closes",
-        ) {
+        ) && let Some(command) = commands::command_from_id(&id)
+        {
             commands.push(command);
         }
         self.settings(&ctx);

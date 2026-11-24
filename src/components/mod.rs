@@ -50,6 +50,7 @@ mod label;
 mod menu;
 mod nav;
 mod palette;
+#[cfg(feature = "plot")]
 pub mod plot;
 mod segmented;
 mod select;
@@ -61,7 +62,11 @@ mod switch;
 mod tabs;
 mod toast;
 mod tree;
+#[cfg(feature = "viewer")]
 pub mod viewer;
+
+#[cfg(feature = "viewer")]
+pub use viewer::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
 
 pub use badge::Badge;
 pub use button::{Button, CloseButton, IconButton};
@@ -75,7 +80,7 @@ pub use input::{TextArea, TextField};
 pub use label::Label;
 pub use menu::{Menu, MenuButton, MenuIconButton, MenuItem, MenuToggle};
 pub use nav::NavTab;
-pub use palette::{CommandPalette, PaletteItem, PaletteLabels, PaletteState};
+pub use palette::{CommandPalette, PaletteFeed, PaletteItem, PaletteLabels, PaletteMode, PaletteState};
 pub use segmented::SegmentedControl;
 pub use select::Select;
 pub use separator::{Orientation, Separator};
@@ -86,7 +91,6 @@ pub use switch::Switch;
 pub use tabs::{TabEvent, TabIcon, TabItem, TabStrip};
 pub use toast::{Toast, ToastEvent, ToastId, ToastKind, ToastPosition, Toasts};
 pub use tree::{RowIcon, Tree, TreeEvent, TreeNode, TreeState};
-pub use viewer::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
 
 /// A component that takes only a [`Ui`] and returns a value.
 ///
@@ -114,10 +118,12 @@ pub trait IconComponent {
 pub mod prelude {
     pub use super::{
         Badge, Banner, Button, ButtonVariant, Card, Checkbox, CloseButton, CommandPalette, Component, ConfirmDialog,
-        Dialog, FileFormat, FileViewer, IconButton, IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview,
-        IconSize, Label, Menu, MenuButton, MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation,
-        PaletteItem, PaletteLabels, PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl,
-        Select, Separator, Size, StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField,
-        Toast, ToastEvent, ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
+        Dialog, IconButton, IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview, IconSize, Label, Menu,
+        MenuButton, MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation, PaletteItem, PaletteLabels,
+        PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl, Select, Separator, Size,
+        StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField, Toast, ToastEvent,
+        ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
     };
+    #[cfg(feature = "viewer")]
+    pub use super::{Cell, CellKind, Document, FileFormat, FileViewer, Sheet, Table, TextFile, ViewerError, Workbook};
 }

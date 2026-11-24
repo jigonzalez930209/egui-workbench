@@ -59,6 +59,11 @@ impl GallerySection {
         }
     }
 
+    /// The stable registry id, such as `example.icons`.
+    pub fn command_id(self) -> String {
+        format!("example.{}", self.label().to_ascii_lowercase())
+    }
+
     /// A one-line description for the section header.
     pub const fn description(self) -> &'static str {
         match self {

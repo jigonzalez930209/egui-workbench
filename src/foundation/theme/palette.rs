@@ -5,7 +5,10 @@ use egui::Color32;
 use crate::{Theme, ThemeMode};
 
 /// A stable theme identifier.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ThemeId {
     /// GitHub Light.
     #[default]

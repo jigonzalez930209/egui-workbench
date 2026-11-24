@@ -4,7 +4,7 @@ use egui::Context;
 
 use crate::widgets::palette::show_palette;
 
-pub use crate::widgets::palette::{PaletteItem, PaletteLabels, PaletteState};
+pub use crate::widgets::palette::{PaletteFeed, PaletteItem, PaletteLabels, PaletteMode, PaletteState};
 
 /// A command palette/Quick Open overlay.
 pub struct CommandPalette<'a, T> {

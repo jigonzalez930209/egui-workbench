@@ -10,6 +10,7 @@ use crate::components::IconComponent;
 
 /// How the glyph size of an [`IconGrid`] is chosen.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum IconSize {
     /// Scale the glyph with the cell width, between 20 and 56 pt.
     Auto,
@@ -18,7 +19,10 @@ pub enum IconSize {
 }
 
 /// Grid of cells or one row per icon.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IconLayout {
     /// Square-ish cells that always fill the full width.
     #[default]

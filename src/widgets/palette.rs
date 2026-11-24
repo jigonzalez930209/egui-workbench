@@ -21,13 +21,56 @@ pub struct PaletteItem<T> {
     pub value: T,
 }
 
+/// The prefix mode of a palette query.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PaletteMode {
+    /// No prefix: commands, files, and every other result.
+    #[default]
+    All,
+    /// `>`: commands.
+    Commands,
+    /// `:`: go to a line.
+    Lines,
+    /// `@`: symbols.
+    Symbols,
+}
+
+impl PaletteMode {
+    /// The prefix that selects this mode, or an empty string.
+    pub fn prefix(self) -> &'static str {
+        match self {
+            Self::All => "",
+            Self::Commands => ">",
+            Self::Lines => ":",
+            Self::Symbols => "@",
+        }
+    }
+
+    /// Parse the prefix of a query.
+    pub fn parse(query: &str) -> (Self, &str) {
+        if let Some(rest) = query.strip_prefix('>') {
+            (Self::Commands, rest)
+        } else if let Some(rest) = query.strip_prefix(':') {
+            (Self::Lines, rest)
+        } else if let Some(rest) = query.strip_prefix('@') {
+            (Self::Symbols, rest)
+        } else {
+            (Self::All, query)
+        }
+    }
+}
+
 /// Persistent palette state.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default)]
 pub struct PaletteState {
     /// Whether the palette is visible.
     pub open: bool,
-    /// The filter text.
+    /// The filter text, including its `>`/`:`/`@` prefix.
     pub query: String,
+    /// Recently chosen labels, newest first.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub recent: Vec<String>,
 }
 
 impl PaletteState {
@@ -35,6 +78,24 @@ impl PaletteState {
     pub fn open(&mut self) {
         self.open = true;
         self.query.clear();
+    }
+
+    /// The active prefix mode and the text after it.
+    pub fn mode(&self) -> (PaletteMode, &str) {
+        PaletteMode::parse(&self.query)
+    }
+
+    /// Record a chosen row, keeping the newest twelve.
+    pub fn record(&mut self, label: impl Into<String>) {
+        let label = label.into();
+        self.recent.retain(|recent| recent != &label);
+        self.recent.insert(0, label);
+        self.recent.truncate(12);
+    }
+
+    /// Whether `label` is in the recent list.
+    pub fn is_recent(&self, label: &str) -> bool {
+        self.recent.iter().any(|recent| recent == label)
     }
 }
 
@@ -63,6 +124,128 @@ pub fn filter<'a, T>(items: &'a [PaletteItem<T>], query: &str) -> Vec<&'a Palett
         })
         .take(12)
         .collect()
+}
+
+/// Items ranked by a fuzzy score and capped at 12.
+///
+/// The `>`/`:`/`@` prefix is stripped before matching; use [`PaletteState::mode`] to
+/// decide which provider supplies the rows. Label matches rank above detail matches.
+/// Pass `recent` to put the commands the user just ran first.
+pub fn fuzzy_filter<'a, T>(items: &'a [PaletteItem<T>], query: &str, recent: &[String]) -> Vec<&'a PaletteItem<T>> {
+    let (_, needle) = PaletteMode::parse(query);
+    let needle = needle.trim().to_lowercase();
+    let mut ranked: Vec<(i32, usize, &'a PaletteItem<T>)> = items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            if needle.is_empty() {
+                let recent_rank = recent
+                    .iter()
+                    .position(|label| label == &item.label)
+                    .map_or(i32::MIN, |position| 1000 - position as i32);
+                return Some((recent_rank, index, item));
+            }
+            let score = score(&item.label, &needle).max(score(&item.detail, &needle) - 200);
+            (score > 0).then_some((score, index, item))
+        })
+        .collect();
+    ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+    ranked.into_iter().take(12).map(|(_, _, item)| item).collect()
+}
+
+fn score(text: &str, needle: &str) -> i32 {
+    let text = text.to_lowercase();
+    if text == needle {
+        return 1000;
+    }
+    if text.starts_with(needle) {
+        return 850 - text.len().min(100) as i32;
+    }
+    if let Some(position) = text.find(needle) {
+        return 700 - position.min(200) as i32;
+    }
+    // Subsequence: every needle character in order, with a penalty for each gap.
+    let mut position = 0;
+    let mut gap = 0;
+    for character in needle.chars() {
+        let Some(found) = text[position..].find(character) else {
+            return 0;
+        };
+        gap += found;
+        position += found + character.len_utf8();
+    }
+    (400 - gap.min(200) as i32).max(1)
+}
+
+/// Results arriving from a background provider without blocking the frame.
+///
+/// The application owns the sender and requests work when the query changes; call
+/// [`Self::poll`] once per frame and pass [`Self::items`] to the palette.
+pub struct PaletteFeed<T> {
+    receiver: Option<std::sync::mpsc::Receiver<Vec<PaletteItem<T>>>>,
+    items: Vec<PaletteItem<T>>,
+    pending: bool,
+}
+
+impl<T> Default for PaletteFeed<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> PaletteFeed<T> {
+    /// An empty feed.
+    pub fn new() -> Self {
+        Self {
+            receiver: None,
+            items: Vec::new(),
+            pending: false,
+        }
+    }
+
+    /// Attach a channel. The previous results stay visible until the new ones arrive.
+    pub fn submit(&mut self, receiver: std::sync::mpsc::Receiver<Vec<PaletteItem<T>>>) {
+        self.receiver = Some(receiver);
+        self.pending = true;
+    }
+
+    /// Replace the results immediately (for a synchronous provider).
+    pub fn set_items(&mut self, items: Vec<PaletteItem<T>>) {
+        self.items = items;
+        self.pending = false;
+        self.receiver = None;
+    }
+
+    /// Take a finished result set without blocking. Returns whether the rows changed.
+    pub fn poll(&mut self) -> bool {
+        let Some(receiver) = &self.receiver else {
+            return false;
+        };
+        match receiver.try_recv() {
+            Ok(items) => {
+                self.items = items;
+                self.pending = false;
+                self.receiver = None;
+                true
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => false,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.pending = false;
+                self.receiver = None;
+                false
+            }
+        }
+    }
+
+    /// The current rows.
+    pub fn items(&self) -> &[PaletteItem<T>] {
+        &self.items
+    }
+
+    /// Whether a background request is still running.
+    pub fn is_pending(&self) -> bool {
+        self.pending
+    }
 }
 
 /// Show the palette and return the value of the row that ran.
@@ -110,7 +293,7 @@ pub fn show_palette<T: Clone>(
             // The field spans the same width as the result rows below it.
             text_field(ui, &mut state.query, labels.hint, ui.available_width()).request_focus();
             ui.add_space(8.0);
-            let matches = filter(items, &state.query);
+            let matches = fuzzy_filter(items, &state.query, &state.recent);
             ScrollArea::vertical()
                 .max_height(300.0)
                 .auto_shrink([false, true])
@@ -158,6 +341,7 @@ pub fn show_palette<T: Clone>(
                             );
                         }
                         if response.clicked() {
+                            state.record(item.label.clone());
                             chosen = Some(item.value.clone());
                             keep_open = false;
                         }
@@ -166,6 +350,7 @@ pub fn show_palette<T: Clone>(
             if ctx.input(|input| input.key_pressed(Key::Enter))
                 && let Some(item) = matches.first()
             {
+                state.record(item.label.clone());
                 chosen = Some(item.value.clone());
                 keep_open = false;
             }
@@ -180,6 +365,66 @@ pub fn show_palette<T: Clone>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fuzzy_ranking_prefers_exact_and_prefix_matches() {
+        let item = |label: &str, detail: &str| PaletteItem {
+            label: label.to_owned(),
+            detail: detail.to_owned(),
+            value: label.to_owned(),
+        };
+        let items = vec![
+            item("Save As…", "Ctrl+Shift+S"),
+            item("Save", "Ctrl+S"),
+            item("Search", "Ctrl+F"),
+            item("Recent file", "save.rs"),
+        ];
+        let matches = fuzzy_filter(&items, "save", &[]);
+        assert_eq!(matches[0].label, "Save");
+        assert_eq!(matches[1].label, "Save As…");
+        assert!(matches.iter().any(|item| item.label == "Recent file"));
+    }
+
+    #[test]
+    fn recent_labels_come_first_and_modes_strip_the_prefix() {
+        let items: Vec<PaletteItem<usize>> = ["Open", "Save", "Close"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, label)| PaletteItem {
+                label: label.to_owned(),
+                detail: String::new(),
+                value: index,
+            })
+            .collect();
+        let matches = fuzzy_filter(&items, "", &["Close".to_owned()]);
+        assert_eq!(matches[0].label, "Close");
+        let matches = fuzzy_filter(&items, ">save", &[]);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].label, "Save");
+        let (mode, query) = PaletteMode::parse("@main");
+        assert_eq!(mode, PaletteMode::Symbols);
+        assert_eq!(query, "main");
+    }
+
+    #[test]
+    fn a_background_feed_never_blocks_the_frame() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut feed = PaletteFeed::new();
+        assert!(!feed.poll());
+        feed.submit(receiver);
+        assert!(feed.is_pending());
+        assert!(!feed.poll());
+        sender
+            .send(vec![PaletteItem {
+                label: "Save".to_owned(),
+                detail: "Ctrl+S".to_owned(),
+                value: 1,
+            }])
+            .expect("send");
+        assert!(feed.poll());
+        assert_eq!(feed.items().len(), 1);
+        assert!(!feed.is_pending());
+    }
 
     #[test]
     fn filtering_matches_label_and_detail_case_insensitively() {

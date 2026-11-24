@@ -7,6 +7,49 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
+### Added
+
+- `commands::CommandRegistry`: stable namespaced ids, title, category, icon, default
+  shortcut, enabled and checked state, an optional argument schema, and one source for
+  menus, the palette, the title bar, the keyboard menu, and context menus.
+- `commands::When` / `WhenContext`: the `editorFocus`, `hasSelection`, `dialogOpen`,
+  `paletteOpen`, `readOnly`, and `dirty` keys with `!`, `&&`, `||`, and parentheses.
+- Rebindable keys: conflict detection, chord sequences (`Ctrl+K Ctrl+S`), the versioned
+  keybindings JSON file, VS Code `keybindings.json` import, and a keybindings editor
+  built from the registry.
+- Palette v2: fuzzy ranking, recent commands, the `>`/`:`/`@` prefix modes, and
+  `PaletteFeed` for background results that never block the frame.
+- Feature `serde`: stable snake_case event names and `Serialize`/`Deserialize` for every
+  built-in state, including `ThemeState`, `Documents`, `TreeState`, `PaletteState`,
+  `PlotState`, `PlotConfig`, `Plot3DState`, the viewer data, and the event types.
+- Cargo features `plot`, `plot3d`, `viewer`, and `svg`, with `calamine` and
+  `resvg`/`usvg` optional. The default set matches 0.3.
+- `show_command_menu`, `command_menu_groups`, `command_palette_items`, and
+  `show_command_palette` as registry views.
+- `docs/MIGRATION_0.4.md` and the command/keybinding guide.
+
+### Changed
+
+- The starter application's chrome reads one `CommandRegistry`; menus, the palette, the
+  keyboard menu, and shortcuts no longer each carry their own table.
+- Public enums are `#[non_exhaustive]`; exhaustive matches outside the crate need a
+  wildcard arm.
+- `PaletteState` has a `recent` list, and `show_palette` ranks matches and records the
+  chosen row.
+- The starter template enables `plot`, `plot3d`, `viewer`, and `serde` explicitly.
+
+### Migration
+
+- Add the features a `default-features = false` build uses (`plot`, `plot3d`, `viewer`,
+  `serde`); all are on by default.
+- Replace `Keymap<C>` with `CommandRegistry` and map the returned `CommandId` to your
+  handler. `Keymap` remains available for simple applications.
+- Construct `PaletteState` with `..PaletteState::default()`; it gained `recent`.
+- Add `_` arms to exhaustive matches on the public enums.
+- See `docs/MIGRATION_0.4.md` for the full list.
+
 ## [0.3.2] - 2026-11-24
 
 ### Added

@@ -10,7 +10,10 @@ use egui::{Context, ResizeDirection, ViewportCommand};
 use crate::metrics::RESIZE_EDGE;
 
 /// A window control request from the title bar.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WindowAction {
     /// Minimize the window.
     Minimize,

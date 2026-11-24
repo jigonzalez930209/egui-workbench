@@ -1,194 +1,228 @@
 ---
-title: Commands and keymap
-description: One Command enum, one handler, ordered shortcuts, the palette, and the keyboard menu.
+title: Commands, contexts, and keybindings
+description: One registry for menus, the palette, shortcuts, contexts, rebinding, and JSON state.
 ---
 
-# Commands and keymap
+# Commands, contexts, and keybindings
 
-## One enum
+The 0.4 command layer replaces hand-wired menus and a bare shortcut list with one
+registry. A command has a stable id, a title, a category, an icon, a default shortcut, a
+`when` context, enabled/checked state, and an optional argument schema. Menus, the
+palette, the keyboard menu, the title bar, and the keybindings editor are views of the
+same data.
 
-Every action is a variant. Menus, the palette, shortcuts, the keyboard menu, and panel
-buttons produce the same value:
+## One registry
 
+<!-- compile -->
 ```rust
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Command {
-    NewTab,
-    Save,
-    CloseTab,
-    NextTab,
-    PreviousTab,
-    ToggleSidebar,
-    ToggleInspector,
-    ToggleOutput,
-    Palette,
-    Settings,
-    SetTheme(ThemeId),
-    Quit,
+use egui_workbench::commands::{Command, CommandId, CommandRegistry, WhenContext};
+
+fn main() {
+    let mut registry = CommandRegistry::new();
+    registry.register(
+        Command::new("file.save", "Save")
+            .category("File")
+            .shortcut("Ctrl+S")
+            .icon("save"),
+    );
+    registry.register(
+        Command::new("edit.paste", "Paste")
+            .category("Edit")
+            .shortcut("Ctrl+V")
+            .when("editorFocus && !dialogOpen"),
+    );
+
+    let context = WhenContext::new().with("editorFocus");
+    assert_eq!(registry.palette_items(&context).len(), 2);
+    let save = CommandId::new("file.save");
+    assert_eq!(registry.binding(&save).map(ToString::to_string), Some("Ctrl+S".to_owned()));
+    assert!(registry.get(&save).is_some_and(|command| command.is_enabled()));
 }
 ```
 
-A variant can carry data when the payload belongs to the command (`SetTheme(ThemeId)`).
+The registry never runs application code. It returns a `CommandId`; the application maps
+it to its own enum or handler, which keeps metadata serializable and testable without a
+UI. The starter's `commands.rs` does exactly that.
 
-## One handler
+## Contexts and `when`
+
+`WhenContext` is a set of keys. The standard keys are `editorFocus`, `hasSelection`,
+`dialogOpen`, `paletteOpen`, `readOnly`, and `dirty`; an application may add its own.
+The expression language is `!`, `&&`, `||`, and parentheses, evaluated with `!` first,
+then `&&`, then `||`.
 
 ```rust
-impl App {
-    fn handle(&mut self, ctx: &egui::Context, command: Command) {
-        match command {
-            Command::NewTab => self.new_tab(),
-            Command::Save => self.save_active(),
-            Command::CloseTab => self.close_tab(self.tabs.active_index()),
-            Command::NextTab => {
-                self.tabs.select_next();
-            }
-            Command::PreviousTab => {
-                self.tabs.select_previous();
-            }
-            Command::ToggleSidebar => self.sidebar = !self.sidebar,
-            Command::Palette => self.palette.open(),
-            Command::Settings => self.settings_open = true,
-            Command::SetTheme(id) => {
-                self.theme.set_requested(ctx, id);
-                self.save_settings();
-            }
-            Command::Quit => apply_window_action(ctx, WindowAction::Close),
-        }
-    }
+use egui_workbench::commands::{When, WhenContext};
+
+let when = When::parse("editorFocus && !dialogOpen").expect("valid when");
+let context = WhenContext::new().with("editorFocus");
+assert!(when.evaluate(&context));
+assert!(!when.evaluate(&context.clone().with("dialogOpen")));
+```
+
+A parse error carries a message and a byte offset. `Command::try_when` returns it instead
+of silently falling back to always-true.
+
+## Rebinding and conflicts
+
+```rust
+use egui_workbench::commands::{Command, CommandId, CommandRegistry, KeySequence};
+
+let mut registry = CommandRegistry::new();
+registry.register(Command::new("file.save", "Save").shortcut("Ctrl+S"));
+let paste = CommandId::new("edit.paste");
+registry.register(Command::new("edit.paste", "Paste").shortcut("Ctrl+V"));
+
+// Conflict: file.save already owns Ctrl+S.
+assert!(registry.bind(&paste, KeySequence::parse("Ctrl+S").expect("keys")).is_err());
+
+// Chords are space-separated.
+registry
+    .bind(&paste, KeySequence::parse("Ctrl+K Ctrl+V").expect("keys"))
+    .expect("binding is free");
+```
+
+`bindings()` lists every active binding, longest sequence first. Default shortcuts that
+collide are skipped and reported by `conflicts()`. `unbind` removes a binding,
+`reset_binding` returns to the default, and `has_override` tells the editor whether to
+offer Reset.
+
+## Keybindings file and VS Code import
+
+The file is versioned JSON:
+
+```json
+{
+  "version": 1,
+  "bindings": [
+    { "command": "file.save", "keys": "Ctrl+S" },
+    { "command": "edit.paste", "keys": "Ctrl+K Ctrl+V" }
+  ]
 }
 ```
 
-Menus, the palette, and the keymap return commands; `App::ui` applies them after the
-frame. This keeps undo/redo, logging, and tests in one place.
-
-## Keymap
-
-`Keymap<C>` is an ordered list of `(modifiers, key) -> C`. The first match consumes the
-key, so longer chords must come first.
-
 ```rust
-use egui_workbench::app::Keymap;
-use egui_workbench::egui::{Key, Modifiers};
+use egui_workbench::commands::{Command, CommandRegistry, KeybindingEntry, Keybindings};
 
-let keymap = Keymap::new()
-    .bind(Modifiers::COMMAND | Modifiers::SHIFT, Key::P, Command::Palette)
-    .bind(Modifiers::COMMAND | Modifiers::SHIFT, Key::Tab, Command::PreviousTab)
-    .bind(Modifiers::COMMAND | Modifiers::ALT, Key::B, Command::ToggleInspector)
-    .bind(Modifiers::COMMAND, Key::N, Command::NewTab)
-    .bind(Modifiers::COMMAND, Key::S, Command::Save)
-    .bind(Modifiers::COMMAND, Key::W, Command::CloseTab)
-    .bind(Modifiers::COMMAND, Key::B, Command::ToggleSidebar)
-    .bind(Modifiers::COMMAND, Key::J, Command::ToggleOutput)
-    .bind(Modifiers::COMMAND, Key::Comma, Command::Settings)
-    .bind(Modifiers::COMMAND, Key::Q, Command::Quit)
-    .bind(Modifiers::CTRL, Key::Tab, Command::NextTab);
+let mut registry = CommandRegistry::new();
+registry.register(Command::new("file.save", "Save"));
+let file = Keybindings::new().with(KeybindingEntry::new("file.save", "Ctrl+S"));
+let errors = file.apply(&mut registry);
+assert!(errors.is_empty());
 ```
 
-`Modifiers::COMMAND` means Cmd on macOS and Ctrl elsewhere. `consume_key` prevents text
-fields and other widgets from seeing the chord.
+`Keybindings::import_vscode(json)` reads VS Code's array of `{ "key", "command",
+"when" }` objects, normalizes the key syntax, and skips keys it cannot parse. Unknown
+command ids are reported by `apply`; the `when` text is preserved for round-tripping but
+the command-level context is what the registry evaluates.
 
-| Method | Purpose |
-|---|---|
-| `new()` | Empty map |
-| `bind(modifiers, key, command)` | Builder-style insert |
-| `insert(modifiers, key, command)` | In-place insert |
-| `contains(modifiers, key)` | Whether a chord is bound |
-| `len()` / `is_empty()` / `clear()` | Introspection |
-| `command(ctx)` | Command for a press this frame, consuming the key |
-| `command_cloned(ctx)` | The same, cloned |
+## The keybindings editor
 
-`command` returns a reference, which can conflict with a mutable borrow of the
-application. Use `command_cloned` when the command is `Clone` (the template does).
+`show_keybindings_editor` is a modal list built from the registry. Clicking Rebind records
+the next key or chord, applies it, and returns a `KeybindingChange` for your journal or
+settings file. It shows the current shortcut, Reset (when overridden), and Unbind.
 
-## When to consult it
+```rust
+use egui_workbench::commands::{CommandRegistry, KeybindingsEditorState, KeybindingsLabels};
 
-Call the keymap in `App::logic`, only while no modal is open:
+fn editor(ctx: &egui::Context, registry: &mut CommandRegistry, state: &mut KeybindingsEditorState) {
+    let _changes = egui_workbench::commands::show_keybindings_editor(
+        ctx,
+        state,
+        registry,
+        KeybindingsLabels::default(),
+    );
+}
+```
+
+## Shortcut polling
+
+Call `registry.shortcut(ctx, &context)` in `App::logic` while no overlay is open. It
+consumes the key so text fields do not see it, and it records the command in the recent
+list. Chord sequences start a pending sequence and complete within 1.5 s.
 
 ```rust
 if !self.overlay_open()
-    && let Some(command) = self.keymap.command_cloned(ctx)
+    && let Some(id) = self.registry.shortcut(ctx, &context)
+    && let Some(command) = self.command_from_id(&id)
 {
     self.handle(ctx, command);
 }
 ```
 
-`overlay_open` should include the palette, settings, prompts, the keyboard menu, and any
-dialog. Shortcuts must not fire underneath a modal.
+Do not call it underneath a modal. Include the palette, settings, prompts, the keyboard
+menu, and dialogs in `overlay_open`.
 
-## Palette
+## Palette v2
 
-The command palette reuses the same commands:
+`command_palette_items` turns the registry into rows; `show_command_palette` runs one and
+marks it recent. Ranking is fuzzy: exact, then prefix, then substring, then subsequence,
+with label matches above detail matches. The `>` prefix is the commands mode; `:` and `@`
+are available to a provider that supplies lines or symbols. `PaletteState::mode()` returns
+the prefix and the text after it.
 
 ```rust
-let items = vec![
-    PaletteItem { label: "New tab".into(), detail: "Ctrl+N".into(), value: Command::NewTab },
-    PaletteItem { label: "Save".into(), detail: "Ctrl+S".into(), value: Command::Save },
-    PaletteItem { label: "Settings…".into(), detail: "Ctrl+,".into(), value: Command::Settings },
-];
-if let Some(command) = CommandPalette::new(&mut self.palette, labels, &items).show(ctx) {
-    self.handle(ctx, command);
+use egui_workbench::commands::CommandPaletteLabels;
+use egui_workbench::components::PaletteState;
+
+fn palette(ctx: &egui::Context, state: &mut PaletteState, registry: &mut egui_workbench::commands::CommandRegistry) {
+    let context = egui_workbench::commands::WhenContext::new();
+    if let Some(id) = egui_workbench::commands::show_command_palette(
+        ctx,
+        state,
+        CommandPaletteLabels::default(),
+        registry,
+        &context,
+    ) {
+        // Map the id to the application command and run it.
+        let _ = id;
+    }
 }
 ```
 
-Matching is case-insensitive on label and detail, up to 12 rows. The first row is
-highlighted and runs on Enter. `Esc`, the ×, or a backdrop click closes it.
+Results from a background provider use `PaletteFeed`: submit a `Receiver<Vec<PaletteItem<T>>>`,
+call `poll()` once per frame, and pass `items()` to the palette. `poll` uses `try_recv`, so
+an unfinished request never blocks the frame; the previous rows stay visible until the new
+ones arrive.
 
 ## Keyboard menu
 
-The F10/Alt menu is the discoverable, grouped view of the same commands:
+`command_menu_groups` groups the same registry by category, with the shortcut appended to
+each row. Feed the groups to `show_keyboard_menu`; the selected value is a `CommandId`.
 
 ```rust
-let groups = vec![
-    MenuGroup {
-        label: "File".to_owned(),
-        entries: vec![
-            MenuEntry { label: "New tab".to_owned(), value: Command::NewTab },
-            MenuEntry { label: "Save".to_owned(), value: Command::Save },
-            MenuEntry { label: "Close tab".to_owned(), value: Command::CloseTab },
-        ],
-    },
-    MenuGroup {
-        label: "Help".to_owned(),
-        entries: vec![MenuEntry { label: "Settings".to_owned(), value: Command::Settings }],
-    },
-];
-if let Some(command) = show_keyboard_menu(ctx, &mut self.keyboard_menu, &groups, "Enter runs · Esc closes") {
-    self.handle(ctx, command);
+use egui_workbench::commands::{command_menu_groups, WhenContext};
+use egui_workbench::{KeyboardMenuState, show_keyboard_menu};
+
+fn keyboard_menu(
+    ctx: &egui::Context,
+    registry: &egui_workbench::commands::CommandRegistry,
+    state: &mut KeyboardMenuState,
+) -> Option<egui_workbench::commands::CommandId> {
+    let groups = command_menu_groups(registry, &WhenContext::new());
+    show_keyboard_menu(ctx, state, &groups, "Enter runs · Esc closes")
 }
 ```
 
-`open_from_keyboard(ctx, &mut state, &letters)` opens it on F10 or an Alt+letter chord.
+## Serializable state and events
 
-## The full shortcut table
+With the `serde` feature, `ThemeState`, `Documents`, `TreeState`, `PaletteState`,
+`PlotState`, `PlotConfig`, `Plot3DState`, the viewer data, and the event types round-trip
+through JSON. Events use stable snake_case names (`TabEvent::Select` is `{"select": 2}`,
+`PromptAction::Submit` is `"submit"`). Add `_` arms when matching the non-exhaustive event
+enums.
 
-| Shortcut | Command |
-|---|---|
-| `Ctrl+N` / `Ctrl+O` / `Ctrl+Shift+O` | New / Open / Open Folder |
-| `Ctrl+S` / `Ctrl+Shift+S` | Save / Save As |
-| `Ctrl+W` | Close tab |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
-| `Alt+←` / `Alt+→` | Back / forward |
-| `Ctrl+P` / `Ctrl+Shift+P` | Quick Open / command palette |
-| `Ctrl+F` / `Ctrl+Shift+F` / `Ctrl+H` / `Ctrl+G` | Find / search workspace / replace / go to line |
-| `Ctrl+E` / `Ctrl+Shift+E` | Toggle edit/view / split |
-| `Ctrl+B` | Toggle sidebar (Bold inside a focused Markdown editor) |
-| `Ctrl+Alt+B` | Toggle inspector (right panel) |
-| `Ctrl+J` | Toggle output (bottom panel) |
-| `Ctrl+,` | Settings |
-| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / reset |
-| `F2` | Rename |
-| `F10`, `Alt+F/E/V/G/H` | Keyboard menu |
-| `Ctrl+Q` | Quit through the close request |
+```rust
+#[cfg(feature = "serde")]
+{
+    let ids = egui_workbench::commands::CommandId::new("file.save");
+    let json = serde_json::to_string(&ids).expect("serialize");
+    assert_eq!(json, "\"file.save\"");
+}
+```
 
-The template implements the subset it needs; keep the table in `commands.rs` as the one
-source of truth.
+## The old `Keymap`
 
-## Rules
-
-- Add a command once, then wire all three entry points: menu, palette, shortcut.
-- Put longer chords first; the first match consumes the key.
-- Do not consult the keymap while a modal is open.
-- `Ctrl+Q` should send `WindowAction::Close`, not exit the process, so unsaved changes
-  still prompt.
-- Menu rows and palette rows are translated at the call site; the enum stays language
-  neutral.
+`app::Keymap<C>` remains for applications that only need an ordered shortcut list without
+metadata. New code should use `CommandRegistry`: it adds categories, contexts, conflicts,
+rebinding, chords, the palette, the editor, and serialization.

@@ -53,7 +53,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod app;
+pub mod commands;
 pub mod components;
+
+pub use commands::{
+    ArgKind, ArgSchema, BindingError, Command, CommandId, CommandRegistry, CommandState, DIALOG_OPEN, DIRTY,
+    EDITOR_FOCUS, HAS_SELECTION, KeyChord, KeySequence, Keybindings, KeybindingsEditorState, PALETTE_OPEN, READ_ONLY,
+    When, WhenContext,
+};
 
 mod chrome;
 mod foundation;
@@ -85,7 +92,10 @@ pub use widgets::dialogs::{
     show_choice_window, show_confirm_prompt, show_name_prompt, show_popover, show_progress,
 };
 pub use widgets::keyboard_menu::{KeyboardMenuState, MenuEntry, MenuGroup, open_from_keyboard, show_keyboard_menu};
-pub use widgets::palette::{PaletteItem, PaletteLabels, PaletteState, filter as filter_palette, show_palette};
+pub use widgets::palette::{
+    PaletteFeed, PaletteItem, PaletteLabels, PaletteMode, PaletteState, filter as filter_palette, fuzzy_filter,
+    show_palette,
+};
 pub use widgets::settings::{SettingsDialog, settings_row, settings_section, settings_switch, show_settings_dialog};
 pub use widgets::tree::{RowIcon, TreeEvent, TreeNode, TreeState, TreeView, section_header, show_tree};
 

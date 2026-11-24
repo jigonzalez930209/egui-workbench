@@ -204,6 +204,7 @@ impl Scene for PlotScene {
                     let size = bytes.len();
                     (size, (host.save)("chart.png", "image/png", bytes))
                 }),
+                _ => Ok((0, String::new())),
             };
             match saved {
                 Ok((size, place)) => host.toasts.add(

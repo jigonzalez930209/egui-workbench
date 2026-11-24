@@ -113,7 +113,7 @@ fn new(mut arguments: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>
         }
     }
     let workbench_path = workbench.to_string_lossy().replace('\\', "/");
-    let dependency = format!("path = \"{workbench_path}\",");
+    let dependency = format!("path = \"{workbench_path}\", ");
     replace_tree(
         &destination,
         &[
@@ -123,7 +123,7 @@ fn new(mut arguments: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>
             ("{{project-name}}", &crate_name),
             ("{{app_title}}", &app_title),
             (
-                "{% if workbench_path != \"\" %}path = \"{{workbench_path}}\", {% else %}version = \"0.3\", {% endif %}",
+                "{% if workbench_path != \"\" %}path = \"{{workbench_path}}\", {% else %}version = \"0.4\", {% endif %}",
                 &dependency,
             ),
             ("{{workbench_path}}", &workbench_path),

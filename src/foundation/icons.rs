@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use egui::{Color32, Context, Image, Pos2, Rect, TextureHandle, TextureOptions, Ui, Vec2};
+#[cfg(feature = "svg")]
 use resvg::tiny_skia::{Pixmap, Transform};
 use rust_embed::RustEmbed;
 
@@ -183,27 +184,38 @@ fn lucide_svg(_name: &str) -> Option<Vec<u8>> {
 }
 
 /// Rasterize an SVG to fit a `pixels`-square box, keeping its aspect ratio.
+///
+/// Without the `svg` feature there is no rasterizer; icon packs and plots enable it, so
+/// this only returns `None` in a deliberately minimal build.
 pub(crate) fn rasterize(bytes: &[u8], pixels: u32) -> Option<egui::ColorImage> {
-    let tree = usvg::Tree::from_data(bytes, &usvg::Options::default()).ok()?;
-    let size = tree.size();
-    let scale = (pixels as f32 / size.width().max(1.0)).min(pixels as f32 / size.height().max(1.0));
-    let width = (size.width() * scale).round().max(1.0) as u32;
-    let height = (size.height() * scale).round().max(1.0) as u32;
-    let mut pixmap = Pixmap::new(width, height)?;
-    resvg::render(&tree, Transform::from_scale(scale, scale), &mut pixmap.as_mut());
-    let mut rgba = pixmap.take();
-    for pixel in rgba.chunks_exact_mut(4) {
-        let alpha = u16::from(pixel[3]);
-        if alpha > 0 && alpha < 255 {
-            for channel in &mut pixel[..3] {
-                *channel = ((u16::from(*channel) * 255 + alpha / 2) / alpha).min(255) as u8;
+    #[cfg(not(feature = "svg"))]
+    {
+        let _ = (bytes, pixels);
+        None
+    }
+    #[cfg(feature = "svg")]
+    {
+        let tree = usvg::Tree::from_data(bytes, &usvg::Options::default()).ok()?;
+        let size = tree.size();
+        let scale = (pixels as f32 / size.width().max(1.0)).min(pixels as f32 / size.height().max(1.0));
+        let width = (size.width() * scale).round().max(1.0) as u32;
+        let height = (size.height() * scale).round().max(1.0) as u32;
+        let mut pixmap = Pixmap::new(width, height)?;
+        resvg::render(&tree, Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+        let mut rgba = pixmap.take();
+        for pixel in rgba.chunks_exact_mut(4) {
+            let alpha = u16::from(pixel[3]);
+            if alpha > 0 && alpha < 255 {
+                for channel in &mut pixel[..3] {
+                    *channel = ((u16::from(*channel) * 255 + alpha / 2) / alpha).min(255) as u8;
+                }
             }
         }
+        Some(egui::ColorImage::from_rgba_unmultiplied(
+            [width as usize, height as usize],
+            &rgba,
+        ))
     }
-    Some(egui::ColorImage::from_rgba_unmultiplied(
-        [width as usize, height as usize],
-        &rgba,
-    ))
 }
 
 #[cfg(test)]
@@ -225,6 +237,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "svg")]
     fn every_bundled_glyph_rasterizes() {
         let names = Icons::bundled();
         assert!(names.len() >= 40, "{names:?}");

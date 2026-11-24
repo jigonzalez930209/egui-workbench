@@ -6,7 +6,10 @@ use super::axis::{Bounds, Transform};
 use super::series::YAxis;
 
 /// A file format the toolbar's export menu asked for.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ExportFormat {
     /// Scalable vector graphics.
     Svg,
@@ -14,8 +17,11 @@ pub enum ExportFormat {
     Png,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// What a primary-button drag does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PlotTool {
     /// Drag moves the view.
     #[default]
@@ -28,6 +34,7 @@ pub enum PlotTool {
 
 /// The family of a plot, inferred from its series.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ChartMode {
     /// x/y axes: lines, bars, candles, heatmaps, waterfalls.
     #[default]
@@ -46,6 +53,7 @@ pub(super) enum Drag {
     Box { start: Pos2, select: bool },
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// The nearest data point under the pointer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlotHover {
@@ -102,8 +110,11 @@ impl PlotResponse {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// Where the legend sits inside the frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LegendPosition {
     /// Top-left corner.
     #[default]

@@ -14,7 +14,10 @@ use super::PlotConfig;
 use super::{PlotState, scene::Dash};
 
 /// The animation played while the pointer rests on a legend row.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LegendAnimation {
     /// Smoothly blends the series color into the highlight color and back.
     #[default]
@@ -83,8 +86,11 @@ impl LegendAnimation {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 /// How the animation's clock is shaped within one cycle.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AnimationEasing {
     /// Constant speed.
     #[default]
@@ -144,6 +150,7 @@ impl AnimationEasing {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Settings for the legend hover animation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LegendHoverConfig {

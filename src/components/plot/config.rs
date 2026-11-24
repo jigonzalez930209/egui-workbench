@@ -11,7 +11,10 @@ use super::chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieC
 use super::series::{LineStyle, Marker, Smoothing, YAxis};
 
 /// Where the chart title sits along the top.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TitleAlign {
     /// Over the left edge of the data area.
     Left,
@@ -22,8 +25,10 @@ pub enum TitleAlign {
     Right,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// How many minor ticks sit between two major ticks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Minor {
     /// Chosen from the space between majors (5, 2, or none); 2…9 per decade on log axes.
     #[default]
@@ -34,6 +39,7 @@ pub enum Minor {
     Divisions(u8),
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// One axis: range, scale, ticks, grid, and labels.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxisConfig {
@@ -87,6 +93,7 @@ impl Default for AxisConfig {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Optional color overrides; `None` follows the theme.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlotColors {
@@ -106,6 +113,7 @@ pub struct PlotColors {
     pub selection: Option<Color32>,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Overrides for one series, matched by name.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SeriesStyle {
@@ -146,6 +154,7 @@ impl SeriesStyle {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// The complete appearance of a plot.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlotConfig {

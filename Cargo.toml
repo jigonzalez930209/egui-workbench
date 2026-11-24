@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -24,20 +24,31 @@ members = ["xtask"]
 resolver = "3"
 
 [features]
-default = ["material-icons", "lucide-icons"]
+default = ["material-icons", "lucide-icons", "plot", "plot3d", "viewer", "serde"]
+# Rasterize SVG glyphs. Icon packs and the plot exporter need it; a build with no icon
+# packs and no plot pays neither `resvg` nor `usvg`.
+svg = ["dep:resvg", "dep:usvg"]
 # The VS Code Material Icon Theme (MIT, ~5 MB of SVG) for file and folder icons.
-material-icons = ["dep:serde", "dep:serde_json"]
+material-icons = ["svg", "dep:serde", "dep:serde_json"]
 # The Lucide icon set (ISC, ~1 MB of SVG) available by name to every component.
-lucide-icons = []
+lucide-icons = ["svg"]
+# `Plot`, chart families, legend animations, and SVG/PNG export.
+plot = ["svg"]
+# `Plot3D` and `Series3D`; implies `plot`.
+plot3d = ["plot"]
+# The read-only workbook and delimited-file viewer.
+viewer = ["dep:calamine"]
+# Serializable component state and the stable event model.
+serde = ["dep:serde", "dep:serde_json", "egui/serde"]
 
 [dependencies]
 # Caret ranges: applications may pick any 0.37.x / 0.48.x patch release.
 egui = "0.37"
 eframe = { version = "0.37", default-features = false, features = ["glow", "x11", "wayland", "default_fonts", "clipboard"] }
-resvg = "0.48"
-usvg = "0.48"
+resvg = { version = "0.48", optional = true }
+usvg = { version = "0.48", optional = true }
 rust-embed = "8"
-calamine = { version = "0.38", default-features = false }
+calamine = { version = "0.38", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 

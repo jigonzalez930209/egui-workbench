@@ -14,7 +14,9 @@ crate root keeps the original function API; `components` adds builders.
 |---|---|---|
 | `ThemeState` | struct | [Themes](/theming/themes) |
 | `Documents<T>`, `Document` | struct, trait | [Documents](/app/documents) |
-| `Keymap<C>` | struct | [Commands](/app/commands-and-keymap) |
+| `CommandRegistry` | struct | [Commands](/app/commands-and-keymap) |
+| `Command`, `CommandId`, `When`, `WhenContext`, `KeyChord`, `KeySequence`, `Keybindings` | metadata | [Commands](/app/commands-and-keymap) |
+| `Keymap<C>` | struct (legacy) | [Commands](/app/commands-and-keymap) |
 | `CloseGuard` | struct | [Documents](/app/documents) |
 | `WorkbenchApp`, `show_workbench` | trait, function | [Workbench layout](/app/workbench) |
 | `TITLE_BAR_PANEL`, `SIDEBAR_PANEL`, `RIGHT_PANEL`, `TAB_STRIP_PANEL`, `STATUS_BAR_PANEL`, `BOTTOM_PANEL` | `&str` ids | [Workbench layout](/app/workbench) |
@@ -97,7 +99,8 @@ Methods: `sharp`, `rounded`, `with_density`, `scaled`, `control_height`, `size_h
 |---|---|
 | Dialogs | `dialog_frame`, `dialog_header`, `dialog_footer`, `show_name_prompt`, `NamePrompt`, `show_confirm_prompt`, `ConfirmPrompt`, `PromptAction`, `show_choice_window`, `show_progress`, `banner`, `popover_frame`, `show_popover` |
 | Settings | `show_settings_dialog`, `SettingsDialog`, `settings_section`, `settings_row`, `settings_switch` |
-| Palette | `show_palette`, `PaletteItem<T>`, `PaletteState`, `PaletteLabels`, `filter_palette` |
+| Palette | `show_palette`, `fuzzy_filter`, `PaletteItem<T>`, `PaletteState`, `PaletteLabels`, `PaletteMode`, `PaletteFeed<T>` |
+| Commands | `CommandRegistry`, `Command`, `CommandId`, `When`, `WhenContext`, `KeyChord`, `KeySequence`, `Keybindings`, `KeybindingsEditorState`, `show_keybindings_editor`, `command_menu_groups`, `show_command_menu`, `command_palette_items`, `show_command_palette` |
 | Keyboard menu | `show_keyboard_menu`, `open_from_keyboard`, `KeyboardMenuState`, `MenuGroup<T>`, `MenuEntry<T>` |
 
 ## Icons — root
@@ -192,4 +195,4 @@ pub use foundation::material::MaterialIcons;
 ```
 
 The crate has no dependency on your `Command` type. `PaletteItem<T>`, `MenuGroup<T>`,
-`TreeNode<K>`, `Keymap<C>`, and `Documents<T>` are generic over it.
+`TreeNode<K>`, `CommandRegistry` (by id), and `Documents<T>` are generic over it.

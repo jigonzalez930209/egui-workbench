@@ -33,7 +33,7 @@ let event = TabStrip::new(&tabs, docs.active_index())
 match event {
     Some(TabEvent::Select(index)) => docs.set_active(index),
     Some(TabEvent::Close(index)) => { docs.remove(index); }
-    None => {}
+    Some(_) | None => {}
 }
 ```
 

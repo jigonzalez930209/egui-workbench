@@ -37,7 +37,10 @@ pub use text::TextFile;
 use crate::components::prelude::*;
 
 /// The file format of a viewer.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FileFormat {
     /// Plain UTF-8 text.
     Text,
@@ -77,7 +80,10 @@ impl FileFormat {
 }
 
 /// What went wrong while opening a file.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ViewerError {
     /// Reading or writing the file failed.
     Io(String),
@@ -103,7 +109,10 @@ impl fmt::Display for ViewerError {
 impl std::error::Error for ViewerError {}
 
 /// The loaded contents of one file.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Document {
     /// A text buffer with line numbers.
     Text(TextFile),
@@ -111,6 +120,7 @@ pub enum Document {
     Workbook(Workbook),
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// One file open in the viewer, with its UI state (active sheet, header, line numbers).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FileViewer {

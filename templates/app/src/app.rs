@@ -3,7 +3,8 @@
 //! The state is one struct. Menus, the palette, shortcuts, and panels all produce
 //! [`Command`] values, and [`App::handle`] is the only place that mutates state.
 
-use egui_workbench::app::{CloseGuard, Documents, Keymap, ThemeState, show_workbench};
+use egui_workbench::app::{CloseGuard, Documents, ThemeState, show_workbench};
+use egui_workbench::commands::{CommandId, CommandRegistry};
 use egui_workbench::components::{ToastEvent, Toasts};
 use egui_workbench::eframe;
 use egui_workbench::{
@@ -81,7 +82,8 @@ pub struct App {
     pub status: String,
     /// Cancels window close requests while tabs are dirty.
     pub guard: CloseGuard,
-    keymap: Keymap<Command>,
+    /// The registry every chrome surface reads.
+    pub registry: CommandRegistry,
     window_title: String,
     next_tab: u64,
 }
@@ -124,7 +126,7 @@ impl App {
             log: Vec::new(),
             appearance: Appearance::from_settings(&stored),
             status: String::new(),
-            keymap: commands::keymap(),
+            registry: commands::registry(),
             guard: CloseGuard::new(),
             window_title: String::new(),
             next_tab: 0,
@@ -133,6 +135,38 @@ impl App {
         app.next_tab += 1;
         app.tabs.push_active(Tab::new(app.next_tab));
         app
+    }
+
+    /// Publish the checked and enabled state the chrome should show this frame.
+    fn sync_registry(&mut self) {
+        let sidebar = self.sidebar_open;
+        let inspector = self.inspector_open;
+        let output = self.output_open;
+        let follow = self.theme.follow_system();
+        let requested = self.theme.requested();
+        let tabs = self.tabs.len();
+        let set = |registry: &mut CommandRegistry, id: &str, checked: bool| {
+            let _ = registry.set_checked(&CommandId::new(id), checked);
+        };
+        set(&mut self.registry, commands::ids::TOGGLE_SIDEBAR, sidebar);
+        set(&mut self.registry, commands::ids::TOGGLE_INSPECTOR, inspector);
+        set(&mut self.registry, commands::ids::TOGGLE_OUTPUT, output);
+        set(&mut self.registry, commands::ids::FOLLOW_SYSTEM, follow);
+        for theme in ThemeId::ALL {
+            set(
+                &mut self.registry,
+                &format!("theme.{}", theme.as_setting()),
+                theme == requested,
+            );
+        }
+        for (id, enabled) in [
+            (commands::ids::NEXT_TAB, tabs > 1),
+            (commands::ids::PREVIOUS_TAB, tabs > 1),
+            (commands::ids::SAVE, tabs > 0),
+            (commands::ids::CLOSE_TAB, tabs > 0),
+        ] {
+            let _ = self.registry.set_enabled(&CommandId::new(id), enabled);
+        }
     }
 
     /// Apply one command.
@@ -337,8 +371,10 @@ impl eframe::App for App {
             self.close_request = Some(CloseRequest::Window);
         }
         self.sync_window_title(ctx);
+        self.sync_registry();
         if !self.overlay_open()
-            && let Some(command) = self.keymap.command_cloned(ctx)
+            && let Some(id) = self.registry.shortcut(ctx, &commands::context())
+            && let Some(command) = commands::command_from_id(&id)
         {
             self.handle(ctx, command);
         }

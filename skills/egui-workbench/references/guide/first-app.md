@@ -51,34 +51,29 @@ impl Document for Doc {
 
 ## 3. Commands and shortcuts
 
-Every action is one enum value:
+Every action is one command. The registry holds the metadata; the enum holds the handler
+and any payload:
 
 ```rust
-#[derive(Clone, Copy, Debug)]
-enum Command {
-    New,
-    Save,
-    CloseTab,
-    ToggleSidebar,
-    Palette,
-    Quit,
+use egui_workbench::commands::{Command as CommandMeta, CommandRegistry};
+
+fn registry() -> CommandRegistry {
+    let mut registry = CommandRegistry::new();
+    registry.register_all([
+        CommandMeta::new("file.new", "New").shortcut("Ctrl+N"),
+        CommandMeta::new("file.save", "Save").shortcut("Ctrl+S"),
+        CommandMeta::new("file.close", "Close Tab").shortcut("Ctrl+W"),
+        CommandMeta::new("view.sidebar", "Toggle Sidebar").shortcut("Ctrl+B"),
+        CommandMeta::new("workbench.palette", "Command Palette").shortcut("Ctrl+Shift+P"),
+        CommandMeta::new("file.quit", "Quit").shortcut("Ctrl+Q"),
+    ]);
+    registry
 }
 ```
 
-The keymap is an ordered list. Longer chords must come first because the first match
-consumes the key:
-
-```rust
-fn keymap() -> Keymap<Command> {
-    Keymap::new()
-        .bind(Modifiers::COMMAND | Modifiers::SHIFT, Key::S, Command::Save)
-        .bind(Modifiers::COMMAND, Key::N, Command::New)
-        .bind(Modifiers::COMMAND, Key::W, Command::CloseTab)
-        .bind(Modifiers::COMMAND, Key::B, Command::ToggleSidebar)
-        .bind(Modifiers::COMMAND, Key::P, Command::Palette)
-        .bind(Modifiers::COMMAND, Key::Q, Command::Quit)
-}
-```
+`registry.shortcut(ctx, &context)` returns a `CommandId`; map it to your enum in one
+handler. Menus, the palette, and the keyboard menu read the same registry. The full API is
+in [Commands, contexts, and keybindings](../app/commands-and-keymap.md).
 
 ## 4. The application state
 
@@ -214,7 +209,7 @@ fn tab_strip(&mut self, ui: &mut egui::Ui) -> Vec<Command> {
         Some(TabEvent::Close(index)) => {
             self.docs.remove(index);
         }
-        None => {}
+        Some(_) | None => {}
     }
     Vec::new()
 }
@@ -523,7 +518,7 @@ impl WorkbenchApp for App {
             Some(TabEvent::Close(index)) => {
                 self.docs.remove(index);
             }
-            None => {}
+            Some(_) | None => {}
         }
         commands
     }

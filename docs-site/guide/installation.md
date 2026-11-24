@@ -18,7 +18,7 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.3"
+egui-workbench = "0.4"
 ```
 
 Or follow the repository's `main` branch:
@@ -34,12 +34,18 @@ egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 |---|---|---|
 | `lucide-icons` | yes | 2,410 Lucide SVGs (ISC), about 1 MB; every icon name is available to buttons, menus, tabs, and tree rows. |
 | `material-icons` | yes | The VS Code Material Icon Theme (MIT), about 5 MB; resolves file and folder names to full-color icons. |
+| `plot` | yes | `Plot`, its chart families, legend animations, and SVG/PNG export. |
+| `plot3d` | yes | `Plot3D` and `Series3D`. Implies `plot`. |
+| `viewer` | yes | The read-only workbook and delimited-file viewer (`calamine`). |
+| `serde` | yes | Stable event names and `Serialize`/`Deserialize` for component state and events. |
+| `svg` | yes | The `resvg`/`usvg` rasterizer. Icon packs and `plot` enable it; a minimal build with neither pays for no rasterizer. |
 
-Disable Material when the application never shows files:
+Disable Material when the application never shows files, or build a smaller binary with
+only the pieces it uses:
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = { version = "0.3", default-features = false, features = ["lucide-icons"] }
+egui-workbench = { version = "0.4", default-features = false, features = ["lucide-icons", "serde"] }
 ```
 
 ## One copy of egui

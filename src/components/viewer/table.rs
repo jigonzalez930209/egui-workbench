@@ -6,7 +6,10 @@ use super::ViewerError;
 use super::delimited;
 
 /// The semantic kind of one cell, used for alignment and color.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CellKind {
     /// No value.
     #[default]
@@ -23,6 +26,7 @@ pub enum CellKind {
     Error,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// One cell: its display text and semantic kind.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Cell {
@@ -84,6 +88,7 @@ impl Cell {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A rectangular sheet of cells.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Table {
@@ -201,6 +206,7 @@ impl Table {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// One named sheet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sheet {
@@ -220,6 +226,7 @@ impl Sheet {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// The sheets of a workbook, or the single sheet of a CSV/TSV file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Workbook {

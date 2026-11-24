@@ -150,6 +150,7 @@ impl ThreeDExample {
                 plot.to_png(ui.ctx(), &self.states[self.kind], &options)
                     .unwrap_or_default(),
             ),
+            _ => ("chart-3d.png", Vec::new()),
         };
         if bytes.is_empty() {
             self.status = "Could not render the export.".to_owned();

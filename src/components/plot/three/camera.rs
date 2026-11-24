@@ -6,7 +6,10 @@ use super::config::Plot3DConfig;
 use super::types::Bounds3D;
 
 /// How the camera projects depth.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Projection {
     /// Nearer points are larger.
     #[default]
@@ -15,6 +18,7 @@ pub enum Projection {
     Orthographic,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// An orbit camera: angles, distance, target, field of view, and projection.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera3D {

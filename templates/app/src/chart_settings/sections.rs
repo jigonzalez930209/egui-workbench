@@ -170,6 +170,7 @@ pub(super) fn grid(ui: &mut egui::Ui, draft: &mut PlotConfig) {
                     Minor::Divisions(4) => 3,
                     Minor::Divisions(5) => 4,
                     Minor::Divisions(_) => 5,
+                    _ => 0,
                 };
                 if Select::new(&format!("{name} minor"), &mut index, &options)
                     .width(110.0)
@@ -293,6 +294,7 @@ pub(super) fn series_section(ui: &mut egui::Ui, draft: &mut PlotConfig, names: &
                     Some(LineStyle::Solid) => 1,
                     Some(LineStyle::Dashed) => 2,
                     Some(LineStyle::Dotted) => 3,
+                    Some(_) => 3,
                 };
                 if Select::new(&format!("{name} style"), &mut index, &styles)
                     .width(120.0)

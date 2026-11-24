@@ -584,7 +584,7 @@ links to its live version with interactive demos. Read only the pages the task n
 
 **Application runtime**
 
-- [`references/app/commands-and-keymap.md`](references/app/commands-and-keymap.md): One Command enum, one handler, ordered shortcuts, the palette, and the keyboard menu.
+- [`references/app/commands-and-keymap.md`](references/app/commands-and-keymap.md): One registry for menus, the palette, shortcuts, contexts, rebinding, and JSON state.
 - [`references/app/documents.md`](references/app/documents.md): Documents<T>, the Document trait, dirty tabs, CloseGuard, and the Save / Discard / Cancel prompt.
 - [`references/app/i18n.md`](references/app/i18n.md): Translate at the call site, keep ellipses, and lay out for longer text.
 - [`references/app/settings-persistence.md`](references/app/settings-persistence.md): Persist theme, motion, density, corners, text size, and brand accent atomically in the platform config directory.
@@ -647,6 +647,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/reference/benchmarks.md`](references/reference/benchmarks.md): The criterion suites for plot decimation, a large tree, a one-million-row CSV, and palette filtering, with the recorded 0.3.1 baseline.
 - [`references/reference/design-rules.md`](references/reference/design-rules.md): The principles, interaction rules, accessibility contract, and new-screen checklist.
 - [`references/reference/faq.md`](references/reference/faq.md): Common errors and their fixes: egui versions, fonts, wrapping, repaint, snapshots, and docs.
+- [`references/reference/migration-0.4.md`](references/reference/migration-0.4.md): The command registry, serde, non-exhaustive enums, and the Cargo features added in 0.4.
 - [`references/reference/testing.md`](references/reference/testing.md): egui_kittest, AccessKit queries, snapshots, the harness clock, and end-to-end runs under Xvfb.
 
 <!-- references:end -->

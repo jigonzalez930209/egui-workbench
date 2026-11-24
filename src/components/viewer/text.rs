@@ -5,6 +5,7 @@ use egui::{Align, Label as TextLabel, RichText, ScrollArea, Sense, TextStyle, Ui
 use super::ViewerError;
 
 /// A UTF-8 text file, split into line starts for cheap virtualized painting.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TextFile {
     text: String,

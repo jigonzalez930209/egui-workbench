@@ -6,7 +6,10 @@
 use egui::{Color32, RichText, Ui, Vec2, Visuals};
 
 /// Control height and type scale.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Size {
     /// 24 pt high, 11.5 pt text. Dense rows and toolbars.
     Sm,
@@ -57,6 +60,7 @@ impl Size {
 
 /// The visual role of a button.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ButtonVariant {
     /// Selection fill, no border, selection text color.
     #[default]
@@ -75,6 +79,7 @@ pub enum ButtonVariant {
 
 /// The square sizes used by the shell.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IconButtonSize {
     /// 28 pt title-bar action with a 16 pt glyph.
     #[default]
@@ -115,6 +120,7 @@ impl IconButtonSize {
 
 /// Semantic color roles for badges, banners, and labels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Tone {
     /// Primary text.
     #[default]

@@ -213,12 +213,14 @@ impl ChartsDemo {
         let (extension, mime) = match format {
             ExportFormat::Svg => ("svg", "image/svg+xml"),
             ExportFormat::Png => ("png", "image/png"),
+            _ => ("png", "image/png"),
         };
         let bytes = {
             let (plot, state) = (self.plot(chart), self.state(chart));
             match format {
                 ExportFormat::Svg => Ok(plot.to_svg(ctx, state, &options).into_bytes()),
                 ExportFormat::Png => plot.to_png(ctx, state, &options),
+                _ => plot.to_png(ctx, state, &options),
             }
         };
         let result = if let Some(collected) = &mut self.collected {

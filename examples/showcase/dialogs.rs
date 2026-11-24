@@ -182,7 +182,7 @@ fn prompts(app: &mut Showcase, ctx: &egui::Context) {
             match egui_workbench::show_confirm_prompt(ctx, &prompt) {
                 Some(PromptAction::Submit) => app.handle(ctx, Cmd::CloseTab),
                 Some(PromptAction::Cancel) => {}
-                None => app.overlay = Overlay::Delete(index),
+                Some(_) | None => app.overlay = Overlay::Delete(index),
             }
         }
         Overlay::ClosePrompt => {
