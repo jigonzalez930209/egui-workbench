@@ -67,6 +67,12 @@ jobs:
             echo "::error::egui-workbench-remote version $remote does not match $GITHUB_REF_NAME"
             exit 1
           fi
+          agent=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "egui-workbench-agent") | .version')
+          if [ "v$agent" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::egui-workbench-agent version $agent does not match $GITHUB_REF_NAME"
+            exit 1
+          fi
       - name: Agent skill is current
         run: python3 docs-site/scripts/build-skill.py --check
       - name: Changelog has this version
@@ -92,6 +98,16 @@ jobs:
           for attempt in $(seq 1 30); do
             cargo publish -p egui-workbench-host --locked && exit 0
             echo "host publish not ready (attempt $attempt); retrying"
+            sleep 10
+          done
+          exit 1
+      - name: Publish the agent to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          for attempt in $(seq 1 30); do
+            cargo publish -p egui-workbench-agent --locked && exit 0
+            echo "agent publish not ready (attempt $attempt); retrying"
             sleep 10
           done
           exit 1

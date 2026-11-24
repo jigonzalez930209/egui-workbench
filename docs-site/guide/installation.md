@@ -18,7 +18,7 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.13"
+egui-workbench = "0.14"
 ```
 
 ## Python
@@ -29,6 +29,15 @@ pip install egui-workbench
 
 The wheel includes the native host; no Rust toolchain is needed. See the
 [Python guide](/guide/python) for widgets, events, threads, asyncio, and data.
+
+## Agents
+
+```bash
+cargo install egui-workbench-agent
+```
+
+The MCP server, permission model, automation driver, and DevTools are in the
+[Agents and DevTools guide](/guide/agents).
 
 ## Web and remote
 
@@ -44,7 +53,7 @@ For the declarative host (spec, patches, protocol, sidecar), add the separate cr
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench-host = "0.13"
+egui-workbench-host = "0.14"
 ```
 
 Or follow the repository's `main` branch:

@@ -25,7 +25,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 0.13.0
+## Where we are: 0.14.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -33,7 +33,7 @@ palette, toasts, a shadcn-style component layer, 2,410 Lucide icons, the Materia
 icons, `Plot` (many chart families, legend animations, SVG/PNG export), `Plot3D`, a
 read-only `FileViewer`, the optional runtime (`ThemeState`, `Documents`, `Keymap`,
 `CloseGuard`, `show_workbench`), a starter template, an agent skill, and a documentation
-site whose demos run the real library in WebAssembly. About 545 tests and pixel
+site whose demos run the real library in WebAssembly. About 560 tests and pixel
 snapshots protect it.
 
 0.4.0 added the `CommandRegistry` and `when` contexts, rebindable chords with conflict
@@ -79,6 +79,11 @@ wheels, and a PyPI Trusted Publishing workflow.
 schema-generated TypeScript types, a WebSocket remote server carrying the 0.11 protocol,
 a C ABI and header, and Go and C reference clients checked against the conformance
 fixture.
+
+0.14.0 added the agent surface: an MCP stdio server with a permission model and activity
+log, a spec-derived accessibility tree, headless automation replay, an agent panel with
+tool approvals, and the expanded DevTools (inspector, live theme tokens, performance, and
+accessibility audit).
 
 What stands between this and a 1.0 that people can build products on, and the release
 that closes each gap:

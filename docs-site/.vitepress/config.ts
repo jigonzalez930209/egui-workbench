@@ -41,6 +41,7 @@ export default defineConfig({
             { text: 'Quick start', link: '/guide/quick-start' },
             { text: 'Python', link: '/guide/python' },
             { text: 'Web and remote', link: '/guide/web' },
+            { text: 'Agents and DevTools', link: '/guide/agents' },
             { text: 'Build your first app', link: '/guide/first-app' },
             { text: 'Live demo', link: '/guide/live-demo' },
             { text: 'Desktop platforms', link: '/guide/platforms' },
@@ -146,6 +147,7 @@ export default defineConfig({
           text: 'Reference',
           items: [
             { text: 'API map', link: '/reference/api-map' },
+            { text: 'Agent threat model', link: '/reference/agent-threat-model' },
             { text: 'Design rules', link: '/reference/design-rules' },
             { text: 'Testing', link: '/reference/testing' },
             { text: 'Benchmarks', link: '/reference/benchmarks' },

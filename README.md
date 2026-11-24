@@ -160,6 +160,19 @@ app.run()
 
 See the [Python guide](https://jigonzalez930209.github.io/egui-workbench/guide/python.html).
 
+## Agents and DevTools
+
+The MCP server exposes the spec, commands, accessibility tree, and patches with a
+read-only-by-default permission model:
+
+```bash
+cargo run -p egui-workbench-agent --bin egui-workbench-mcp -- --spec app.json --read-only
+```
+
+The agent panel, automation replay, and the six-tab DevTools (journal, state, inspector,
+theme, performance, accessibility) are described in the
+[Agents guide](https://jigonzalez930209.github.io/egui-workbench/guide/agents.html).
+
 ## Web and remote
 
 ```bash
@@ -190,7 +203,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "0.13"
+egui-workbench = "0.14"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

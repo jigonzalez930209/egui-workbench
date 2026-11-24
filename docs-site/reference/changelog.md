@@ -15,6 +15,18 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-24
+
+### Added
+
+- MCP server, permissions, accessibility tree, automation replay, agent panel, and the
+  expanded DevTools.
+- Agent threat model and guide.
+
+### Migration
+
+Additive; DevTools state gained defaults.
+
 ## [0.13.0] - 2026-11-24
 
 ### Added

@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench-host"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,7 @@ plot = ["egui-workbench/plot", "egui-workbench/plot3d"]
 data = ["egui-workbench/viewer", "egui-workbench/csv", "egui-workbench/workbook"]
 
 [dependencies]
-egui-workbench = { path = "../..", version = "0.13.0", default-features = false, features = ["lucide-icons", "serde", "ring", "channel"] }
+egui-workbench = { path = "../..", version = "0.14.0", default-features = false, features = ["lucide-icons", "serde", "ring", "channel"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 schemars = "0.8"

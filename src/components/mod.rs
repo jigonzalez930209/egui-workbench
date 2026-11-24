@@ -37,6 +37,7 @@ use egui::Ui;
 use crate::Icons;
 
 mod activity_bar;
+mod agent;
 mod badge;
 pub mod blocks;
 mod button;
@@ -74,6 +75,7 @@ pub use viewer::{
 };
 
 pub use activity_bar::{ActivityBar, ActivityBarItem};
+pub use agent::{AgentAction, AgentPanelState, AgentRole, ChatMessage, ToolCall, ToolCallState, show_agent_panel};
 pub use badge::Badge;
 pub use button::{Button, CloseButton, IconButton};
 pub use card::Card;
@@ -124,13 +126,14 @@ pub trait IconComponent {
 /// The names most applications import.
 pub mod prelude {
     pub use super::{
-        ActivityBar, ActivityBarItem, Badge, Banner, Button, ButtonVariant, Card, Checkbox, CloseButton,
-        CommandPalette, Component, ConfirmDialog, DataGrid, DataGridEvent, DataGridState, Dialog, IconButton,
-        IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview, IconSize, Label, Menu, MenuButton,
-        MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation, PaletteItem, PaletteLabels,
-        PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl, Select, Separator, Size,
-        StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField, Toast, ToastEvent,
-        ToastKind, ToastPosition, Toasts, Tone, Tree, TreeEvent, TreeNode, TreeState,
+        ActivityBar, ActivityBarItem, AgentAction, AgentPanelState, AgentRole, Badge, Banner, Button, ButtonVariant,
+        Card, ChatMessage, Checkbox, CloseButton, CommandPalette, Component, ConfirmDialog, DataGrid, DataGridEvent,
+        DataGridState, Dialog, IconButton, IconButtonSize, IconComponent, IconGrid, IconLayout, IconPreview, IconSize,
+        Label, Menu, MenuButton, MenuIconButton, MenuItem, MenuToggle, NameDialog, NavTab, Orientation, PaletteItem,
+        PaletteLabels, PaletteState, Popover, ProgressDialog, PromptAction, RowIcon, SegmentedControl, Select,
+        Separator, Size, StatusBar, Stepper, Switch, TabEvent, TabIcon, TabItem, TabStrip, TextArea, TextField, Toast,
+        ToastEvent, ToastKind, ToastPosition, Toasts, Tone, ToolCall, ToolCallState, Tree, TreeEvent, TreeNode,
+        TreeState, show_agent_panel,
     };
     #[cfg(feature = "viewer")]
     pub use super::{

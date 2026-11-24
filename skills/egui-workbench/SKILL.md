@@ -575,6 +575,7 @@ links to its live version with interactive demos. Read only the pages the task n
 **Guide**
 
 - [`references/guide/introduction.md`](references/guide/introduction.md): What egui-workbench is, what it deliberately leaves out, and how its layers fit together.
+- [`references/guide/agents.md`](references/guide/agents.md): Drive a workbench from an MCP client, approve proposed changes, replay flows headlessly, and inspect the running UI.
 - [`references/guide/architecture.md`](references/guide/architecture.md): The five layers of egui-workbench, the fixed panel order, and the flow of one frame.
 - [`references/guide/concepts.md`](references/guide/concepts.md): The state contract, commands, theming tokens, builders versus functions, accessibility, and repaint behavior.
 - [`references/guide/first-app.md`](references/guide/first-app.md): Build a small workbench from scratch: window, title bar, tabs, content, status bar, palette, shortcuts, and close guard.
@@ -652,6 +653,7 @@ links to its live version with interactive demos. Read only the pages the task n
 
 **Reference**
 
+- [`references/reference/agent-threat-model.md`](references/reference/agent-threat-model.md): What the MCP server trusts, what it refuses by default, and where the embedding application still owns the risk.
 - [`references/reference/api-map.md`](references/reference/api-map.md): The public surface grouped by module, with links to the guide pages.
 - [`references/reference/benchmarks.md`](references/reference/benchmarks.md): The criterion suites for plot decimation, a large tree, a one-million-row CSV, and palette filtering, with the recorded 0.3.1 baseline.
 - [`references/reference/design-rules.md`](references/reference/design-rules.md): The principles, interaction rules, accessibility contract, and new-screen checklist.

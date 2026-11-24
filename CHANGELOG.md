@@ -7,6 +7,25 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-24
+
+### Added
+
+- `egui-workbench-agent`: an MCP stdio server with tools for the spec, state, commands,
+  accessibility tree, patches, activity, and command execution.
+- A permission model: read-only by default, command allow-lists, confirmation tokens for
+  destructive commands, and an audited activity log.
+- An accessibility tree generated from the spec (roles and names) and headless automation
+  replay for commands and patches.
+- The agent panel component: streaming Markdown, tool-call cards, and diff approval.
+- DevTools tabs for the widget inspector, live theme tokens with WCAG checks, frame-time
+  and repaint diagnostics, and an accessibility audit.
+- The agent threat model and the Agents and DevTools guide.
+
+### Migration
+
+Additive. DevTools gains state fields and labels; the default constructor keeps working.
+
 ## [0.13.0] - 2026-11-24
 
 ### Added

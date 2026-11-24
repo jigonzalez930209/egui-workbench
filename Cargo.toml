@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -20,7 +20,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace]
-members = ["xtask", "crates/egui-workbench-host", "crates/egui-workbench-python", "crates/egui-workbench-remote", "crates/egui-workbench-c"]
+members = ["xtask", "crates/egui-workbench-host", "crates/egui-workbench-python", "crates/egui-workbench-remote", "crates/egui-workbench-c", "crates/egui-workbench-agent"]
 resolver = "3"
 
 [features]
