@@ -15,6 +15,17 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-24
+
+### Changed
+
+- Feature freeze, deprecated radius removal, migration guide, security policy, and the
+  single tag release flow.
+
+### Migration
+
+The extension ABI and host spec remain compatible.
+
 ## [0.16.0] - 2026-11-24
 
 ### Added

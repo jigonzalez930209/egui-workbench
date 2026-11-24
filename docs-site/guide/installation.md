@@ -18,7 +18,7 @@ description: Add egui-workbench to a new or existing Rust application from crate
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = "0.16"
+egui-workbench = "0.17"
 ```
 
 ## Python
@@ -40,7 +40,7 @@ accessibility report are described in the
 
 ```toml
 [dependencies]
-egui-workbench-extensions = "0.16"
+egui-workbench-extensions = "0.17"
 ```
 
 The sandboxed WebAssembly runtime, manifest, capabilities, manager view, and examples are
@@ -69,7 +69,7 @@ For the declarative host (spec, patches, protocol, sidecar), add the separate cr
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench-host = "0.16"
+egui-workbench-host = "0.17"
 ```
 
 Or follow the repository's `main` branch:

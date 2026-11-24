@@ -9,7 +9,7 @@
 mod apply;
 mod palette;
 
-use egui::{Color32, CornerRadius, Stroke};
+use egui::{Color32, Stroke};
 
 pub use apply::{
     ANIMATION_TIME, apply, apply_id, apply_theme, apply_tokens, current, effective_id, motion_enabled,
@@ -172,12 +172,6 @@ impl Theme {
     /// The 1 px border stroke.
     pub fn border_stroke(&self) -> Stroke {
         Stroke::new(1.0, self.border)
-    }
-
-    /// The corner radius of inputs, buttons, and cards in the default style.
-    #[deprecated(note = "radii belong to the style: use `style::get(ctx).control()`")]
-    pub fn radius(&self) -> CornerRadius {
-        CornerRadius::same(6) // style: fixed
     }
 }
 

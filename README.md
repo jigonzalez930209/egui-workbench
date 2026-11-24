@@ -171,7 +171,7 @@ plural rules, runtime switching, font fallbacks, and the accessibility report ar
 
 ```toml
 [dependencies]
-egui-workbench-extensions = "0.16"
+egui-workbench-extensions = "0.17"
 ```
 
 Sandboxed WebAssembly extensions with a versioned manifest, capability grants, a host
@@ -223,7 +223,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "0.16"
+egui-workbench = "0.17"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

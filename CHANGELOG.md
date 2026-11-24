@@ -7,6 +7,23 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-24
+
+### Changed
+
+- Feature freeze: no new user-facing features.
+- Removed the deprecated `Theme::radius()`; radii come from the style tokens.
+- Added the migration guide from 0.3, `SECURITY.md`, and the accessiblity report as
+  release documentation.
+- The release workflow is a single tag-driven flow: basic checks on one OS, docs, npm,
+  crates, C artifact, Linux x86_64/aarch64 wheels, macOS universal2, Windows amd64, PyPI,
+  npm, and the GitHub release, all from one run with shared caches. CI is manual only.
+
+### Migration
+
+See the [migration guide](/reference/migration). The extension ABI stays at `0.15` and
+the host spec stays at version 1.
+
 ## [0.16.0] - 2026-11-24
 
 ### Added

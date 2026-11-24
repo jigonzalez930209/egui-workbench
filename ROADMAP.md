@@ -17,7 +17,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 0.16.0
+## Where we are: 0.17.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -25,7 +25,7 @@ palette, toasts, a shadcn-style component layer, 2,410 Lucide icons, the Materia
 icons, `Plot` (many chart families, legend animations, SVG/PNG export), `Plot3D`, a
 read-only `FileViewer`, the optional runtime (`ThemeState`, `Documents`, `Keymap`,
 `CloseGuard`, `show_workbench`), a starter template, an agent skill, and a documentation
-site whose demos run the real library in WebAssembly. About 595 tests and pixel
+site whose demos run the real library in WebAssembly. About 600 tests and pixel
 snapshots protect it.
 
 0.4.0 added the `CommandRegistry` and `when` contexts, rebindable chords with conflict
@@ -84,6 +84,10 @@ selection, a manager view, hot reload, and C and no_std Rust example extensions.
 0.16.0 added Theme Studio with VS Code import and JSON/CSS export, a high-contrast theme
 derivation, Fluent-shaped English/Spanish localization with plurals and RTL detection, a
 font loading API, and the published accessibility report.
+
+0.17.0 is the freeze: the deprecated `Theme::radius()` is gone, the migration guide,
+security policy, and accessibility report are published, and the release pipeline is one
+tag-driven flow with a manual one-OS smoke test.
 
 What stands between this and a 1.0 that people can build products on, and the release
 that closes each gap:
