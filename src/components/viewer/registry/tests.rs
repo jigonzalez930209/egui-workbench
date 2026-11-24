@@ -2,8 +2,6 @@
 
 use super::*;
 
-use super::*;
-
 #[test]
 fn detection_uses_extensions_and_sniffing() {
     assert_eq!(ViewerRegistry::detect("a.csv", b""), ViewerKind::Table);
