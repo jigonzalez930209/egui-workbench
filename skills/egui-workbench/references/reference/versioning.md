@@ -17,8 +17,8 @@ stable promise; the 0.x series could break between minors.
 ## egui and Rust
 
 1.0 supports egui/eframe 0.37 and one following egui minor; egui patch releases are not
-pinned. The MSRV is Rust 1.95, checked in CI; raising it requires a minor release and a
-changelog note.
+pinned. The MSRV is Rust 1.95, checked before each tag by `cargo xtask check`; raising it
+requires a minor release and a changelog note.
 
 ## Release flow
 

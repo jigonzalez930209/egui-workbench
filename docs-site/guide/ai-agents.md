@@ -63,10 +63,10 @@ https://raw.githubusercontent.com/jigonzalez930209/egui-workbench/main/skills/eg
 
 ## How it stays correct
 
-- `references/` is generated from this site by `docs-site/scripts/build-skill.py`. CI
-  fails when a page changed and the skill was not regenerated.
-- The program in `SKILL.md` and the complete programs in this guide are compiled in CI
-  against the current crate (`npm run check-examples`).
+- `references/` is generated from this site by `docs-site/scripts/build-skill.py`. `cargo
+  xtask check` fails when a page changed and the skill was not regenerated.
+- The program in `SKILL.md` and the complete programs in this guide are compiled before
+  each tag by `cargo xtask check` (`bash docs-site/scripts/check-examples.sh`).
 - Each release attaches the skill zip of that version.
 
 After editing a docs page, regenerate the skill:

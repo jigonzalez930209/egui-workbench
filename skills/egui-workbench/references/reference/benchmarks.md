@@ -60,7 +60,8 @@ The typed payload is far below the 0.3 string-cell baseline. The filter sits jus
 ## 0.9 engine
 
 `cargo test --all-features --test gpu_plot` renders a line through a real headless wgpu
-device, so the `gpu` feature is exercised in CI. `MinMaxPyramid` and `StreamingSeries`
+device, so the `gpu` feature is exercised locally by that test (the hosting CI workflow is
+manual). `MinMaxPyramid` and `StreamingSeries`
 cover the out-of-core and live paths. The streaming probe reports **52.7 M points/s**
 (1,000,000 points in 18.9 ms), above the 1 M points/s target. The interactive 100M-point
 GPU target is recorded with each tagged run.

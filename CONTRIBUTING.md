@@ -85,6 +85,36 @@ is a bug in the test.
 7. Re-export it from `src/components/mod.rs` and the prelude; update `WORKBENCH.md` §13.1.
 8. Update `README.md` if the new component changes the starter application.
 
+## Standalone crates
+
+Three crates declare their own `[workspace]` and keep a separate `Cargo.lock`:
+`crates/egui-workbench-wasm`, `web`, and `crates/egui-workbench-platform-probe`. This is
+intentional:
+
+- `egui-workbench-wasm` is built by `wasm-pack` for `wasm32-unknown-unknown`; keeping it
+  apart lets it pin the wasm-bindgen version that matches the npm toolchain without
+  changing the native build.
+- `web` is the documentation demo and is built only for the docs site.
+- `egui-workbench-platform-probe` must not inherit the root `egui_kittest`, `criterion`,
+  and wgpu dev-dependencies; that inheritance added hours to the hosted Windows probe.
+
+Each lockfile is refreshed with `cargo update` inside its own directory. The native
+workspace does not build them.
+
+## Fuzzing
+
+`fuzz/` holds libFuzzer targets for the CSV reader, the workbook reader, and the host spec
+reader. Run each target for at least 60 seconds before changing a reader:
+
+```bash
+cargo +nightly fuzz run csv -- -max_total_time=60
+cargo +nightly fuzz run workbook -- -max_total_time=60
+cargo +nightly fuzz run spec -- -max_total_time=60
+```
+
+The corpus and seeds are committed; keep a crashing input in `fuzz/artifacts/` in the fix
+commit so the regression is reproducible.
+
 ## Updating egui
 
 egui and eframe are pinned to one minor version (`egui = "=0.37"`, `eframe = "0.37"`,
@@ -99,6 +129,15 @@ cargo xtask template-check
 
 Review every changed snapshot, and bump this crate's minor version in `Cargo.toml` and
 `CHANGELOG.md`.
+
+## Pre-push hook
+
+`rustfmt` and `clippy` run in `cargo xtask check` and the release gate. Enable the
+included hook so a release tag never fails on lint:
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## Releasing
 
@@ -133,7 +172,7 @@ bash docs-site/scripts/check-examples.sh    # the SKILL.md program and docs prog
 claude plugin validate .                    # optional: the plugin and marketplace manifests
 ```
 
-CI runs the first two and fails on a stale skill.
+`cargo xtask check` runs the first two and fails on a stale skill.
 
 ## Commits
 

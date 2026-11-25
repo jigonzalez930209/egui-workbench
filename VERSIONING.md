@@ -24,7 +24,8 @@ cannot be absorbed compatibly requires a new `egui-workbench` minor.
 
 ## Rust version
 
-The minimum supported Rust version is 1.95, stated in `rust-version` and checked in CI.
+The minimum supported Rust version is 1.95, stated in `rust-version` and checked before each
+tag by `cargo xtask check`.
 The policy is the current stable toolchain and 1.95 for the 1.x line; raising it requires
 a minor release and a changelog note.
 

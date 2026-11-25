@@ -56,18 +56,21 @@ jobs:
           version=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "egui-workbench") | .version')
           [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME != Cargo.toml $version"; exit 1; }
-          for name in egui-workbench-host egui-workbench-python egui-workbench-remote egui-workbench-agent egui-workbench-extensions; do
+          for name in egui-workbench-host egui-workbench-python egui-workbench-remote egui-workbench-agent egui-workbench-extensions egui-workbench-c; do
             found=$(cargo metadata --no-deps --format-version 1 \
               | jq -r --arg name "$name" '.packages[] | select(.name == $name) | .version')
             [ "v$found" = "$GITHUB_REF_NAME" ] || { echo "::error::$name $found != $GITHUB_REF_NAME"; exit 1; }
           done
           [ "v$(jq -r .version .claude-plugin/plugin.json)" = "$GITHUB_REF_NAME" ] || { echo "::error::plugin version"; exit 1; }
+          [ "v$(jq -r .version crates/egui-workbench-wasm/package.json)" = "$GITHUB_REF_NAME" ] || { echo "::error::npm package version"; exit 1; }
+          [ "v$(python3 -c "import tomllib; print(tomllib.load(open('crates/egui-workbench-python/pyproject.toml','rb'))['project']['version'])")" = "$GITHUB_REF_NAME" ] || { echo "::error::pyproject version"; exit 1; }
           grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md || { echo "::error::missing changelog"; exit 1; }
           python3 docs-site/scripts/build-skill.py --check
       - name: Basic checks
         run: |
           cargo fmt --all --check
           cargo xtask style-lint
+          cargo clippy --workspace --all-targets -- -D warnings
           xvfb-run -a cargo test --workspace --lib
       - name: Docs dependencies
         working-directory: docs-site
@@ -208,7 +211,6 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
-        continue-on-error: true
 
   publish:
     name: publish
@@ -237,10 +239,14 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: python
       - name: Publish npm package
-        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          version="${GITHUB_REF_NAME#v}"
+          if npm view "egui-workbench@$version" version > /dev/null 2>&1; then
+            echo "egui-workbench@$version is already published"
+            exit 0
+          fi
           tgz=$(realpath dist/egui-workbench-*.tgz)
           npm publish "$tgz" --access public
       - name: Skill zip

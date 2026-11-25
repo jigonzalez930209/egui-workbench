@@ -12,7 +12,7 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 mod style_lint;
 
@@ -24,14 +24,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     match task.as_str() {
         "new" => new(arguments),
-        "check" => {
-            run(&["fmt", "--all", "--check"], &[])?;
-            style_lint()?;
-            run(&["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"], &[])?;
-            run(&["doc", "--workspace", "--no-deps"], &[("RUSTDOCFLAGS", "-D warnings")])?;
-            run(&["test", "--workspace"], &[])
-        }
+        "check" => check(),
         "snapshots" => run(&["test", "--test", "snapshots"], &[("UPDATE_SNAPSHOTS", "1")]),
+        "budgets" => run(
+            &[
+                "test",
+                "--release",
+                "--test",
+                "data_budget",
+                "--test",
+                "stream_budget",
+                "--",
+                "--ignored",
+            ],
+            &[],
+        ),
         "fmt" => run(&["fmt", "--all"], &[]),
         "style-lint" => style_lint(),
         "template-check" => check_template(),
@@ -40,6 +47,119 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
         other => Err(format!("unknown task `{other}`; use --help").into()),
+    }
+}
+
+fn check() -> Result<(), Box<dyn Error>> {
+    run(&["fmt", "--all", "--check"], &[])?;
+    style_lint()?;
+    run(&["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"], &[])?;
+    run(&["doc", "--workspace", "--no-deps"], &[("RUSTDOCFLAGS", "-D warnings")])?;
+    run(&["test", "--workspace"], &[])?;
+    check_template()?;
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let examples = root.join("docs-site/scripts/check-examples.sh");
+    run_step("docs examples", "bash", &[&examples.to_string_lossy()], &[])?;
+    let c_abi = root.join("crates/egui-workbench-c/check.sh");
+    run_step("C ABI", "bash", &[&c_abi.to_string_lossy()], &[])?;
+
+    if have("python3", &["-c", "import egui_workbench"]) {
+        run_step("Python", "pytest", &["crates/egui-workbench-python/tests"], &[])?;
+    } else {
+        skip("Python", "the egui_workbench module (build it with maturin)");
+    }
+    if have("go", &["version"]) {
+        let go = root.join("clients/go/check.sh");
+        run_step("Go client", "bash", &[&go.to_string_lossy()], &[])?;
+    } else {
+        skip("Go client", "go");
+    }
+    if have("cargo", &["deny", "--version"]) {
+        run_step("cargo deny", "cargo", &["deny", "check"], &[])?;
+    } else {
+        skip("cargo deny", "cargo-deny");
+    }
+    if have("cargo", &["semver-checks", "--version"]) {
+        run_step("semver-checks", "cargo", &["semver-checks", "check-release"], &[])?;
+    } else {
+        skip("semver-checks", "cargo-semver-checks");
+    }
+    check_msrv()?;
+
+    let wasm = root.join("crates/egui-workbench-wasm");
+    if have("wasm-pack", &["--version"]) && have("chromedriver", &["--version"]) {
+        run_step_in(
+            &wasm,
+            "wasm tests",
+            "wasm-pack",
+            &["test", "--headless", "--chrome"],
+            &[],
+        )?;
+    } else {
+        skip("wasm tests", "wasm-pack + chromedriver");
+    }
+    Ok(())
+}
+
+fn check_msrv() -> Result<(), Box<dyn Error>> {
+    let installed = Command::new("rustup")
+        .args(["toolchain", "list"])
+        .output()
+        .ok()
+        .map(|output| {
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .any(|line| line.starts_with("1.95"))
+        })
+        .unwrap_or(false);
+    if !installed {
+        skip("MSRV 1.95", "rustup toolchain 1.95");
+        return Ok(());
+    }
+    run_step(
+        "MSRV 1.95",
+        "cargo",
+        &["+1.95", "check", "--lib", "--all-features", "--locked"],
+        &[],
+    )
+}
+
+fn have(program: &str, arguments: &[&str]) -> bool {
+    Command::new(program)
+        .args(arguments)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn skip(step: &str, tool: &str) {
+    println!("xtask check: skipping {step} ({tool} not found)");
+}
+
+fn run_step(step: &str, program: &str, arguments: &[&str], environment: &[(&str, &str)]) -> Result<(), Box<dyn Error>> {
+    run_step_in(Path::new("."), step, program, arguments, environment)
+}
+
+fn run_step_in(
+    directory: &Path,
+    step: &str,
+    program: &str,
+    arguments: &[&str],
+    environment: &[(&str, &str)],
+) -> Result<(), Box<dyn Error>> {
+    println!("xtask check: {step}");
+    let status = Command::new(program)
+        .current_dir(directory)
+        .args(arguments)
+        .envs(environment.iter().copied())
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{step} failed ({program} {})", arguments.join(" ")).into())
     }
 }
 
@@ -65,7 +185,8 @@ fn usage() {
         "cargo xtask <task>\n\
          \n\
          new <path> [--name <crate>] [--title <title>]  create an application from templates/app\n\
-         check                                          fmt --check, style-lint, clippy -D warnings, doc, test\n\
+         check                                          fmt, style-lint, clippy, doc, tests, template, docs examples, C ABI, clients, deny, MSRV\n\
+         budgets                                        run the ignored performance budgets in release mode\n\
          style-lint                                     reject literal radii and font sizes in src/\n\
          snapshots                                      update the PNG references\n\
          template-check                                 generate the starter app and check it\n\
@@ -123,7 +244,7 @@ fn new(mut arguments: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>
             ("{{project-name}}", &crate_name),
             ("{{app_title}}", &app_title),
             (
-                "{% if workbench_path != \"\" %}path = \"{{workbench_path}}\", {% else %}version = \"0.4\", {% endif %}",
+                "{% if workbench_path != \"\" %}path = \"{{workbench_path}}\", {% else %}version = \"1\", {% endif %}",
                 &dependency,
             ),
             ("{{workbench_path}}", &workbench_path),

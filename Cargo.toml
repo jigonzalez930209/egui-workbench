@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "1.0.2"
+version = "1.0.4"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -50,7 +50,7 @@ plot3d = ["plot"]
 # The read-only workbook and delimited-file viewer.
 viewer = ["dep:calamine", "viewer-formats"]
 # JSON/YAML/TOML trees, Markdown, and PNG/JPEG in the viewer registry.
-viewer-formats = ["dep:serde_json", "dep:serde_yaml", "dep:toml", "dep:pulldown-cmark", "dep:image"]
+viewer-formats = ["dep:serde_json", "dep:serde_norway", "dep:toml", "dep:pulldown-cmark", "dep:image"]
 # Delimited data connector.
 csv = []
 # Spreadsheet connector through `calamine`.
@@ -75,7 +75,7 @@ wgpu-renderer = ["eframe/wgpu"]
 [dependencies]
 # Caret ranges: applications may pick any 0.37.x / 0.48.x patch release.
 egui = "0.37"
-chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+jiff = { version = "1", default-features = false, features = ["std"] }
 eframe = { version = "0.37", default-features = false, features = ["glow", "x11", "wayland", "default_fonts", "clipboard"] }
 resvg = { version = "0.48", optional = true }
 usvg = { version = "0.48", optional = true }
@@ -87,7 +87,7 @@ arrow = { version = "60", optional = true, default-features = false, features = 
 parquet = { version = "60", optional = true, default-features = false, features = ["arrow", "snap", "flate2-zlib-rs"] }
 bytes = { version = "1", optional = true }
 rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
-serde_yaml = { version = "0.9", optional = true }
+serde_norway = { version = "0.9", optional = true }
 toml = { version = "0.8", optional = true }
 pulldown-cmark = { version = "0.13", optional = true, default-features = false }
 image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg"] }

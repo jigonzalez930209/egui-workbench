@@ -15,79 +15,26 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use wasmi::{Caller, Engine, Extern, Instance, Linker, Memory, Module, Store, TypedFunc};
+use wasmi::{Config, Engine, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, TypedFunc};
 
-use crate::manifest::{Capability, ExtensionManifest, ManifestError};
+/// Fuel granted to one `init` or `on_command` call. A module that loops forever runs out
+/// and traps instead of freezing the host thread.
+const FUEL_PER_CALL: u64 = 1_000_000;
 
-/// A command contributed by an extension.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CommandContribution {
-    /// Command id.
-    pub id: String,
-    /// Visible title.
-    pub title: String,
-}
+/// Linear memory an extension may grow to.
+const MEMORY_LIMIT: usize = 64 << 20;
 
-/// A panel contributed by an extension.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct PanelContribution {
-    /// Panel id.
-    pub id: String,
-    /// Visible title.
-    pub title: String,
-}
+use crate::manifest::{Capability, ExtensionManifest};
 
-/// A viewer contributed by an extension.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ViewerContribution {
-    /// Viewer id.
-    pub id: String,
-    /// File extensions, without a dot.
-    pub extensions: Vec<String>,
-}
+mod error;
+mod host_api;
+mod types;
 
-/// A dataset name and row count exposed to an extension.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct DatasetView {
-    /// Dataset name.
-    pub name: String,
-    /// Row count.
-    pub rows: usize,
-}
-
-/// One log line from an extension.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct PluginLog {
-    /// Extension id.
-    pub extension: String,
-    /// Message.
-    pub message: String,
-}
-
-/// A snapshot shown by the extension manager.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ExtensionInfo {
-    /// Manifest id.
-    pub id: String,
-    /// Display name.
-    pub name: String,
-    /// Extension version.
-    pub version: String,
-    /// Whether the runtime is active.
-    pub enabled: bool,
-    /// Requested capabilities.
-    pub requested: Vec<String>,
-    /// Granted capabilities.
-    pub granted: Vec<String>,
-    /// Contributed commands.
-    pub commands: Vec<CommandContribution>,
-    /// Contributed panels.
-    pub panels: Vec<PanelContribution>,
-    /// Contributed viewers.
-    pub viewers: Vec<ViewerContribution>,
-}
+pub use error::ExtensionError;
+pub use types::{
+    CommandContribution, DatasetView, ExtensionInfo, PanelContribution, PluginLog, ViewerContribution, dataset_views,
+};
 
 #[derive(Default)]
 struct HostState {
@@ -100,6 +47,7 @@ struct HostState {
     denied: Vec<String>,
     datasets: BTreeMap<String, usize>,
     selection: String,
+    limiter: StoreLimits,
 }
 
 struct PluginRuntime {
@@ -224,7 +172,10 @@ impl ExtensionManager {
             ));
         }
         self.rebuild(id)?;
-        self.extensions.get_mut(id).expect("extension exists").enabled = true;
+        self.extensions
+            .get_mut(id)
+            .ok_or_else(|| ExtensionError::Unknown(id.to_owned()))?
+            .enabled = true;
         self.info(id).ok_or_else(|| ExtensionError::Unknown(id.to_owned()))
     }
 
@@ -333,6 +284,10 @@ impl ExtensionManager {
             memory
                 .write(&mut runtime.store, offset, bytes)
                 .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
+            runtime
+                .store
+                .set_fuel(FUEL_PER_CALL)
+                .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
             let code = runtime
                 .on_command
                 .call(&mut runtime.store, (offset as i32, bytes.len() as i32))
@@ -367,24 +322,6 @@ impl ExtensionManager {
     /// The directory that owns installed extensions.
     pub fn root(&self) -> &Path {
         &self.root
-    }
-
-    fn info_from(extension: &Installed) -> ExtensionInfo {
-        ExtensionInfo {
-            id: extension.manifest.id.clone(),
-            name: extension.manifest.name.clone(),
-            version: extension.manifest.version.clone(),
-            enabled: extension.enabled,
-            requested: extension.manifest.capabilities.iter().cloned().collect(),
-            granted: extension
-                .granted
-                .iter()
-                .map(|capability| format!("{capability:?}"))
-                .collect(),
-            commands: Vec::new(),
-            panels: Vec::new(),
-            viewers: Vec::new(),
-        }
     }
 
     fn rebuild(&mut self, id: &str) -> Result<(), ExtensionError> {
@@ -438,164 +375,25 @@ impl PluginRuntime {
     ) -> Result<Self, ExtensionError> {
         let path = manifest.module_path(directory);
         let bytes = std::fs::read(&path).map_err(|error| ExtensionError::Io(error.to_string()))?;
-        let engine = Engine::default();
+        let mut config = Config::default();
+        config.consume_fuel(true);
+        let engine = Engine::new(&config);
         let module = Module::new(&engine, &bytes[..]).map_err(|error| ExtensionError::Runtime(error.to_string()))?;
         let state = HostState {
             extension: manifest.id.clone(),
             granted,
             datasets,
             selection,
+            limiter: StoreLimitsBuilder::new().memory_size(MEMORY_LIMIT).build(),
             ..HostState::default()
         };
         let mut store = Store::new(&engine, state);
+        store.limiter(|state| &mut state.limiter);
+        store
+            .set_fuel(FUEL_PER_CALL)
+            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
         let mut linker = Linker::new(&engine);
-        linker
-            .func_wrap(
-                "workbench",
-                "host_register",
-                |mut caller: Caller<'_, HostState>, kind: i32, ptr: i32, len: i32| -> i32 {
-                    let Some(memory) = memory(&caller) else {
-                        return -1;
-                    };
-                    let Some(text) = read_string(&memory, &caller, ptr, len) else {
-                        return -2;
-                    };
-                    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
-                        return -3;
-                    };
-                    let state = caller.data_mut();
-                    let capability = match kind {
-                        0 => Capability::Commands,
-                        1 => Capability::Panels,
-                        2 => Capability::Viewers,
-                        _ => return -4,
-                    };
-                    if !state.granted.contains(&capability) {
-                        state.denied.push(format!("{capability:?}"));
-                        return -5;
-                    }
-                    let id = value
-                        .get("id")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or_default()
-                        .to_owned();
-                    let title = value
-                        .get("title")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or_default()
-                        .to_owned();
-                    match kind {
-                        0 => state.commands.push(CommandContribution { id, title }),
-                        1 => state.panels.push(PanelContribution { id, title }),
-                        2 => {
-                            let extensions = value
-                                .get("extensions")
-                                .and_then(|value| value.as_array())
-                                .map(|values| {
-                                    values
-                                        .iter()
-                                        .filter_map(|value| value.as_str().map(ToOwned::to_owned))
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-                            state.viewers.push(ViewerContribution { id, extensions });
-                        }
-                        _ => {}
-                    }
-                    0
-                },
-            )
-            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
-        linker
-            .func_wrap(
-                "workbench",
-                "host_log",
-                |mut caller: Caller<'_, HostState>, ptr: i32, len: i32| {
-                    let Some(memory) = memory(&caller) else {
-                        return;
-                    };
-                    let Some(message) = read_string(&memory, &caller, ptr, len) else {
-                        return;
-                    };
-                    let extension = caller.data().extension.clone();
-                    caller.data_mut().logs.push(PluginLog { extension, message });
-                },
-            )
-            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
-        linker
-            .func_wrap(
-                "workbench",
-                "host_read_file",
-                |mut caller: Caller<'_, HostState>, path_ptr: i32, path_len: i32, out_ptr: i32, out_cap: i32| -> i32 {
-                    let Some(memory) = memory(&caller) else {
-                        return -1;
-                    };
-                    let Some(path) = read_string(&memory, &caller, path_ptr, path_len) else {
-                        return -2;
-                    };
-                    let granted = caller
-                        .data()
-                        .granted
-                        .iter()
-                        .filter_map(|capability| match capability {
-                            Capability::FilesystemRead { prefix } => Some(prefix.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    if !granted.iter().any(|prefix| path.starts_with(prefix)) {
-                        caller.data_mut().denied.push(format!("read {path}"));
-                        return -3;
-                    }
-                    let Ok(bytes) = std::fs::read(&path) else {
-                        return -4;
-                    };
-                    if bytes.len() > out_cap.max(0) as usize {
-                        return -5;
-                    }
-                    if memory.write(&mut caller, out_ptr as usize, &bytes).is_err() {
-                        return -6;
-                    }
-                    bytes.len() as i32
-                },
-            )
-            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
-        linker
-            .func_wrap(
-                "workbench",
-                "host_dataset_rows",
-                |caller: Caller<'_, HostState>, ptr: i32, len: i32| -> i32 {
-                    let Some(memory) = memory(&caller) else {
-                        return -1;
-                    };
-                    let Some(name) = read_string(&memory, &caller, ptr, len) else {
-                        return -2;
-                    };
-                    if !caller.data().granted.contains(&Capability::Data) {
-                        return -3;
-                    }
-                    caller.data().datasets.get(&name).map(|rows| *rows as i32).unwrap_or(-4)
-                },
-            )
-            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
-        linker
-            .func_wrap(
-                "workbench",
-                "host_selection",
-                |mut caller: Caller<'_, HostState>, ptr: i32, len: i32| {
-                    let Some(memory) = memory(&caller) else {
-                        return;
-                    };
-                    let Some(value) = read_string(&memory, &caller, ptr, len) else {
-                        return;
-                    };
-                    if caller.data().granted.contains(&Capability::Selection) {
-                        caller.data_mut().selection = value;
-                    } else {
-                        caller.data_mut().denied.push("selection".to_owned());
-                    }
-                },
-            )
-            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
+        host_api::link(&mut linker)?;
         let instance = linker
             .instantiate_and_start(&mut store, &module)
             .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
@@ -614,6 +412,9 @@ impl PluginRuntime {
     }
 
     fn init(&mut self) -> Result<(), ExtensionError> {
+        self.store
+            .set_fuel(FUEL_PER_CALL)
+            .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
         let code = self
             .init
             .call(&mut self.store, ())
@@ -625,87 +426,10 @@ impl PluginRuntime {
     }
 }
 
-fn memory(caller: &Caller<'_, HostState>) -> Option<Memory> {
-    match caller.get_export("memory") {
-        Some(Extern::Memory(memory)) => Some(memory),
-        _ => None,
-    }
-}
-
-fn read_string(memory: &Memory, caller: &Caller<'_, HostState>, ptr: i32, len: i32) -> Option<String> {
-    if ptr < 0 || len < 0 {
-        return None;
-    }
-    let mut buffer = vec![0u8; len as usize];
-    memory.read(caller, ptr as usize, &mut buffer).ok()?;
-    String::from_utf8(buffer).ok()
-}
-
 fn hex(bytes: &[u8]) -> String {
     let mut text = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         text.push_str(&format!("{byte:02x}"));
     }
     text
-}
-
-/// Why an extension operation failed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ExtensionError {
-    /// The manifest is invalid.
-    Manifest(ManifestError),
-    /// I/O failed.
-    Io(String),
-    /// The id is already installed.
-    Duplicate(String),
-    /// The extension is unknown.
-    Unknown(String),
-    /// The checksum does not match.
-    Checksum {
-        /// Manifest value.
-        expected: String,
-        /// Module value.
-        actual: String,
-    },
-    /// Required capabilities were not granted.
-    MissingCapabilities(Vec<String>),
-    /// The module trapped or is malformed.
-    Runtime(String),
-    /// `init` returned a non-zero code.
-    Init(i32),
-}
-
-impl std::fmt::Display for ExtensionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Manifest(error) => write!(formatter, "{error}"),
-            Self::Io(error) => formatter.write_str(error),
-            Self::Duplicate(id) => write!(formatter, "`{id}` is already installed"),
-            Self::Unknown(id) => write!(formatter, "`{id}` is not installed"),
-            Self::Checksum { expected, actual } => write!(formatter, "checksum {actual} does not match {expected}"),
-            Self::MissingCapabilities(capabilities) => write!(formatter, "missing capabilities: {capabilities:?}"),
-            Self::Runtime(error) => formatter.write_str(error),
-            Self::Init(code) => write!(formatter, "init returned {code}"),
-        }
-    }
-}
-
-impl std::error::Error for ExtensionError {}
-
-// Keep the info helper used by the manager's own list implementation.
-#[allow(dead_code)]
-fn _keep(extension: &Installed) -> ExtensionInfo {
-    ExtensionManager::info_from(extension)
-}
-
-/// Dataset rows as a vector, for the extension manager view.
-pub fn dataset_views(datasets: &BTreeMap<String, usize>) -> Vec<DatasetView> {
-    datasets
-        .iter()
-        .map(|(name, rows)| DatasetView {
-            name: name.clone(),
-            rows: *rows,
-        })
-        .collect()
 }

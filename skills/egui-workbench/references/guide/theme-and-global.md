@@ -82,7 +82,7 @@ names.
   the 3:1 focus ring.
 - `Theme::high_contrast()` gives a maximum-contrast variant.
 - DevTools → Accessibility audits the spec for missing labels, empty labels, and
-  untitled plots/grids; the 0.14 tests run it in CI.
+  untitled plots/grids; the 0.14 tests run it in `cargo test`.
 - Reduced motion is respected by `ThemeState` and the switch/tab animations.
 - AccessKit roles and names come from egui and the spec's accessibility tree.
 

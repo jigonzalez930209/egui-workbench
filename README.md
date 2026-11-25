@@ -202,7 +202,8 @@ npm install egui-workbench
 `createWorkbench` mounts the same spec on a canvas with WebAssembly; `connectRemote`
 renders a host running on a server over WebSocket. The C ABI in
 `crates/egui-workbench-c/include/egui_workbench.h` exposes the host to C, C++, Go, Zig,
-and C#. The Go reference client is in `clients/go`.
+and C#. The Go reference client is in `clients/go`. The C ABI is `publish = false` on
+crates.io: it ships only as a GitHub release archive (`egui-workbench-c-<platform>.zip`).
 
 See the [Web and remote guide](https://jigonzalez930209.github.io/egui-workbench/guide/web.html).
 

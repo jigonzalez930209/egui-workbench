@@ -7,10 +7,10 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
-# Unmaintained (not vulnerable) direct dependencies, tracked in ROADMAP.md "Known gaps".
+# `arrow` and `parquet` pull chrono for temporal arrays; our own code uses jiff. The
+# replacement is tracked with the Arrow upgrade, not in this crate.
 ignore = [
-    { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained; replacement tracked for 1.x" },
-    { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml via serde_yaml; replacement tracked for 1.x" },
+    { id = "RUSTSEC-2026-0543", reason = "transitive through arrow/parquet temporal arrays; direct use replaced by jiff" },
 ]
 
 [licenses]

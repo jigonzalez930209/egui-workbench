@@ -104,7 +104,7 @@ only the pieces it uses:
 
 ```toml [Cargo.toml]
 [dependencies]
-egui-workbench = { version = "0.4", default-features = false, features = ["lucide-icons", "serde"] }
+egui-workbench = { version = "1", default-features = false, features = ["lucide-icons", "serde"] }
 ```
 
 ## One copy of egui

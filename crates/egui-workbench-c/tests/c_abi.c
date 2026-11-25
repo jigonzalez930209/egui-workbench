@@ -2,8 +2,21 @@
 #include <string.h>
 #include "egui_workbench.h"
 
+#ifndef WB_VERSION
+#error "WB_VERSION must name the crate version"
+#endif
+
 int main(void) {
     const char *spec = "{\"version\":1,\"widgets\":[{\"kind\":\"label\",\"text\":\"before\",\"size\":13.0,\"tone\":\"default\",\"strong\":false}]}";
+    WbHost *invalid = wb_host_new("\xff");
+    if (invalid != NULL) {
+        fprintf(stderr, "invalid utf-8 was accepted\n");
+        return 1;
+    }
+    if (wb_last_error()[0] == '\0') {
+        fprintf(stderr, "invalid utf-8 did not set an error\n");
+        return 1;
+    }
     WbHost *host = wb_host_new(spec);
     if (!host) {
         fprintf(stderr, "new: %s\n", wb_last_error());
@@ -31,8 +44,8 @@ int main(void) {
         return 1;
     }
     wb_string_free(schema);
-    if (strcmp(wb_host_version(), "0.13.0") != 0) {
-        fprintf(stderr, "version: %s\n", wb_host_version());
+    if (strcmp(wb_host_version(), WB_VERSION) != 0) {
+        fprintf(stderr, "version: %s != %s\n", wb_host_version(), WB_VERSION);
         return 1;
     }
     wb_host_free(host);

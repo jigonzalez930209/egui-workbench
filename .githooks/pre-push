@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fast local gate before a push. Enable with: git config core.hooksPath .githooks
+set -euo pipefail
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings

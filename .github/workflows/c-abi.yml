@@ -1,0 +1,46 @@
+name: C ABI
+
+# Manual pre-release check: build the C ABI on every runner the release workflow uses
+# and run the C client on Linux and macOS. Dispatch it on a branch before tagging.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - name: Install X11/GL headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev
+      - name: Build and run the C client
+        run: bash crates/egui-workbench-c/check.sh
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - name: Build and run the C client
+        run: bash crates/egui-workbench-c/check.sh
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - name: Build the C ABI
+        run: cargo build -p egui-workbench-c --release --locked

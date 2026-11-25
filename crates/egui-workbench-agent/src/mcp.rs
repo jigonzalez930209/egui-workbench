@@ -76,6 +76,20 @@ impl Permissions {
         self.confirmation_token = Some(token.into());
         self
     }
+
+    /// Require confirmation for these commands without configuring a value.
+    ///
+    /// Every call is refused with [`ToolError::ConfirmationRequired`] until a token is
+    /// configured, which is the safe default for `--read-write` without a secret.
+    pub fn require_confirmation<I, S>(mut self, commands: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.sensitive_commands = commands.into_iter().map(Into::into).collect();
+        self.confirmation_token = None;
+        self
+    }
 }
 
 /// One audited tool decision.
@@ -315,9 +329,10 @@ impl McpServer {
                     .ok_or_else(|| ToolError::Arguments("missing command id".to_owned()))?;
                 self.require_command(id)?;
                 if self.permissions.sensitive_commands.contains(id) {
-                    let token = arguments.get("confirmation").and_then(Value::as_str);
-                    if token != self.permissions.confirmation_token.as_deref() {
-                        return Err(ToolError::ConfirmationRequired(id.to_owned()));
+                    let provided = arguments.get("confirmation").and_then(Value::as_str);
+                    match (provided, self.permissions.confirmation_token.as_deref()) {
+                        (Some(provided), Some(expected)) if provided == expected => {}
+                        _ => return Err(ToolError::ConfirmationRequired(id.to_owned())),
                     }
                 }
                 queue_command(&mut self.host, id);

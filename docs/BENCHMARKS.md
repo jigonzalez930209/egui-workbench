@@ -30,6 +30,22 @@ cargo bench --bench palette_filter        # 10k palette rows
 `csv` is deliberately slow to set up; use `--sample-size 10 --measurement-time 15` for a
 quick check.
 
+The two frame-budget tests are `#[ignore]` because they need an optimized build. Run them
+together before each tag:
+
+```bash
+cargo xtask budgets
+```
+
+That runs `cargo test --release --test data_budget --test stream_budget -- --ignored`.
+Record the numbers in this file for the release; a result over the stated budget fails
+the release even though the test is ignored by default.
+
+## 2026-11-25 (1.0.4)
+
+`cargo xtask budgets` passed on the reference machine: the 1M-row CSV open, filter, and
+sort test finished in **4.22 s**, and the 1M-points/s streaming test in **0.02 s**.
+
 ## 2026-11-24 baseline (0.3.1)
 
 | Benchmark | Time | What it measures |

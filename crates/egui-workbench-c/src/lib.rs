@@ -2,9 +2,13 @@
 //!
 //! Every returned string is allocated with `CString::into_raw` and must be released with
 //! [`wb_string_free`]. Errors are stored per thread and read with [`wb_last_error`].
+//!
+//! Every entry point catches Rust panics: a failure returns `-1` or `NULL` and records
+//! the panic message instead of aborting the C, Go, or Python process.
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString, c_char, c_int};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
 
 use egui_workbench_host::{Host, HostSpec, Patch};
@@ -15,7 +19,7 @@ pub struct WbHost {
 }
 
 thread_local! {
-    static LAST_ERROR: RefCell<CString> = RefCell::new(CString::new("").unwrap_or_default());
+    static LAST_ERROR: RefCell<CString> = RefCell::new(CString::default());
 }
 
 fn set_error(message: impl Into<String>) {
@@ -31,33 +35,72 @@ fn text(value: &str) -> *mut c_char {
         .unwrap_or(std::ptr::null_mut())
 }
 
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_owned()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "panic".to_owned()
+    }
+}
+
+/// Run `body`, turning a panic into `fallback` plus `wb_last_error`.
+fn guarded<T>(fallback: T, body: impl FnOnce() -> T) -> T {
+    match catch_unwind(AssertUnwindSafe(body)) {
+        Ok(value) => value,
+        Err(payload) => {
+            set_error(format!("panic: {}", panic_message(&*payload)));
+            fallback
+        }
+    }
+}
+
+/// Read a null-terminated UTF-8 argument.
+///
+/// # Safety
+/// `pointer` must be null or point to a valid null-terminated string.
+unsafe fn utf8<'a>(pointer: *const c_char, name: &str) -> Option<&'a str> {
+    if pointer.is_null() {
+        set_error(format!("{name} is null"));
+        return None;
+    }
+    match unsafe { CStr::from_ptr(pointer) }.to_str() {
+        Ok(value) => Some(value),
+        Err(error) => {
+            set_error(format!("{name} is not valid UTF-8: {error}"));
+            None
+        }
+    }
+}
+
 /// Create a host from a spec.
 ///
 /// # Safety
 /// `spec_json` must be a valid, null-terminated UTF-8 string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_new(spec_json: *const c_char) -> *mut WbHost {
-    if spec_json.is_null() {
-        set_error("spec_json is null");
-        return std::ptr::null_mut();
-    }
-    let json = unsafe { CStr::from_ptr(spec_json) }.to_string_lossy();
-    let spec = match HostSpec::from_json(&json) {
-        Ok(spec) => spec,
-        Err(error) => {
-            set_error(error);
+    guarded(std::ptr::null_mut(), || {
+        let Some(json) = (unsafe { utf8(spec_json, "spec_json") }) else {
             return std::ptr::null_mut();
+        };
+        let spec = match HostSpec::from_json(json) {
+            Ok(spec) => spec,
+            Err(error) => {
+                set_error(error);
+                return std::ptr::null_mut();
+            }
+        };
+        match Host::new(spec) {
+            Ok(host) => Box::into_raw(Box::new(WbHost {
+                host: Mutex::new(Some(host)),
+            })),
+            Err(error) => {
+                set_error(error.to_string());
+                std::ptr::null_mut()
+            }
         }
-    };
-    match Host::new(spec) {
-        Ok(host) => Box::into_raw(Box::new(WbHost {
-            host: Mutex::new(Some(host)),
-        })),
-        Err(error) => {
-            set_error(error.to_string());
-            std::ptr::null_mut()
-        }
-    }
+    })
 }
 
 /// Free a host.
@@ -66,9 +109,11 @@ pub unsafe extern "C" fn wb_host_new(spec_json: *const c_char) -> *mut WbHost {
 /// `host` must come from [`wb_host_new`] and not be used afterwards.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_free(host: *mut WbHost) {
-    if !host.is_null() {
-        drop(unsafe { Box::from_raw(host) });
-    }
+    guarded((), || {
+        if !host.is_null() {
+            drop(unsafe { Box::from_raw(host) });
+        }
+    });
 }
 
 /// Apply a patch.
@@ -77,34 +122,34 @@ pub unsafe extern "C" fn wb_host_free(host: *mut WbHost) {
 /// `host` must be a live handle and `patch_json` a null-terminated string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_apply_patch(host: *mut WbHost, patch_json: *const c_char) -> c_int {
-    let Some(host) = (unsafe { host.as_ref() }) else {
-        set_error("host is null");
-        return -1;
-    };
-    if patch_json.is_null() {
-        set_error("patch_json is null");
-        return -1;
-    }
-    let json = unsafe { CStr::from_ptr(patch_json) }.to_string_lossy();
-    let patch: Patch = match serde_json::from_str(&json) {
-        Ok(patch) => patch,
-        Err(error) => {
-            set_error(error.to_string());
+    guarded(-1, || {
+        let Some(host) = (unsafe { host.as_ref() }) else {
+            set_error("host is null");
             return -1;
+        };
+        let Some(json) = (unsafe { utf8(patch_json, "patch_json") }) else {
+            return -1;
+        };
+        let patch: Patch = match serde_json::from_str(json) {
+            Ok(patch) => patch,
+            Err(error) => {
+                set_error(error.to_string());
+                return -1;
+            }
+        };
+        let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(host) = guard.as_mut() else {
+            set_error("the host was consumed by wb_host_run");
+            return -1;
+        };
+        match host.apply(&patch) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error(error.to_string());
+                -1
+            }
         }
-    };
-    let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
-    let Some(host) = guard.as_mut() else {
-        set_error("the host was consumed by wb_host_run");
-        return -1;
-    };
-    match host.apply(&patch) {
-        Ok(()) => 0,
-        Err(error) => {
-            set_error(error.to_string());
-            -1
-        }
-    }
+    })
 }
 
 /// The current spec.
@@ -113,22 +158,24 @@ pub unsafe extern "C" fn wb_host_apply_patch(host: *mut WbHost, patch_json: *con
 /// `host` must be a live handle.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_spec(host: *mut WbHost) -> *mut c_char {
-    let Some(host) = (unsafe { host.as_ref() }) else {
-        set_error("host is null");
-        return std::ptr::null_mut();
-    };
-    let guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
-    let Some(host) = guard.as_ref() else {
-        set_error("the host was consumed by wb_host_run");
-        return std::ptr::null_mut();
-    };
-    match serde_json::to_string(host.json()) {
-        Ok(json) => text(&json),
-        Err(error) => {
-            set_error(error.to_string());
-            std::ptr::null_mut()
+    guarded(std::ptr::null_mut(), || {
+        let Some(host) = (unsafe { host.as_ref() }) else {
+            set_error("host is null");
+            return std::ptr::null_mut();
+        };
+        let guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(host) = guard.as_ref() else {
+            set_error("the host was consumed by wb_host_run");
+            return std::ptr::null_mut();
+        };
+        match serde_json::to_string(host.json()) {
+            Ok(json) => text(&json),
+            Err(error) => {
+                set_error(error.to_string());
+                std::ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 /// Drain events as a JSON array.
@@ -137,22 +184,24 @@ pub unsafe extern "C" fn wb_host_spec(host: *mut WbHost) -> *mut c_char {
 /// `host` must be a live handle.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_poll_events(host: *mut WbHost) -> *mut c_char {
-    let Some(host) = (unsafe { host.as_ref() }) else {
-        set_error("host is null");
-        return std::ptr::null_mut();
-    };
-    let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
-    let Some(host) = guard.as_mut() else {
-        set_error("the host was consumed by wb_host_run");
-        return std::ptr::null_mut();
-    };
-    match serde_json::to_string(&host.poll_events()) {
-        Ok(json) => text(&json),
-        Err(error) => {
-            set_error(error.to_string());
-            std::ptr::null_mut()
+    guarded(std::ptr::null_mut(), || {
+        let Some(host) = (unsafe { host.as_ref() }) else {
+            set_error("host is null");
+            return std::ptr::null_mut();
+        };
+        let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(host) = guard.as_mut() else {
+            set_error("the host was consumed by wb_host_run");
+            return std::ptr::null_mut();
+        };
+        match serde_json::to_string(&host.poll_events()) {
+            Ok(json) => text(&json),
+            Err(error) => {
+                set_error(error.to_string());
+                std::ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 /// Run one headless frame.
@@ -161,22 +210,24 @@ pub unsafe extern "C" fn wb_host_poll_events(host: *mut WbHost) -> *mut c_char {
 /// `host` must be a live handle.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_frame(host: *mut WbHost) -> *mut c_char {
-    let Some(host) = (unsafe { host.as_ref() }) else {
-        set_error("host is null");
-        return std::ptr::null_mut();
-    };
-    let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
-    let Some(host) = guard.as_mut() else {
-        set_error("the host was consumed by wb_host_run");
-        return std::ptr::null_mut();
-    };
-    match serde_json::to_string(&host.frame()) {
-        Ok(json) => text(&json),
-        Err(error) => {
-            set_error(error.to_string());
-            std::ptr::null_mut()
+    guarded(std::ptr::null_mut(), || {
+        let Some(host) = (unsafe { host.as_ref() }) else {
+            set_error("host is null");
+            return std::ptr::null_mut();
+        };
+        let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(host) = guard.as_mut() else {
+            set_error("the host was consumed by wb_host_run");
+            return std::ptr::null_mut();
+        };
+        match serde_json::to_string(&host.frame()) {
+            Ok(json) => text(&json),
+            Err(error) => {
+                set_error(error.to_string());
+                std::ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 /// Run the native window. Consumes the host state.
@@ -185,41 +236,45 @@ pub unsafe extern "C" fn wb_host_frame(host: *mut WbHost) -> *mut c_char {
 /// `host` must be a live handle; it can only be run once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_host_run(host: *mut WbHost) -> c_int {
-    let Some(host) = (unsafe { host.as_ref() }) else {
-        set_error("host is null");
-        return -1;
-    };
-    let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
-    let Some(host) = guard.take() else {
-        set_error("the host was already run");
-        return -1;
-    };
-    drop(guard);
-    match host.run() {
-        Ok(()) => 0,
-        Err(error) => {
-            set_error(error.to_string());
-            -1
+    guarded(-1, || {
+        let Some(host) = (unsafe { host.as_ref() }) else {
+            set_error("host is null");
+            return -1;
+        };
+        let mut guard = host.host.lock().unwrap_or_else(|error| error.into_inner());
+        let Some(host) = guard.take() else {
+            set_error("the host was already run");
+            return -1;
+        };
+        drop(guard);
+        match host.run() {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error(error.to_string());
+                -1
+            }
         }
-    }
+    })
 }
 
 /// The HostSpec JSON Schema.
 #[unsafe(no_mangle)]
 pub extern "C" fn wb_host_schema() -> *mut c_char {
-    match serde_json::to_string_pretty(&HostSpec::schema()) {
-        Ok(json) => text(&json),
-        Err(error) => {
-            set_error(error.to_string());
-            std::ptr::null_mut()
+    guarded(std::ptr::null_mut(), || {
+        match serde_json::to_string_pretty(&HostSpec::schema()) {
+            Ok(json) => text(&json),
+            Err(error) => {
+                set_error(error.to_string());
+                std::ptr::null_mut()
+            }
         }
-    }
+    })
 }
 
 /// The ABI version.
 #[unsafe(no_mangle)]
 pub extern "C" fn wb_host_version() -> *const c_char {
-    c"0.13.0".as_ptr()
+    concat!(env!("CARGO_PKG_VERSION"), "\0").as_ptr().cast()
 }
 
 /// Free a string returned by this library.
@@ -228,13 +283,46 @@ pub extern "C" fn wb_host_version() -> *const c_char {
 /// `text` must come from one of the `wb_*` functions that returns a string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wb_string_free(text: *mut c_char) {
-    if !text.is_null() {
-        drop(unsafe { CString::from_raw(text) });
-    }
+    guarded((), || {
+        if !text.is_null() {
+            drop(unsafe { CString::from_raw(text) });
+        }
+    });
 }
 
 /// The last error for this thread.
 #[unsafe(no_mangle)]
 pub extern "C" fn wb_last_error() -> *const c_char {
     LAST_ERROR.with(|slot| slot.borrow().as_ptr())
+}
+
+/// Trigger a panic through the C boundary. Test-only.
+#[cfg(test)]
+#[unsafe(no_mangle)]
+pub extern "C" fn wb_test_panic() -> c_int {
+    guarded(-1, || panic!("test panic across the C ABI"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_panic_across_the_c_boundary_returns_an_error() {
+        assert_eq!(wb_test_panic(), -1);
+        let message = unsafe { CStr::from_ptr(wb_last_error()) }
+            .to_str()
+            .expect("utf-8 error");
+        assert!(message.contains("test panic across the C ABI"), "{message}");
+    }
+
+    #[test]
+    fn invalid_utf8_is_rejected() {
+        let pointer = unsafe { wb_host_new(c"\xff".as_ptr()) };
+        assert!(pointer.is_null());
+        let message = unsafe { CStr::from_ptr(wb_last_error()) }
+            .to_str()
+            .expect("utf-8 error");
+        assert!(message.contains("not valid UTF-8"), "{message}");
+    }
 }

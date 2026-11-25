@@ -7,6 +7,7 @@
 
 use std::io::{BufRead, BufReader, Cursor, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
@@ -24,7 +25,16 @@ pub struct RemoteServer {
     listener: TcpListener,
     host: Arc<Mutex<Host>>,
     handler: CommandHandler,
+    allowed_origins: Vec<String>,
 }
+
+/// Most connections served at once. Further sockets are refused instead of spawning an
+/// unbounded number of threads.
+const MAX_CONNECTIONS: usize = 32;
+
+/// Most bytes and lines read before the WebSocket upgrade is complete.
+const MAX_HANDSHAKE_BYTES: u64 = 8 * 1024;
+const MAX_HEADER_LINES: usize = 64;
 
 impl RemoteServer {
     /// Bind `addr` and serve `host`. Use port `0` in tests to pick a free port.
@@ -37,6 +47,7 @@ impl RemoteServer {
             listener,
             host: Arc::new(Mutex::new(host)),
             handler: Arc::new(|_, _| {}),
+            allowed_origins: Vec::new(),
         })
     }
 
@@ -55,6 +66,16 @@ impl RemoteServer {
         self
     }
 
+    /// Accept a browser `Origin` value in the WebSocket handshake.
+    ///
+    /// Native clients send no `Origin` and are always accepted. A request that carries an
+    /// `Origin` not added here is refused with `403`, which blocks cross-site WebSocket
+    /// hijacking from a page the user has open.
+    pub fn allow_origin(mut self, origin: impl Into<String>) -> Self {
+        self.allowed_origins.push(origin.into());
+        self
+    }
+
     /// The address the listener is bound to.
     ///
     /// # Errors
@@ -70,17 +91,37 @@ impl RemoteServer {
     /// # Errors
     /// When accepting a connection fails.
     pub fn serve(self) -> Result<(), RemoteError> {
+        let connections = Arc::new(AtomicUsize::new(0));
+        let allowed_origins = Arc::new(self.allowed_origins);
         for stream in self.listener.incoming() {
             let stream = stream.map_err(|error| RemoteError::Io(error.to_string()))?;
+            if connections.load(Ordering::SeqCst) >= MAX_CONNECTIONS {
+                let mut stream = stream;
+                let _ = stream
+                    .write_all(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                continue;
+            }
+            connections.fetch_add(1, Ordering::SeqCst);
             let host = Arc::clone(&self.host);
             let handler = Arc::clone(&self.handler);
+            let origins = Arc::clone(&allowed_origins);
+            let guard = ConnectionGuard(Arc::clone(&connections));
             std::thread::spawn(move || {
-                if let Err(error) = serve_connection(stream, host, handler) {
+                let _guard = guard;
+                if let Err(error) = serve_connection(stream, host, handler, &origins) {
                     eprintln!("remote connection ended: {error}");
                 }
             });
         }
         Ok(())
+    }
+}
+
+struct ConnectionGuard(Arc<AtomicUsize>);
+
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -117,10 +158,15 @@ impl From<HostError> for RemoteError {
     }
 }
 
-fn serve_connection(stream: TcpStream, host: Arc<Mutex<Host>>, handler: CommandHandler) -> Result<(), RemoteError> {
+fn serve_connection(
+    stream: TcpStream,
+    host: Arc<Mutex<Host>>,
+    handler: CommandHandler,
+    allowed_origins: &[String],
+) -> Result<(), RemoteError> {
     let mut reader = BufReader::new(stream.try_clone().map_err(io)?);
     let mut writer = stream;
-    handshake(&mut reader, &mut writer)?;
+    handshake(&mut reader, &mut writer, allowed_origins)?;
 
     write_message(
         &mut writer,
@@ -251,20 +297,62 @@ fn write_message(writer: &mut TcpStream, message: &Message) -> Result<(), Remote
     write_websocket(writer, 0x2, &payload)
 }
 
-fn handshake(reader: &mut impl BufRead, writer: &mut impl Write) -> Result<(), RemoteError> {
+fn handshake(
+    reader: &mut impl BufRead,
+    writer: &mut impl Write,
+    allowed_origins: &[String],
+) -> Result<(), RemoteError> {
     let mut key = None;
+    let mut origin = None;
+    let mut used = 0u64;
+    let mut lines = 0usize;
     loop {
+        if lines >= MAX_HEADER_LINES {
+            return reject(
+                writer,
+                "431 Request Header Fields Too Large",
+                "too many handshake headers",
+            );
+        }
         let mut line = String::new();
-        reader.read_line(&mut line).map_err(io)?;
-        let line = line.trim_end();
+        let remaining = MAX_HANDSHAKE_BYTES.saturating_sub(used);
+        let read = reader.by_ref().take(remaining).read_line(&mut line).map_err(io)?;
+        if read == 0 {
+            return Err(RemoteError::WebSocket("the handshake ended early".to_owned()));
+        }
+        used += read as u64;
+        if !line.ends_with('\n') {
+            return reject(
+                writer,
+                "431 Request Header Fields Too Large",
+                "handshake headers are too large",
+            );
+        }
+        lines += 1;
+        let line = line.trim_end_matches(['\r', '\n']);
         if line.is_empty() {
             break;
         }
-        if let Some((name, value)) = line.split_once(':')
-            && name.eq_ignore_ascii_case("Sec-WebSocket-Key")
-        {
-            key = Some(value.trim().to_owned());
+        if lines == 1 {
+            // The request line is `GET <path> HTTP/1.1`; only headers carry a colon.
+            continue;
         }
+        let Some((name, value)) = line.split_once(':') else {
+            return reject(writer, "400 Bad Request", "malformed handshake header");
+        };
+        let value = value.trim().to_owned();
+        if name.eq_ignore_ascii_case("Sec-WebSocket-Key") {
+            key = Some(value);
+        } else if name.eq_ignore_ascii_case("Origin") {
+            origin = Some(value);
+        }
+    }
+    if let Some(origin) = &origin
+        && !allowed_origins
+            .iter()
+            .any(|allowed| allowed.eq_ignore_ascii_case(origin))
+    {
+        return reject(writer, "403 Forbidden", "origin is not allowed");
     }
     let key = key.ok_or_else(|| RemoteError::WebSocket("missing Sec-WebSocket-Key".to_owned()))?;
     let mut hasher = Sha1::new();
@@ -277,6 +365,18 @@ fn handshake(reader: &mut impl BufRead, writer: &mut impl Write) -> Result<(), R
     )
     .and_then(|()| writer.flush())
     .map_err(io)
+}
+
+fn reject(writer: &mut impl Write, status: &str, reason: &str) -> Result<(), RemoteError> {
+    let response = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reason}",
+        reason.len()
+    );
+    writer
+        .write_all(response.as_bytes())
+        .and_then(|()| writer.flush())
+        .map_err(io)?;
+    Err(RemoteError::WebSocket(reason.to_owned()))
 }
 
 struct Frame {

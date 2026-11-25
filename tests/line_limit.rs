@@ -1,8 +1,8 @@
 //! Repository guard: no source file grows past 500 lines.
 //!
 //! Build output (`target/`) and `node_modules/` are excluded; every tracked Rust source
-//! under `src`, `tests`, `examples`, `templates`, `xtask`, and `web/src` is checked.
-//! Keep the limit at 500 lines and split by component, not by line count.
+//! under `src`, `tests`, `examples`, `templates`, `xtask`, `crates`, and `web/src` is
+//! checked. Keep the limit at 500 lines and split by component, not by line count.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,7 @@ const LIMIT: usize = 500;
 fn source_files_stay_within_500_lines() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
-    for directory in ["src", "tests", "examples", "templates", "xtask", "web/src"] {
+    for directory in ["src", "tests", "examples", "templates", "xtask", "crates", "web/src"] {
         collect(&root.join(directory), &mut files);
     }
 

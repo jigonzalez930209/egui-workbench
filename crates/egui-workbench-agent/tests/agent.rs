@@ -129,6 +129,25 @@ fn writes_commands_and_confirmation_are_enforced() {
 }
 
 #[test]
+fn a_destructive_command_without_a_configured_token_is_refused() {
+    let permissions = Permissions::read_write()
+        .allow_commands(["delete"])
+        .require_confirmation(["delete"]);
+    let mut server = McpServer::new(Host::new(spec()).expect("host")).with_permissions(permissions);
+    let denied = call(&mut server, 1, "run_command", json!({"id":"delete"}));
+    assert_eq!(denied["result"]["isError"], true);
+    let text = denied["result"]["content"][0]["text"].as_str().unwrap_or_default();
+    assert!(text.contains("needs confirmation"), "{text}");
+    let guessed = call(
+        &mut server,
+        2,
+        "run_command",
+        json!({"id":"delete","confirmation":"anything"}),
+    );
+    assert_eq!(guessed["result"]["isError"], true);
+}
+
+#[test]
 fn a_screenshot_provider_is_exposed() {
     let mut server =
         McpServer::new(Host::new(spec()).expect("host")).with_screenshot(|_host| Ok(vec![137, 80, 78, 71]));

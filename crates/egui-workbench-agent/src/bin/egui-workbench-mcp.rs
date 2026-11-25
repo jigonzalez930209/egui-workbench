@@ -9,7 +9,6 @@ fn main() -> ExitCode {
     let mut spec = None;
     let mut read_only = true;
     let mut allow = Vec::new();
-    let mut confirm: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(argument) = args.next() {
         match argument.as_str() {
@@ -17,11 +16,12 @@ fn main() -> ExitCode {
             "--read-only" => read_only = true,
             "--read-write" => read_only = false,
             "--allow" => allow.push(args.next().unwrap_or_default()),
-            "--confirm" => confirm = args.next(),
             "--help" | "-h" => {
                 println!(
-                    "egui-workbench-mcp --spec app.json [--read-only|--read-write] [--allow id]... [--confirm token]\n\
-                     \nRead-only is the default. The server speaks MCP JSON-RPC on stdio."
+                    "egui-workbench-mcp --spec app.json [--read-only|--read-write] [--allow id]...\n\
+                     \nRead-only is the default. The server speaks MCP JSON-RPC on stdio.\n\
+                     Destructive commands need the EGUI_WORKBENCH_CONFIRM environment variable;\n\
+                     without it they are refused."
                 );
                 return ExitCode::SUCCESS;
             }
@@ -49,7 +49,7 @@ fn main() -> ExitCode {
     if !allow.is_empty() {
         permissions = permissions.allow_commands(allow);
     }
-    if let Some(token) = confirm {
+    if !read_only {
         let sensitive = host
             .spec()
             .commands
@@ -57,7 +57,10 @@ fn main() -> ExitCode {
             .filter(|command| command.category.eq_ignore_ascii_case("destructive"))
             .map(|command| command.id.clone())
             .collect::<Vec<_>>();
-        permissions = permissions.confirm(sensitive, token);
+        permissions = match std::env::var("EGUI_WORKBENCH_CONFIRM") {
+            Ok(token) => permissions.confirm(sensitive, token),
+            Err(_) => permissions.require_confirmation(sensitive),
+        };
     }
     match McpServer::new(host).with_permissions(permissions).serve_stdio() {
         Ok(()) => ExitCode::SUCCESS,

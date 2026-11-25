@@ -1154,19 +1154,19 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "arrow",
  "bytemuck",
  "bytes",
  "calamine",
- "chrono",
  "criterion",
  "eframe",
  "egui",
  "egui-wgpu",
  "egui_kittest",
  "image",
+ "jiff",
  "parquet",
  "pulldown-cmark",
  "resvg",
@@ -1174,14 +1174,14 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
- "serde_yaml",
+ "serde_norway",
  "toml 0.8.23",
  "usvg",
 ]
 
 [[package]]
 name = "egui-workbench-agent"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "base64 0.22.1",
  "egui-workbench",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-c"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "egui-workbench-host",
  "serde_json",
@@ -1200,7 +1200,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-extensions"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "egui",
  "egui-workbench-host",
@@ -1209,11 +1209,12 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "wasmi",
+ "wat",
 ]
 
 [[package]]
 name = "egui-workbench-host"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "eframe",
  "egui",
@@ -1227,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-python"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "arrow",
  "egui-workbench",
@@ -1238,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-remote"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "base64 0.22.1",
  "egui-workbench-host",
@@ -1979,6 +1980,41 @@ name = "itoa"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
+
+[[package]]
+name = "jiff"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "107f2e89536b6818514025f6787b0d94d819e54fe3b40365275fc753de485b3f"
+dependencies = [
+ "jiff-core",
+ "jiff-static",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+]
+
+[[package]]
+name = "jiff-core"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d44c923edf2bf456a982253f1a9ee1f6e89e421dffd0065d9b9a581da0def58f"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "jiff-static"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4996f71e569e3a3e32b925c28ef8f0027dc30bb1d594b33eeda409eea185f5c8"
+dependencies = [
+ "jiff-core",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
 
 [[package]]
 name = "jni"
@@ -3585,6 +3621,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_norway"
+version = "0.9.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e408f29489b5fd500fab51ff1484fc859bb655f32c671f307dcd733b72e8168c"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml-norway",
+]
+
+[[package]]
 name = "serde_spanned"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3600,19 +3649,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c187e0a369471c550af028cba56d4f4fa2a489ad28151ae95a4d340a2a8b782"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "serde_yaml"
-version = "0.9.34+deprecated"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
-dependencies = [
- "indexmap",
- "itoa",
- "ryu",
- "serde",
- "unsafe-libyaml",
 ]
 
 [[package]]
@@ -4211,10 +4247,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca718471876992059f251e33aafc334346ada08042b7661dd1fe313a9bced557"
 
 [[package]]
-name = "unsafe-libyaml"
-version = "0.2.11"
+name = "unsafe-libyaml-norway"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
+checksum = "b39abd59bf32521c7f2301b52d05a6a2c975b6003521cbd0c6dc1582f0a22104"
 
 [[package]]
 name = "usvg"
@@ -4441,6 +4477,7 @@ checksum = "4f5fa0a054ae153606df820eb0a84213e28cda41bbe04ba2628e71b6ba100fcb"
 dependencies = [
  "bitflags 2.13.2",
  "indexmap",
+ "semver",
 ]
 
 [[package]]

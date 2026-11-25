@@ -252,7 +252,7 @@ impl ViewerRegistry {
         let text = file.text().unwrap_or_default();
         let value: Result<serde_json::Value, String> = match format {
             TreeFormat::Json => serde_json::from_str::<serde_json::Value>(text).map_err(|error| error.to_string()),
-            TreeFormat::Yaml => serde_yaml::from_str::<serde_json::Value>(text).map_err(|error| error.to_string()),
+            TreeFormat::Yaml => serde_norway::from_str::<serde_json::Value>(text).map_err(|error| error.to_string()),
             TreeFormat::Toml => toml::from_str::<serde_json::Value>(text).map_err(|error| error.to_string()),
         };
         match value {

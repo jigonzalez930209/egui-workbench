@@ -15,6 +15,56 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-11-25
+
+### Security
+
+- Extension sandbox: `host_read_file` canonicalizes the requested path and every
+  `filesystem:read` grant, so `..`, sibling prefixes, and symlinks cannot escape the
+  grant (X1). A file larger than the output cap is rejected from its metadata before it
+  is read (X3).
+- Extensions run under a fuel budget and a 64 MiB linear-memory limit; `loop {}` traps
+  instead of freezing the UI thread (X2).
+- Manifest `entry` accepts only normal path components on every platform, rejecting
+  `C:\x.wasm`, `\\server\share\x.wasm`, `a/../b.wasm`, and `/x.wasm` (X4).
+- The remote WebSocket server accepts only a request with no `Origin` (native clients)
+  or one explicitly allowed with `RemoteServer::allow_origin`; headers are capped at
+  8 KiB and 64 lines, and at most 32 connections are served at once (X5, X6).
+- An MCP `--read-write` session now requires `EGUI_WORKBENCH_CONFIRM` for destructive
+  commands; the confirmation token is no longer read from argv (X7, X8).
+- Every C ABI entry point catches Rust panics and returns `-1`/`NULL` with the panic in
+  `wb_last_error`, and rejects invalid UTF-8 instead of substituting U+FFFD (Q3, Q4).
+- Replaced our direct use of unmaintained `chrono` and `serde_yaml` with `jiff` and
+  `serde_norway`. `chrono` remains a transitive dependency of `arrow`/`parquet` for
+  temporal arrays and stays named in `deny.toml` (X9).
+
+### Fixed
+
+- `wb_host_version()` reports the crate version instead of a hard-coded `0.13.0` (Q2).
+- The starter template and install guide use `version = "1"`, so `cargo generate` builds
+  against the current release instead of 0.4 (S1, S2, D6).
+- `ExtensionManager::enable` no longer calls `expect` after a fallible rebuild (Q5).
+- `web` carries the workspace version and the old wasm `.tgz` files are gone (S4, S6).
+- The C ABI ships only as a GitHub release archive; it is not published on crates.io
+  (S5).
+
+### Changed
+
+- `cargo xtask check` now runs the template check, the docs examples, the C ABI client,
+  and the Python, Go, and wasm conformance suites when their prerequisites are
+  installed, plus `cargo deny`, `cargo-semver-checks`, and the 1.95 MSRV check (T2, T3,
+  T4, D2, D5).
+- Added `cargo xtask budgets` and documented the ignored frame budgets (T1).
+- The release gate runs clippy, validates the npm, PyPI, and C ABI versions, and no
+  longer ignores npm or Pages publish failures (D7-D10).
+- Split the extension and host runtimes so every file stays under 500 lines; the
+  line-limit guard now scans `crates/` too (Q1, T5).
+- Documented the standalone wasm, web, and probe crates and recorded the decision that
+  the egui-free core crate lands at 2.0 (S3, S7).
+- Added the manual `C ABI` workflow and the pre-push lint hook (D11, Q6).
+- Fuzz targets are committed and documented in `CONTRIBUTING.md` (T7).
+- Documentation no longer claims checks that CI does not run (D1-D5).
+
 ## [1.0.2] - 2026-11-25
 
 ### Changed

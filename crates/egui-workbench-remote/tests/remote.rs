@@ -159,3 +159,72 @@ fn handshake_patch_and_command_over_websocket() {
     assert_eq!(spec["widgets"][0]["text"], "after");
     let _ = Arc::new(());
 }
+
+fn handshake_response(request: &[u8]) -> String {
+    let host = Host::new(spec("x")).expect("host");
+    let server = RemoteServer::new(host, "127.0.0.1:0").expect("bind");
+    let addr = server.local_addr().expect("addr");
+    std::thread::spawn(move || {
+        let _ = server.serve();
+    });
+    let mut stream = TcpStream::connect(addr).expect("connect");
+    stream.set_read_timeout(Some(Duration::from_secs(5))).expect("timeout");
+    stream.write_all(request).expect("handshake");
+    let mut response = Vec::new();
+    let mut buffer = [0u8; 256];
+    while !response.windows(4).any(|window| window == b"\r\n\r\n") {
+        match stream.read(&mut buffer) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => response.extend_from_slice(&buffer[..read]),
+        }
+    }
+    String::from_utf8_lossy(&response).into_owned()
+}
+
+#[test]
+fn a_cross_origin_handshake_is_refused() {
+    let response = handshake_response(
+        b"GET / HTTP/1.1\r\nHost: localhost\r\nOrigin: https://evil.example\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+    );
+    assert!(response.starts_with("HTTP/1.1 403"), "{response}");
+    assert!(!response.contains("Sec-WebSocket-Accept"), "{response}");
+}
+
+#[test]
+fn a_handshake_without_an_origin_is_accepted() {
+    let response = handshake_response(
+        b"GET / HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+    );
+    assert!(response.starts_with("HTTP/1.1 101"), "{response}");
+}
+
+#[test]
+fn a_configured_origin_is_accepted() {
+    let host = Host::new(spec("x")).expect("host");
+    let server = RemoteServer::new(host, "127.0.0.1:0")
+        .expect("bind")
+        .allow_origin("https://app.example");
+    let addr = server.local_addr().expect("addr");
+    std::thread::spawn(move || {
+        let _ = server.serve();
+    });
+    let mut stream = TcpStream::connect(addr).expect("connect");
+    stream.set_read_timeout(Some(Duration::from_secs(5))).expect("timeout");
+    stream
+        .write_all(
+            b"GET / HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+        )
+        .expect("handshake");
+    let mut reader = BufReader::new(stream);
+    let mut status = String::new();
+    reader.read_line(&mut status).expect("status");
+    assert!(status.starts_with("HTTP/1.1 101"), "{status}");
+}
+
+#[test]
+fn an_oversized_handshake_is_refused() {
+    let mut request = b"GET / HTTP/1.1\r\nHost: localhost\r\n".to_vec();
+    request.extend(std::iter::repeat_n(b'A', 16 * 1024));
+    let response = handshake_response(&request);
+    assert!(response.starts_with("HTTP/1.1 431"), "{response}");
+}

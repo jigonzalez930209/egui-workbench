@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench-python"
-version = "1.0.2"
+version = "1.0.4"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -17,8 +17,8 @@ crate-type = ["cdylib", "rlib"]
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
-egui-workbench = { path = "../..", version = "1.0.2", default-features = false, features = ["serde", "plot", "plot3d", "viewer", "csv", "workbook", "ring", "channel", "lucide-icons", "arrow"] }
-egui-workbench-host = { path = "../egui-workbench-host", version = "1.0.2" }
+egui-workbench = { path = "../..", version = "1.0.4", default-features = false, features = ["serde", "plot", "plot3d", "viewer", "csv", "workbook", "ring", "channel", "lucide-icons", "arrow"] }
+egui-workbench-host = { path = "../egui-workbench-host", version = "1.0.4" }
 pyo3 = { version = "0.30", features = ["abi3-py39"] }
 serde_json = "1"
 arrow = { version = "60", default-features = false, features = ["ffi"] }

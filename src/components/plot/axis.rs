@@ -253,7 +253,7 @@ fn nice_time_step(span: f64, target: f64) -> f64 {
 }
 
 fn format_timestamp(seconds: f64, span: f64) -> String {
-    let Some(time) = chrono::DateTime::from_timestamp(seconds as i64, 0) else {
+    let Some(time) = jiff::Timestamp::from_second(seconds as i64).ok() else {
         return format_number(seconds, 0);
     };
     let format = if span >= 2.0 * 86_400.0 {
@@ -265,7 +265,7 @@ fn format_timestamp(seconds: f64, span: f64) -> String {
     } else {
         "%H:%M:%S"
     };
-    time.format(format).to_string()
+    time.strftime(format).to_string()
 }
 
 fn format_number(value: f64, decimals: usize) -> String {

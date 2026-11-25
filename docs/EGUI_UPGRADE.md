@@ -13,8 +13,8 @@ policy we follow from 0.3 onward and write down again at 1.0.
 - The upgrade is its own release, with its own changelog entry and a **Migration**
   section. It does not share a release with a feature that changes the workbench API.
 - The upgrade release runs the full desktop matrix, the MSRV job, the benchmark
-  baseline, and `cargo-semver-checks` against the previous workbench release. A
-  regression in either the CPU or GPU path blocks it.
+  baseline, and `cargo xtask check`. A regression in either the CPU or GPU path blocks
+  it.
 - `cargo xtask snapshots` is run once on the reference Linux machine. A pixel change is
   reviewed like an API change; font or anti-aliasing noise is called out separately.
 

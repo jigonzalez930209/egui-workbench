@@ -667,10 +667,10 @@ No new features. The release states the promise:
 | Automated CI on macOS, Windows, and WebAssembly | `CI` is a manual Ubuntu smoke test (format, library tests, `cargo audit`, `cargo deny`). The full suite and snapshots run locally with `cargo xtask check`; nothing checks MSRV 1.95. | Kept manual by choice to save CI minutes; the local suite stays the release gate. |
 | Manual IME and HiDPI pass on macOS and Windows | Only the Linux row of `docs/PLATFORMS.md` is filled. | Run and record the pass before 1.1. |
 | `1.0.0-rc.N` releases and two external applications in production | No release candidate was published; no external application is recorded. | Record external adopters as they appear; use `-rc` tags for the next major. |
-| Fuzzing of the CSV, workbook, and spec readers | Not started. | `cargo fuzz` targets for the three readers. |
-| Benchmarks and WebAssembly size in CI | Benchmarks exist (`benches/`, `docs/BENCHMARKS.md`) and run by hand; the wasm size is not recorded. | Record both per release in `docs/BENCHMARKS.md`. |
-| C ABI binaries | 1.0.2 shipped `egui-workbench-c-linux-x86_64.zip` only. | Fixed in the release workflow: the next tag also ships `macos-aarch64` and `windows-x86_64` archives. |
-| Unmaintained dependencies | `chrono` and `serde_yaml`/`unsafe-libyaml` are ignored in `deny.toml` with a reason. | Replace them in a 1.x minor. |
+| Fuzzing of the CSV, workbook, and spec readers | Targets live in `fuzz/` and are committed; `CONTRIBUTING.md` documents the 60-second run. | Run the three targets before each release. |
+| Benchmarks and WebAssembly size in CI | Benchmarks exist (`benches/`, `docs/BENCHMARKS.md`) and run by hand; `cargo xtask budgets` runs the ignored budgets in release mode. | Record both per release in `docs/BENCHMARKS.md`. |
+| C ABI binaries | The release workflow ships Linux, macOS, and Windows archives; the `C ABI` manual workflow builds them on all three runners before a tag. | Dispatch `C ABI` once before tagging. |
+| Unmaintained dependencies | Our direct use of `chrono` and `serde_yaml` was replaced by `jiff` and `serde_norway` in 1.0.4. `chrono` remains transitive through `arrow`/`parquet` and is named in `deny.toml`. | Drop the last ignore when Arrow removes chrono. |
 | `egui-workbench-core` split | Not done (Decision 1). | Revisit before a 2.0. |
 
 ## Cross-cutting rules
@@ -719,6 +719,11 @@ A release is done when all of these are true:
    `egui-workbench-plot`), and the bindings. `egui-workbench` keeps re-exporting
    everything, so applications do not change. The core can reach a true 1.0; the
    egui-dependent crates track egui.
+   **Decision at 1.0.4:** take this split at 2.0, not in the 1.x line. The 2.0 cut moves
+   the protocol, spec, patch, and dataset types into `egui-workbench-core`;
+   `egui-workbench`, `egui-workbench-host`, `egui-workbench-remote`, and
+   `egui-workbench-agent` depend on it and re-export the types they expose today. Until
+   then, egui minors continue to ship as majors of the egui-dependent crates.
 2. **The egui policy at 1.0.** Recommended: a 1.x line supports one egui minor; a new egui
    minor ships as a new major of the egui-dependent crates only when egui's own breaking
    changes reach our signatures, and the core and the protocol do not change.

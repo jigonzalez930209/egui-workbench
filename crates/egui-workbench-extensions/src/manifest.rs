@@ -1,7 +1,7 @@
 //! The versioned extension manifest.
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,19 @@ fn compare(left: &str, right: &str) -> i32 {
         }
     }
     0
+}
+
+/// A module path that stays inside the extension directory on every platform.
+///
+/// `Path::components` does not treat a Windows drive or UNC prefix as a root on Unix, so
+/// the separators and drive colon are rejected explicitly before the component walk.
+fn entry_is_safe(entry: &str) -> bool {
+    if entry.is_empty() || entry.contains('\\') || entry.contains(':') {
+        return false;
+    }
+    Path::new(entry)
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)))
 }
 
 /// A capability requested by an extension.
@@ -158,7 +171,7 @@ impl ExtensionManifest {
         if self.version.split('.').count() < 2 || self.version.split('.').any(|part| part.parse::<u64>().is_err()) {
             return Err(ManifestError::Version(self.version.clone()));
         }
-        if self.entry.contains("..") || self.entry.starts_with('/') {
+        if !entry_is_safe(&self.entry) {
             return Err(ManifestError::Entry(self.entry.clone()));
         }
         if !self.api.allows(crate::HOST_API_VERSION) {
