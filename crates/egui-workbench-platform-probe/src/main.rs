@@ -21,11 +21,13 @@ use egui_workbench::{Icons, ThemeId, TitleBar, WindowAction, show_title_bar};
 fn main() -> eframe::Result {
     let mut screenshot = None;
     let mut theme = "github-dark".to_owned();
+    let mut headless = false;
     let mut args = std::env::args().skip(1);
     while let Some(argument) = args.next() {
         match argument.as_str() {
             "--screenshot" => screenshot = args.next().map(PathBuf::from),
             "--theme" => theme = args.next().unwrap_or(theme),
+            "--headless" => headless = true,
             "--help" | "-h" => {
                 println!("platform_probe [--screenshot report.png] [--theme github-dark]");
                 return Ok(());
@@ -35,6 +37,16 @@ fn main() -> eframe::Result {
                 std::process::exit(2);
             }
         }
+    }
+    if headless {
+        return run_headless(&theme, screenshot.as_deref());
+    }
+    if screenshot.is_some() {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(20));
+            eprintln!("platform probe timed out before a painted frame");
+            std::process::exit(2);
+        });
     }
     #[allow(unused_mut)]
     let mut options = egui_workbench::native_options_sized("Workbench platform probe", [900.0, 600.0], [640.0, 420.0]);
@@ -50,6 +62,102 @@ fn main() -> eframe::Result {
             Ok(Box::new(Probe::new(theme_state, screenshot)))
         }),
     )
+}
+
+fn run_headless(theme: &str, screenshot: Option<&std::path::Path>) -> eframe::Result {
+    #[cfg(not(feature = "headless"))]
+    {
+        let _ = (theme, screenshot);
+        eprintln!("--headless needs the `headless` feature");
+        std::process::exit(2);
+    }
+    #[cfg(feature = "headless")]
+    {
+        let render_state = egui_kittest::wgpu::create_render_state(
+            egui_kittest::wgpu::default_wgpu_setup(),
+            egui_wgpu::RendererOptions::PREDICTABLE,
+        );
+        let renderer = egui_kittest::wgpu::WgpuTestRenderer::from_render_state(render_state);
+        let state = HeadlessState {
+            icons: Icons::new(),
+            theme: theme.to_owned(),
+            hovered: String::new(),
+            clicks: Vec::new(),
+        };
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(900.0, 600.0))
+            .with_max_steps(4)
+            .renderer(renderer)
+            .build_ui_state(headless_ui, state);
+        harness.run();
+        let image = harness.render().map_err(|error| eframe::Error::AppCreation(Box::new(std::io::Error::other(error))))?;
+        let path = screenshot.unwrap_or_else(|| std::path::Path::new("artifacts/probe-headless.png"));
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        image.save(path).map_err(|error| eframe::Error::AppCreation(Box::new(error)))?;
+        let report = Report {
+            os: std::env::consts::OS.to_owned(),
+            arch: std::env::consts::ARCH.to_owned(),
+            pixels_per_point: harness.ctx.pixels_per_point(),
+            content_rect: rect_json(harness.ctx.content_rect()),
+            screen_rect: rect_json(harness.ctx.input(|input| input.viewport_rect())),
+            viewport_inner_rect: None,
+            pointer: None,
+            clicks: Vec::new(),
+        };
+        let _ = std::fs::write(path.with_extension("json"), serde_json::to_string_pretty(&report).unwrap_or_default());
+        eprintln!("wrote {}", path.display());
+        Ok(())
+    }
+}
+
+#[cfg(feature = "headless")]
+struct HeadlessState {
+    icons: Icons,
+    theme: String,
+    hovered: String,
+    clicks: Vec<(String, egui::Pos2)>,
+}
+
+#[cfg(feature = "headless")]
+fn headless_ui(ui: &mut egui::Ui, state: &mut HeadlessState) {
+    let _ = &state.theme;
+    egui::Panel::top("probe_title").exact_size(34.0).show(ui, |ui| {
+        let bar = TitleBar::new("Platform probe");
+        let _ = show_title_bar(
+            ui,
+            &mut state.icons,
+            &bar,
+            |ui, _icons| {
+                for label in ["File", "Edit", "View"] {
+                    let _ = ui.button(label);
+                }
+            },
+            |ui, _icons| {
+                let _ = ui.button("Probe");
+            },
+        );
+    });
+    egui::CentralPanel::default().show(ui, |ui| {
+        ui.label("headless platform probe");
+        ui.separator();
+        for row in 0..6 {
+            ui.horizontal(|ui| {
+                for column in 0..8 {
+                    let id = format!("r{row}c{column}");
+                    let response = ui.add_sized([88.0, 28.0], egui::Button::new(&id));
+                    if response.hovered() {
+                        state.hovered = id.clone();
+                    }
+                    if response.clicked() {
+                        state.clicks.push((id, response.interact_pointer_pos().unwrap_or_default()));
+                    }
+                }
+            });
+        }
+        ui.label(format!("hovered: {}", state.hovered));
+    });
 }
 
 struct Probe {
