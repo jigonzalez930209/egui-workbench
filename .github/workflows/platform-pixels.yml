@@ -29,6 +29,7 @@ jobs:
       matrix:
         os: [windows-2022, windows-2025, windows-11-arm]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
@@ -54,6 +55,7 @@ jobs:
       matrix:
         os: [macos-13, macos-14, macos-15]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
@@ -78,6 +80,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: System dependencies
@@ -103,6 +106,7 @@ jobs:
     name: linux wayland (weston headless)
     if: inputs.target == 'linux'
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: System dependencies
@@ -165,6 +169,7 @@ jobs:
           - label: linux-sway
             runner: [self-hosted, linux, wayland, sway]
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
