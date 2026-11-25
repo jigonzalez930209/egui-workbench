@@ -1,9 +1,9 @@
 # Desktop platform pass: IME and HiDPI
 
 This is the repeatable manual pass for the two platform-sensitive paths in the 0.3.x
-hardening release. The automated companion is `tests/ime_hidpi.rs`, which runs on Linux,
-macOS, and Windows in CI. The manual pass covers what a headless test cannot: the
-system IME window, the compositor's scale factor, and the native window chrome.
+hardening release. The automated companion is `tests/ime_hidpi.rs`, which runs locally
+with `cargo xtask check` before each tag; CI does not run it. The manual pass covers what
+a headless test cannot: the system IME window, the compositor's scale factor, and the native window chrome.
 
 Run it on each desktop before a 0.3.x patch release and again before 1.0. Record the
 result, the machine, and the scale factor. A failure blocks the release.
@@ -56,5 +56,7 @@ catalog's Inputs section (`cargo run --example catalog`).
 |  | macOS |  |  |  |  |  |
 |  | Windows |  |  |  |  |  |
 
-The Linux row is the CI reference. macOS and Windows rows are filled by the person
-running the pass; CI runs the behavioral half on both.
+The Linux row is the reference. The macOS and Windows rows are still open: that pass
+did not happen before 1.0 and is listed under "Known gaps at 1.0" in `ROADMAP.md`.
+The manual `platform-pixels` workflow only probes native rendering and hit testing;
+it does not cover IME or HiDPI.
