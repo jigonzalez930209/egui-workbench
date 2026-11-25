@@ -29,7 +29,7 @@ fn the_binary_answers_initialize_and_tools_list() {
         serde_json::from_str::<Value>(&line).expect("json")
     };
     let initialized = request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}));
-    assert_eq!(initialized["result"]["serverInfo"]["version"], "1.0.1");
+    assert_eq!(initialized["result"]["serverInfo"]["version"], "1.0.2");
     let tools = request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
     assert!(
         tools["result"]["tools"]

@@ -7,6 +7,18 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-25
+
+### Changed
+
+- The platform probe is a standalone crate: it no longer inherits the root
+  `egui_kittest`/`criterion`/wgpu test dependencies, cutting hosted Windows compile time
+  from hours to about a minute.
+- Hosted Windows and macOS run the headless wgpu probe; a verify job fails when the three
+  Windows, three macOS, or two X11 images differ byte-for-byte.
+- Platform groups run at most three runners and are capped at 20 minutes.
+- New `wgpu-renderer` feature for eframe's D3D12/Metal/Vulkan renderer.
+
 ## [1.0.1] - 2026-11-25
 
 ### Fixed

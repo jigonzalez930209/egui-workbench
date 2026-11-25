@@ -15,6 +15,13 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-25
+
+### Changed
+
+- Probe crate separated from dev-dependencies, hosted headless rendering, byte-for-byte
+  pixel verification, three-runner groups, and the wgpu renderer feature.
+
 ## [1.0.1] - 2026-11-25
 
 ### Fixed
