@@ -7,14 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Hosted group to run
+        description: Group to run (at most three runners in parallel)
         type: choice
-        options: [all, windows, macos, linux]
+        options: [windows, macos, linux, self-hosted]
         default: windows
-      include_self_hosted:
-        description: Also run the self-hosted version/compositor matrix
-        type: boolean
-        default: false
       theme:
         description: Theme id for the probe
         type: string
@@ -26,11 +22,12 @@ permissions:
 jobs:
   windows:
     name: windows (${{ matrix.os }})
-    if: inputs.target == 'all' || inputs.target == 'windows'
+    if: inputs.target == 'windows'
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
-        os: [windows-2019, windows-2022, windows-2025, windows-11-arm]
+        os: [windows-2022, windows-2025, windows-11-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -50,9 +47,10 @@ jobs:
 
   macos:
     name: macos (${{ matrix.os }})
-    if: inputs.target == 'all' || inputs.target == 'macos'
+    if: inputs.target == 'macos'
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         os: [macos-13, macos-14, macos-15]
     runs-on: ${{ matrix.os }}
@@ -73,9 +71,10 @@ jobs:
 
   linux-x11:
     name: linux x11 (${{ matrix.os }})
-    if: inputs.target == 'all' || inputs.target == 'linux'
+    if: inputs.target == 'linux'
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
@@ -102,7 +101,7 @@ jobs:
 
   linux-wayland-weston:
     name: linux wayland (weston headless)
-    if: inputs.target == 'all' || inputs.target == 'linux'
+    if: inputs.target == 'linux'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -133,9 +132,10 @@ jobs:
 
   self-hosted:
     name: self-hosted (${{ matrix.label }})
-    if: inputs.include_self_hosted
+    if: inputs.target == 'self-hosted'
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         include:
           - label: windows-7
