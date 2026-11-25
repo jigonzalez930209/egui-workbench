@@ -6,8 +6,13 @@ name: Platform pixels
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Hosted group to run
+        type: choice
+        options: [all, windows, macos, linux]
+        default: windows
       include_self_hosted:
-        description: Also run the self-hosted legacy/compositor matrix
+        description: Also run the self-hosted version/compositor matrix
         type: boolean
         default: false
       theme:
@@ -21,10 +26,11 @@ permissions:
 jobs:
   windows:
     name: windows (${{ matrix.os }})
+    if: inputs.target == 'all' || inputs.target == 'windows'
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2019, windows-2022, windows-latest]
+        os: [windows-2019, windows-2022, windows-2025, windows-11-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -44,6 +50,7 @@ jobs:
 
   macos:
     name: macos (${{ matrix.os }})
+    if: inputs.target == 'all' || inputs.target == 'macos'
     strategy:
       fail-fast: false
       matrix:
@@ -66,6 +73,7 @@ jobs:
 
   linux-x11:
     name: linux x11 (${{ matrix.os }})
+    if: inputs.target == 'all' || inputs.target == 'linux'
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +102,7 @@ jobs:
 
   linux-wayland-weston:
     name: linux wayland (weston headless)
+    if: inputs.target == 'all' || inputs.target == 'linux'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -131,10 +140,20 @@ jobs:
         include:
           - label: windows-7
             runner: [self-hosted, windows, win7]
-          - label: windows-10
-            runner: [self-hosted, windows, win10]
-          - label: windows-11
-            runner: [self-hosted, windows, win11]
+          - label: windows-10-1809
+            runner: [self-hosted, windows, win10-1809]
+          - label: windows-10-21h2
+            runner: [self-hosted, windows, win10-21h2]
+          - label: windows-10-22h2
+            runner: [self-hosted, windows, win10-22h2]
+          - label: windows-11-21h2
+            runner: [self-hosted, windows, win11-21h2]
+          - label: windows-11-22h2
+            runner: [self-hosted, windows, win11-22h2]
+          - label: windows-11-23h2
+            runner: [self-hosted, windows, win11-23h2]
+          - label: windows-11-24h2
+            runner: [self-hosted, windows, win11-24h2]
           - label: macos-intel-old
             runner: [self-hosted, macOS, intel, old]
           - label: macos-modern
