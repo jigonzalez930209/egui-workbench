@@ -32,6 +32,10 @@ pub enum PlotTool {
     Zoom,
     /// Drag draws a box and reports it as the selection.
     Select,
+    /// Drag measures the distance and slope between two points.
+    MeasureDistance,
+    /// Drag measures a rectangular region: area, extrema, slopes, and integrals.
+    MeasureArea,
 }
 
 /// The family of a plot, inferred from its series.
@@ -53,6 +57,7 @@ pub enum ChartMode {
 pub(super) enum Drag {
     Pan,
     Box { start: Pos2, select: bool },
+    Measure { start: Pos2, distance: bool },
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
