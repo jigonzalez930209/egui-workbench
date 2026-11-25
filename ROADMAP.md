@@ -669,7 +669,7 @@ No new features. The release states the promise:
 | `1.0.0-rc.N` releases and two external applications in production | No release candidate was published; no external application is recorded. | Record external adopters as they appear; use `-rc` tags for the next major. |
 | Fuzzing of the CSV, workbook, and spec readers | Not started. | `cargo fuzz` targets for the three readers. |
 | Benchmarks and WebAssembly size in CI | Benchmarks exist (`benches/`, `docs/BENCHMARKS.md`) and run by hand; the wasm size is not recorded. | Record both per release in `docs/BENCHMARKS.md`. |
-| C ABI binaries | The release ships `egui-workbench-c-linux-x86_64.zip` only. | Add macOS and Windows archives to the release jobs that already build wheels there. |
+| C ABI binaries | 1.0.2 shipped `egui-workbench-c-linux-x86_64.zip` only. | Fixed in the release workflow: the next tag also ships `macos-aarch64` and `windows-x86_64` archives. |
 | Unmaintained dependencies | `chrono` and `serde_yaml`/`unsafe-libyaml` are ignored in `deny.toml` with a reason. | Replace them in a 1.x minor. |
 | `egui-workbench-core` split | Not done (Decision 1). | Revisit before a 2.0. |
 
