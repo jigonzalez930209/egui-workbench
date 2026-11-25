@@ -670,7 +670,7 @@ No new features. The release states the promise:
 | Fuzzing of the CSV, workbook, and spec readers | Targets live in `fuzz/` and are committed; `CONTRIBUTING.md` documents the 60-second run. | Run the three targets before each release. |
 | Benchmarks and WebAssembly size in CI | Benchmarks exist (`benches/`, `docs/BENCHMARKS.md`) and run by hand; `cargo xtask budgets` runs the ignored budgets in release mode. | Record both per release in `docs/BENCHMARKS.md`. |
 | C ABI binaries | The release workflow ships Linux, macOS, and Windows archives; the `C ABI` manual workflow builds them on all three runners before a tag. | Dispatch `C ABI` once before tagging. |
-| Unmaintained dependencies | Our direct use of `chrono` and `serde_yaml` was replaced by `jiff` and `serde_norway` in 1.0.4. `chrono` remains transitive through `arrow`/`parquet` and is named in `deny.toml`. | Drop the last ignore when Arrow removes chrono. |
+| Unmaintained dependencies | Our direct use of `chrono` and `serde_yaml` was replaced by `jiff` and `serde_norway` in 1.0.4. `chrono` remains transitive through `arrow`/`parquet`; the ignore is an approved scope exception (2026-11-25). | Drop the last ignore when Arrow removes chrono. |
 | `egui-workbench-core` split | Not done (Decision 1). | Revisit before a 2.0. |
 
 ## Cross-cutting rules

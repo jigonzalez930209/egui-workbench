@@ -7,10 +7,11 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
-# `arrow` and `parquet` pull chrono for temporal arrays; our own code uses jiff. The
-# replacement is tracked with the Arrow upgrade, not in this crate.
+# `arrow` and `parquet` pull chrono for temporal arrays; our own code uses jiff. This is
+# an approved scope exception (2026-11-25) until Arrow removes chrono; re-check each
+# release instead of silently accepting it.
 ignore = [
-    { id = "RUSTSEC-2026-0543", reason = "transitive through arrow/parquet temporal arrays; direct use replaced by jiff" },
+    { id = "RUSTSEC-2026-0543", reason = "transitive through arrow/parquet temporal arrays; direct use replaced by jiff (approved scope exception 2026-11-25)" },
 ]
 
 [licenses]
