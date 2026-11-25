@@ -148,6 +148,75 @@ jobs:
           name: probe-linux-wayland-weston
           path: artifacts/*
 
+  verify-windows:
+    name: verify windows pixels match
+    needs: windows
+    if: needs.windows.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: probe-windows-*
+          path: pixels
+          merge-multiple: true
+      - name: Compare PNG bytes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, sys
+          files = sorted(Path("pixels").glob("*.png"))
+          print("\n".join(f"{f.name} {hashlib.sha256(f.read_bytes()).hexdigest()}" for f in files))
+          if len({hashlib.sha256(f.read_bytes()).hexdigest() for f in files}) != 1:
+              print("::error::Windows hosts rendered different pixels")
+              sys.exit(1)
+          PY
+
+  verify-macos:
+    name: verify macos pixels match
+    needs: macos
+    if: needs.macos.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: probe-macos-*
+          path: pixels
+          merge-multiple: true
+      - name: Compare PNG bytes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, sys
+          files = sorted(Path("pixels").glob("*.png"))
+          print("\n".join(f"{f.name} {hashlib.sha256(f.read_bytes()).hexdigest()}" for f in files))
+          if len({hashlib.sha256(f.read_bytes()).hexdigest() for f in files}) != 1:
+              print("::error::macOS hosts rendered different pixels")
+              sys.exit(1)
+          PY
+
+  verify-linux:
+    name: verify linux x11 pixels match
+    needs: linux-x11
+    if: needs.linux-x11.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: probe-linux-x11-*
+          path: pixels
+          merge-multiple: true
+      - name: Compare PNG bytes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, sys
+          files = sorted(Path("pixels").glob("*.png"))
+          print("\n".join(f"{f.name} {hashlib.sha256(f.read_bytes()).hexdigest()}" for f in files))
+          if len({hashlib.sha256(f.read_bytes()).hexdigest() for f in files}) != 1:
+              print("::error::Linux X11 hosts rendered different pixels")
+              sys.exit(1)
+          PY
+
   self-hosted:
     name: self-hosted (${{ matrix.label }})
     if: inputs.target == 'self-hosted'

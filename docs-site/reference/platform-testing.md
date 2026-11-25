@@ -50,12 +50,13 @@ Choose **windows**, **macos**, **linux**, or **self-hosted** in the dispatch for
 The jobs stay queued until a runner with those labels is online. That is intentional:
 the matrix spends no hosted minutes when you do not need it.
 
-GitHub-hosted Windows and macOS runners are non-interactive and have no desktop GPU.
-The native window probe can create a process but cannot reliably paint or receive a
-frame there; each job is capped at 20 minutes and reports the failure. Hosted Linux uses
-Xvfb and works. For native Windows/macOS pixels and hit testing, use an interactive
-self-hosted runner with a logged-in desktop session. The hosted jobs remain useful as a
-compile/smoke signal, not as a pixel reference.
+GitHub-hosted Windows and macOS runners are non-interactive and have no desktop GPU, so
+they run the **headless wgpu** probe: the same title bar and grid, rendered through
+`egui_kittest`, saved as PNG + JSON. A comparison job fails if the hosted Windows (or
+macOS, or Linux X11) images differ byte-for-byte. Hosted Linux X11 also runs the native
+window under Xvfb; Weston runs native Wayland headless. For native hit testing and the
+title-bar/DPI strip, use an interactive self-hosted runner with a logged-in desktop
+session. Each group is capped at three runners and 20 minutes.
 
 ## The probe
 
