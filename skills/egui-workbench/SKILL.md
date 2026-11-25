@@ -663,6 +663,7 @@ links to its live version with interactive demos. Read only the pages the task n
 - [`references/reference/faq.md`](references/reference/faq.md): Common errors and their fixes: egui versions, fonts, wrapping, repaint, snapshots, and docs.
 - [`references/reference/migration.md`](references/reference/migration.md): What changed between the 0.3 shell and 1.0, and how to move an application without surprises.
 - [`references/reference/migration-0.4.md`](references/reference/migration-0.4.md): The command registry, serde, non-exhaustive enums, and the Cargo features added in 0.4.
+- [`references/reference/platform-testing.md`](references/reference/platform-testing.md): The manual native matrix for Windows, macOS, Linux X11, Wayland compositors, hit testing, and the legacy support boundary.
 - [`references/reference/testing.md`](references/reference/testing.md): egui_kittest, AccessKit queries, snapshots, the harness clock, and end-to-end runs under Xvfb.
 - [`references/reference/versioning.md`](references/reference/versioning.md): SemVer for every crate and package, the egui and MSRV policies, and the independent protocol, spec, and extension versions.
 

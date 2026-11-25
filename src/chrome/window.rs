@@ -48,6 +48,26 @@ pub fn native_options_sized(title: &str, size: [f32; 2], min_size: [f32; 2]) -> 
     }
 }
 
+/// Force the OS decorations off once per viewport on Windows.
+///
+/// Windows can keep a native frame after the initial `with_decorations(false)` when the
+/// window is created hidden or restored from a previous session. Re-sending the viewport
+/// command removes that strip, which is the source of the vertical pointer offset seen on
+/// some Windows builds.
+pub fn ensure_undecorated(ctx: &Context) {
+    #[cfg(target_os = "windows")]
+    {
+        let id = egui::Id::new("workbench_force_undecorated");
+        let sent = ctx.data(|data| data.get_temp::<bool>(id).unwrap_or(false));
+        if !sent {
+            ctx.send_viewport_cmd(ViewportCommand::Decorations(false));
+            ctx.data_mut(|data| data.insert_temp(id, true));
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = ctx;
+}
+
 /// Whether the window is maximized.
 pub fn is_maximized(ctx: &Context) -> bool {
     ctx.input(|input| input.viewport().maximized.unwrap_or(false))

@@ -15,6 +15,16 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-25
+
+### Fixed
+
+- Windows undecorated frame reassertion for pointer alignment.
+
+### Added
+
+- Manual platform pixel workflow and probe, plus the support boundary.
+
 ## [1.0.0] - 2026-11-24
 
 ### Stable

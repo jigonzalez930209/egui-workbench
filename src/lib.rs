@@ -79,7 +79,9 @@ pub use chrome::status::{
 };
 pub use chrome::tabs::{TabEvent, TabIcon, TabItem, show_tab_strip};
 pub use chrome::title_bar::{Pill, TitleBar, TitleBarOutput, WindowLabels, show_title_bar, title_menu};
-pub use chrome::window::{WindowAction, apply_window_action, handle_window_edges, is_maximized, set_window_title};
+pub use chrome::window::{
+    WindowAction, apply_window_action, ensure_undecorated, handle_window_edges, is_maximized, set_window_title,
+};
 #[cfg(not(target_arch = "wasm32"))]
 pub use chrome::window::{native_options, native_options_sized};
 pub use widgets::buttons::{

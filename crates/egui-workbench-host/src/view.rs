@@ -54,6 +54,7 @@ impl eframe::App for HostApp {
 impl Host {
     /// Draw the host in a root `Ui` and collect its events.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
+        egui_workbench::ensure_undecorated(ui.ctx());
         let spec = self.spec.clone();
         let mut events = Vec::new();
         if spec.panels.sidebar {

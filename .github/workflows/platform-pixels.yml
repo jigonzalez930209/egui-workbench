@@ -1,0 +1,163 @@
+name: Platform pixels
+
+# Manual matrix for native rendering and hit testing. GitHub-hosted runners cover the
+# newest Windows/macOS/Linux images; register self-hosted runners with the labels below
+# for Windows 7/8.1/10/11, older macOS, and the Linux compositors.
+on:
+  workflow_dispatch:
+    inputs:
+      include_self_hosted:
+        description: Also run the self-hosted legacy/compositor matrix
+        type: boolean
+        default: false
+      theme:
+        description: Theme id for the probe
+        type: string
+        default: github-dark
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: windows (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019, windows-2022, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Probe
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/windows-${{ matrix.os }}.png
+      - uses: actions/upload-artifact@v7
+        with:
+          name: probe-windows-${{ matrix.os }}
+          path: artifacts/*
+
+  macos:
+    name: macos (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-13, macos-14, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Probe
+        run: |
+          mkdir -p artifacts
+          cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/macos-${{ matrix.os }}.png
+      - uses: actions/upload-artifact@v7
+        with:
+          name: probe-macos-${{ matrix.os }}
+          path: artifacts/*
+
+  linux-x11:
+    name: linux x11 (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev libegl1-mesa-dev mesa-utils xvfb
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Probe
+        run: |
+          mkdir -p artifacts
+          xvfb-run -a -s "-screen 0 1280x900x24" \
+            cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/linux-x11-${{ matrix.os }}.png
+      - uses: actions/upload-artifact@v7
+        with:
+          name: probe-linux-x11-${{ matrix.os }}
+          path: artifacts/*
+
+  linux-wayland-weston:
+    name: linux wayland (weston headless)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libwayland-egl1 mesa-utils weston
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Probe
+        run: |
+          mkdir -p artifacts /tmp/xdg-runtime
+          chmod 700 /tmp/xdg-runtime
+          export XDG_RUNTIME_DIR=/tmp/xdg-runtime
+          weston --backend=headless-backend.so --socket=wayland-probe --width=1280 --height=900 --idle-time=0 >/tmp/weston.log 2>&1 &
+          sleep 2
+          WAYLAND_DISPLAY=wayland-probe LIBGL_ALWAYS_SOFTWARE=1 \
+            cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/linux-wayland-weston.png
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: probe-linux-wayland-weston
+          path: artifacts/*
+
+  self-hosted:
+    name: self-hosted (${{ matrix.label }})
+    if: inputs.include_self_hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: windows-7
+            runner: [self-hosted, windows, win7]
+          - label: windows-10
+            runner: [self-hosted, windows, win10]
+          - label: windows-11
+            runner: [self-hosted, windows, win11]
+          - label: macos-intel-old
+            runner: [self-hosted, macOS, intel, old]
+          - label: macos-modern
+            runner: [self-hosted, macOS, modern]
+          - label: linux-gnome-x11
+            runner: [self-hosted, linux, x11, gnome]
+          - label: linux-kde-wayland
+            runner: [self-hosted, linux, wayland, kde]
+          - label: linux-sway
+            runner: [self-hosted, linux, wayland, sway]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Probe
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot "artifacts/${{ matrix.label }}.png"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: probe-${{ matrix.label }}
+          path: artifacts/*

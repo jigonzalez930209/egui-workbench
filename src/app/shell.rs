@@ -162,6 +162,7 @@ pub trait WorkbenchApp {
 /// This calls [`crate::handle_window_edges`] and uses the fixed panel order from
 /// `WORKBENCH.md` §3. Apply the returned commands after this function returns.
 pub fn show_workbench<A: WorkbenchApp>(ui: &mut Ui, app: &mut A) -> Vec<A::Command> {
+    crate::ensure_undecorated(ui.ctx());
     crate::handle_window_edges(ui.ctx());
     let mut commands = Vec::new();
     if app.title_bar_visible() {

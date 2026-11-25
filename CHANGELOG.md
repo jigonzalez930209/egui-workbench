@@ -7,6 +7,22 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-25
+
+### Fixed
+
+- Windows: reassert `ViewportCommand::Decorations(false)` once per viewport, removing a
+  native frame above the custom title bar that shifted pointer hit tests on some Windows
+  builds.
+
+### Added
+
+- `platform_probe` example and the manual `Platform pixels` workflow: native screenshots
+  and pointer reports on hosted Windows/macOS/X11/Wayland runners and self-hosted legacy
+  desktops and Linux compositors.
+- Platform support boundary documentation, including the Windows 7/8.1 and old macOS
+  toolchain limitation.
+
 ## [1.0.0] - 2026-11-24
 
 ### Stable

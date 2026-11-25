@@ -89,6 +89,9 @@ font loading API, and the published accessibility report.
 security policy, and accessibility report are published, and the release pipeline is one
 tag-driven flow with a manual one-OS smoke test.
 
+1.0.1 is a platform patch: Windows undecorated frame reassertion, the manual native
+pixel matrix, and the support boundary.
+
 1.0.0 states the promise: Semantic Versioning for every crate and package, egui 0.37 plus
 one following minor, MSRV 1.95, separately versioned spec/protocol/extension interface,
 and a single tag flow that publishes the crates, docs, npm, PyPI wheels, C ABI, and
