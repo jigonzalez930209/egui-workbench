@@ -20,6 +20,7 @@ struct Board {
     selection_changed: bool,
     frame: Option<egui::Rect>,
     dot_screen: Option<Pos2>,
+    end_screen: Option<Pos2>,
     exported: Vec<egui_workbench::components::plot::ExportFormat>,
     settings_requested: bool,
 }
@@ -35,6 +36,7 @@ fn board() -> Board {
         selection_changed: false,
         frame: None,
         dot_screen: None,
+        end_screen: None,
         exported: Vec::new(),
         settings_requested: false,
     }
@@ -62,6 +64,7 @@ fn harness<'a>() -> Harness<'a, Board> {
                     board.selection_changed |= response.selection_changed;
                     board.frame = Some(response.frame);
                     board.dot_screen = Some(response.screen_pos([5.0, 2.0]));
+                    board.end_screen = Some(response.screen_pos([10.0, 10.0]));
                 });
             },
             board(),
@@ -253,6 +256,112 @@ fn the_measure_tools_add_distance_and_area_measurements() {
     ));
     harness.state_mut().state.clear_measurements();
     assert!(harness.state().state.measurements().is_empty());
+}
+
+#[test]
+fn a_distance_drag_snaps_to_the_nearest_data_points() {
+    let mut harness = harness();
+    harness.state_mut().state.tool = PlotTool::MeasureDistance;
+    harness.run_steps(3);
+    let dot = harness.state().dot_screen.expect("dot");
+    let end = harness.state().end_screen.expect("end");
+    drag(
+        &mut harness,
+        PointerButton::Primary,
+        dot + vec2(3.0, -2.0),
+        end + vec2(2.0, 2.0),
+        Modifiers::NONE,
+    );
+    let summary = harness.state().state.measurements()[0]
+        .distance_summary()
+        .expect("distance");
+    assert_eq!(summary.start, [5.0, 2.0]);
+    assert_eq!(summary.end, [10.0, 10.0]);
+    assert_eq!(summary.dx, 5.0);
+    assert_eq!(summary.dy, 8.0);
+    assert_eq!(summary.slope, Some(1.6));
+}
+
+#[test]
+fn an_area_drag_uses_data_coordinates_inside_the_view() {
+    let mut harness = harness();
+    harness.state_mut().state.tool = PlotTool::MeasureArea;
+    harness.run_steps(3);
+    let frame = harness.state().frame.expect("frame");
+    let view = view(&harness);
+    drag(
+        &mut harness,
+        PointerButton::Primary,
+        frame.left_top() + vec2(90.0, 90.0),
+        frame.left_top() + vec2(300.0, 220.0),
+        Modifiers::NONE,
+    );
+    let measurement = harness.state().state.measurements()[0];
+    let bounds = measurement.bounds();
+    assert!(bounds.min_x >= view.min_x && bounds.max_x <= view.max_x);
+    assert!(bounds.min_y >= view.min_y && bounds.max_y <= view.max_y);
+    assert!(bounds.max_x > bounds.min_x && bounds.max_y > bounds.min_y);
+}
+
+#[test]
+fn measurements_survive_zoom_and_fit() {
+    let mut harness = harness();
+    let measurement = PlotMeasurement::distance([1.0, 1.0], [9.0, 8.0]);
+    harness.state_mut().state.add_measurement(measurement);
+    harness.run_steps(3);
+    let before = harness.state().state.measurements()[0].distance_summary();
+    harness.event(Event::MouseWheel {
+        unit: MouseWheelUnit::Point,
+        delta: vec2(0.0, 120.0),
+        phase: TouchPhase::Move,
+        source: egui::MouseWheelSource::Wheel,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run_steps(10);
+    harness.state_mut().state.reset_view();
+    harness.run_steps(2);
+    let after = harness.state().state.measurements()[0].distance_summary();
+    assert_eq!(before, after);
+}
+
+#[test]
+fn measurement_list_helpers_pop_remove_and_clear() {
+    let mut state = PlotState::default();
+    let distance = PlotMeasurement::distance([0.0, 0.0], [3.0, 4.0]);
+    let area = PlotMeasurement::area(Bounds::from_corners([0.0, 0.0], [2.0, 2.0]));
+    state.add_measurement(distance);
+    state.add_measurement(area);
+    assert_eq!(state.measurements().len(), 2);
+    assert_eq!(state.pop_measurement(), Some(area));
+    assert_eq!(state.remove_measurement(0), Some(distance));
+    assert!(state.measurements().is_empty());
+    state.add_measurement(distance);
+    state.clear_measurements();
+    assert!(state.measurements().is_empty());
+}
+
+#[test]
+fn measurement_state_round_trips_through_serde() {
+    let mut state = PlotState::default();
+    state.add_measurement(PlotMeasurement::distance([1.0, 2.0], [4.0, 6.0]));
+    state.add_measurement(PlotMeasurement::area(Bounds::from_corners([0.0, 1.0], [3.0, 5.0])));
+    let json = serde_json::to_string(&state).expect("serialize");
+    let restored: PlotState = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(restored.measurements(), state.measurements());
+}
+
+#[test]
+fn the_toolbar_selects_both_measurement_tools() {
+    let mut harness = harness();
+    harness.run_steps(3);
+    harness.get_by_label("Measure distance and slope (drag)").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().state.tool, PlotTool::MeasureDistance);
+    harness
+        .get_by_label("Measure area, extrema, and integrals (drag)")
+        .click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().state.tool, PlotTool::MeasureArea);
 }
 
 #[test]

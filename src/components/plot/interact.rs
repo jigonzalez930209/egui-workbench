@@ -193,7 +193,10 @@ impl Plot<'_> {
         }
         let (shift, alt) = ui.input(|input| (input.modifiers.shift, input.modifiers.alt));
         if response.drag_started() && response.interact_pointer_pos().is_some_and(|pos| frame.contains(pos)) {
-            let start = response.interact_pointer_pos().unwrap_or(frame.center());
+            let start = ui
+                .input(|input| input.pointer.press_origin())
+                .or_else(|| response.interact_pointer_pos())
+                .unwrap_or(frame.center());
             let secondary = response.dragged_by(egui::PointerButton::Secondary);
             state.drag = Some(if state.tool == PlotTool::MeasureDistance {
                 Drag::Measure { start, distance: true }
