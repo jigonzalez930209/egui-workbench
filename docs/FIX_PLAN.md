@@ -131,12 +131,13 @@ Fix in three batches: P0 ships as 1.0.3 as soon as it is done, P1 in the same pa
 - [x] **T6** The security tests from P0 cover this item.
 - [x] **S3** Make `egui-workbench-wasm`, `web` and the probe members of the workspace (excluded from default members), or document why each keeps its own lockfile.
 - [x] **S4, S6** Set `web` to `publish = false` with version `1.0.2` (or `0.0.0` like the probe); delete the old `.tgz` files.
-- [x] **X9** Replace `serde_yaml` with `serde_norway` or `serde_yml`, and `chrono` with `time` or `jiff`; drop the ignores from `deny.toml`.
+- [ ] **X9** Replace `serde_yaml` with `serde_norway` or `serde_yml`, and `chrono` with `time` or `jiff`; drop the ignores from `deny.toml`. **Blocked:** the direct uses are replaced (`serde_norway`, `jiff`), but `arrow` 60.2.0 (the latest release) depends on `chrono` unconditionally and the Python Arrow FFI and Parquet connectors need `arrow`. Dropping `chrono` now means removing Arrow/Parquet and Python `set_arrow` (a 2.0 breaking change), so the remaining `RUSTSEC-2026-0543` ignore needs an explicit scope exception or a 2.0 feature removal.
 - [x] **S7** Decide on the egui-free core crate before 2.0, as the roadmap already says.
 
 ## Status — 1.0.4 (2026-11-25)
 
-All P0, P1, and P2 items are implemented and verified. Evidence:
+All P0, P1, and P2 items are implemented and verified except X9, which is blocked on
+upstream `arrow` and needs a scope decision. Evidence:
 
 - `cargo xtask check` passed: fmt, style-lint, clippy, rustdoc, all workspace tests,
   template check, docs examples, C ABI client, `cargo deny`, and the 1.95 MSRV check.
@@ -151,4 +152,7 @@ All P0, P1, and P2 items are implemented and verified. Evidence:
 X9 note: the direct `chrono` and `serde_yaml` dependencies are gone (`jiff` and
 `serde_norway` replace them). `chrono` remains a transitive dependency of
 `arrow`/`parquet` for temporal arrays, so one advisory ignore stays in `deny.toml` with
-that reason.
+that reason. `cargo tree -i chrono --all-features` shows the path through `arrow-array`,
+`arrow-arith`, and `arrow-cast`; `arrow` 60.2.0 is the newest version and the Python
+binding imports `arrow::ffi` for `set_arrow`. Removing it is a 2.0 feature removal, not
+a patch change; the alternative is to approve the documented exception.
