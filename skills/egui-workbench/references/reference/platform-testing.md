@@ -19,13 +19,14 @@ Hosted coverage:
 
 | Runner | What it covers |
 |---|---|
-| `windows-2019`, `windows-2022` | Windows 10-era Server kernels, DPI, undecorated windows |
-| `windows-2025`, `windows-11-arm` | Windows 11 kernel and Windows 11 Arm64 |
+| `windows-2022` | Windows 10-era Server kernel, DPI, undecorated windows |
+| `windows-2025` | Windows 11 kernel |
+| `windows-11-arm` | Windows 11 Arm64 |
 | `macos-13`, `macos-14`, `macos-15` | Intel and Apple Silicon, old and current macOS hosted images |
 | `ubuntu-22.04`, `ubuntu-24.04` | X11 with Xvfb |
 | `ubuntu-24.04` + weston headless | Wayland protocol and EGL |
 
-Choose **windows**, **macos**, **linux**, or **all** in the dispatch form. Enable **include_self_hosted** to run labels for the machines GitHub cannot host:
+Choose **windows**, **macos**, **linux**, or **self-hosted** in the dispatch form. Each group runs at most **three** runners in parallel; choose one group at a time instead of spending minutes on every desktop. Self-hosted labels:
 
 ```text
 [self-hosted, windows, win7]
