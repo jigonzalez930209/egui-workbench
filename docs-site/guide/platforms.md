@@ -1,6 +1,6 @@
 ---
 title: Desktop platforms
-description: The Linux, macOS, and Windows CI matrix, the repeatable IME and HiDPI pass, and the egui upgrade policy.
+description: Where each check runs, the repeatable IME and HiDPI pass, and the egui upgrade policy.
 ---
 
 # Desktop platforms
@@ -8,18 +8,18 @@ description: The Linux, macOS, and Windows CI matrix, the repeatable IME and HiD
 The 0.3.x hardening release makes the crate solid on the three desktops before the 0.4
 work builds on it.
 
-## CI matrix
+## Where each check runs
 
-| Job | Runner | What runs |
+| Check | Where | What runs |
 |---|---|---|
-| `check` | Ubuntu | Format, style lint, clippy, rustdoc, the full test suite (including pixel snapshots), benchmarks compile, template check, package, agent skill |
-| `desktop` | macOS, Windows | Unit tests and every behavior test, including `ime_hidpi`, the chrome, tabs, controls, dialogs, tree, viewer, and all plot families |
-| `msrv` | Ubuntu | `cargo +1.95 check --lib --all-features --locked` |
-| `semver` | Ubuntu | `cargo-semver-checks` against the previous release tag |
+| `cargo xtask check` | Locally, before every tag | Format, style lint, clippy, rustdoc, the full test suite (including pixel snapshots and `ime_hidpi`), template check |
+| `CI` workflow | Ubuntu, manual (`workflow_dispatch`) | Format, library tests, `cargo audit`, `cargo deny check`, agent skill |
+| `Release` workflow | Ubuntu, macOS, Windows, on a `v*` tag | Release gate on Ubuntu; macOS and Windows build the Python wheels |
+| `Platform pixels` | Windows and macOS runners, manual | Native rendering and hit-testing probe with screenshots |
 
-Pixel snapshots stay pinned to the Linux reference. The other two desktops run behavior
-and interaction tests, so a platform-specific chrome or input regression fails before a
-release, without re-baselining fonts on three systems.
+CI does not run the full test suite and has no automated macOS or Windows test job. Pixel
+snapshots stay pinned to the Linux reference. The macOS and Windows IME/HiDPI pass is
+still open; see "Known gaps at 1.0" in the [roadmap](/reference/roadmap).
 
 ## IME and HiDPI
 
@@ -28,7 +28,7 @@ The manual pass is written down in the repository at
 It covers dead-key accents, CJK composition and cancellation, mixed text, and a 200 %
 scale factor, plus resizing the window across displays.
 
-The automated half is `tests/ime_hidpi.rs`, which runs on all three desktops:
+The automated half is `tests/ime_hidpi.rs`, which runs locally on Linux before each tag:
 
 - IME pre-edit followed by a commit inserts the composed character.
 - A 2× pixels-per-point frame keeps the text field usable and its accessible name
