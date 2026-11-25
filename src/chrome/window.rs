@@ -57,7 +57,7 @@ pub fn native_options_sized(title: &str, size: [f32; 2], min_size: [f32; 2]) -> 
 pub fn ensure_undecorated(ctx: &Context) {
     #[cfg(target_os = "windows")]
     {
-        let id = egui::Id::new("workbench_force_undecorated");
+        let id = egui::Id::unique("workbench_force_undecorated");
         let sent = ctx.data(|data| data.get_temp::<bool>(id).unwrap_or(false));
         if !sent {
             ctx.send_viewport_cmd(ViewportCommand::Decorations(false));

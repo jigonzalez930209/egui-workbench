@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/windows-${{ matrix.os }}.png
+          WORKBENCH_WGPU=1 cargo run --example platform_probe --features wgpu-renderer -- --theme "${{ inputs.theme }}" --screenshot artifacts/windows-${{ matrix.os }}.png
       - uses: actions/upload-artifact@v7
         with:
           name: probe-windows-${{ matrix.os }}
