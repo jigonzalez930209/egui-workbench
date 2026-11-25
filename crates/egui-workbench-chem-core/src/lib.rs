@@ -1,7 +1,7 @@
 //! Shared, egui-free chemistry model for egui-workbench.
 //!
-//! The crate defines the contract between a 2D editor ([`egui_workbench_chem2d`]),
-//! a 3D viewer ([`egui_workbench_mol3d`]), and the external `sci-form` and
+//! The crate defines the contract between a 2D editor (`egui-workbench-chem2d`),
+//! a 3D viewer (`egui-workbench-mol3d`), and the external `sci-form` and
 //! `xtalforge-core` engines:
 //!
 //! - [`id`] gives documents, atoms, and bonds stable generational identifiers.
