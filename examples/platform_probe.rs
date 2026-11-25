@@ -34,6 +34,7 @@ fn main() -> eframe::Result {
             }
         }
     }
+    #[allow(unused_mut)]
     let mut options = egui_workbench::native_options_sized("Workbench platform probe", [900.0, 600.0], [640.0, 420.0]);
     #[cfg(feature = "wgpu-renderer")]
     if std::env::var_os("WORKBENCH_WGPU").is_some() {
