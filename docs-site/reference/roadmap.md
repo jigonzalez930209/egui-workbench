@@ -5,10 +5,10 @@ description: From 0.3 to 1.0.0 in fourteen releases - commands and state, a dock
 
 # Roadmap
 
+Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitHub issues.
+
 The repository's [`ROADMAP.md`](https://github.com/jigonzalez930209/egui-workbench/blob/main/ROADMAP.md)
 is the source of truth; this page mirrors it.
-
-Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitHub issues.
 
 ## How to read this document
 
@@ -25,7 +25,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 1.0.0
+## Where we are: 1.0.2
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -33,8 +33,9 @@ palette, toasts, a shadcn-style component layer, 2,410 Lucide icons, the Materia
 icons, `Plot` (many chart families, legend animations, SVG/PNG export), `Plot3D`, a
 read-only `FileViewer`, the optional runtime (`ThemeState`, `Documents`, `Keymap`,
 `CloseGuard`, `show_workbench`), a starter template, an agent skill, and a documentation
-site whose demos run the real library in WebAssembly. About 600 tests and pixel
-snapshots protect it.
+site whose demos run the real library in WebAssembly. More than 400 tests and 87 pixel
+snapshots protect it; they run locally with `cargo xtask check` before each tag, not in
+CI (see [Known gaps at 1.0](#known-gaps-at-10)).
 
 0.4.0 added the `CommandRegistry` and `when` contexts, rebindable chords with conflict
 detection and a keybindings editor, palette v2 (fuzzy ranking, recents, prefix modes, and
@@ -97,13 +98,19 @@ font loading API, and the published accessibility report.
 security policy, and accessibility report are published, and the release pipeline is one
 tag-driven flow with a manual one-OS smoke test.
 
-1.0.1 is a platform patch: Windows undecorated frame reassertion, the manual native
-pixel matrix, and the support boundary.
-
 1.0.0 states the promise: Semantic Versioning for every crate and package, egui 0.37 plus
 one following minor, MSRV 1.95, separately versioned spec/protocol/extension interface,
 and a single tag flow that publishes the crates, docs, npm, PyPI wheels, C ABI, and
 GitHub release.
+
+1.0.1 is a platform patch: Windows undecorated frame reassertion, the manual native
+pixel matrix, and the support boundary.
+
+1.0.2 makes the platform probe a standalone crate, runs the headless wgpu probe on hosted
+Windows and macOS with a byte-for-byte comparison, and adds the `wgpu-renderer` feature.
+
+1.0 shipped with some of the entry criteria below still open. They are listed in
+[Known gaps at 1.0](#known-gaps-at-10) rather than marked done.
 
 What stands between this and a 1.0 that people can build products on, and the release
 that closes each gap:
@@ -659,6 +666,21 @@ No new features. The release states the promise:
 
 ---
 
+## Known gaps at 1.0
+
+1.0 shipped without these entry criteria. Each is a 1.x item; none changes the public API.
+
+| Gap | State at 1.0.2 | Plan |
+|---|---|---|
+| Automated CI on macOS, Windows, and WebAssembly | `CI` is a manual Ubuntu smoke test (format, library tests, `cargo audit`, `cargo deny`). The full suite and snapshots run locally with `cargo xtask check`; nothing checks MSRV 1.95. | Kept manual by choice to save CI minutes; the local suite stays the release gate. |
+| Manual IME and HiDPI pass on macOS and Windows | Only the Linux row of `docs/PLATFORMS.md` is filled. | Run and record the pass before 1.1. |
+| `1.0.0-rc.N` releases and two external applications in production | No release candidate was published; no external application is recorded. | Record external adopters as they appear; use `-rc` tags for the next major. |
+| Fuzzing of the CSV, workbook, and spec readers | Not started. | `cargo fuzz` targets for the three readers. |
+| Benchmarks and WebAssembly size in CI | Benchmarks exist (`benches/`, `docs/BENCHMARKS.md`) and run by hand; the wasm size is not recorded. | Record both per release in `docs/BENCHMARKS.md`. |
+| C ABI binaries | The release ships `egui-workbench-c-linux-x86_64.zip` only. | Add macOS and Windows archives to the release jobs that already build wheels there. |
+| Unmaintained dependencies | `chrono` and `serde_yaml`/`unsafe-libyaml` are ignored in `deny.toml` with a reason. | Replace them in a 1.x minor. |
+| `egui-workbench-core` split | Not done (Decision 1). | Revisit before a 2.0. |
+
 ## Cross-cutting rules
 
 These apply to every release.
@@ -672,7 +694,8 @@ These apply to every release.
 - **Size budgets.** Icon packs, plots, 3D, the viewer, connectors, `wasmtime`, and the GPU
   renderer are features. A default `egui-workbench` build stays small, and CI records
   the WebAssembly size.
-- **Performance is tested.** Budgets live in benchmarks; a regression fails CI.
+- **Performance is tested.** Budgets live in benchmarks and the `*_budget` tests, which
+  run locally before each tag; CI does not run them yet.
 - **The egui train.** egui releases roughly every three months and breaks API; the
   upgrade is its own small release with its own migration note.
 - **No idle repaint** and **files under 500 lines** stay as the design rules in
@@ -694,7 +717,9 @@ A release is done when all of these are true:
 
 ## Decisions to settle early
 
-1. **One crate or a workspace.** egui types appear in our public API, so every egui
+1. **One crate or a workspace.** *Not taken for 1.0:* the crates were split by binding
+   (host, remote, agent, extensions, C, Python) but there is no egui-free
+   `egui-workbench-core`, so the 1.x line tracks egui as a whole. egui types appear in our public API, so every egui
    breaking release is a breaking release for us, and that conflicts with a 1.0 promise.
    Recommended: split before 0.4 into an egui-free core (`egui-workbench-core`:
    commands, contexts, history, workspace and layout schema, dataset, query, protocol
