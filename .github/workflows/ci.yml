@@ -33,8 +33,10 @@ jobs:
           xvfb-run -a cargo test --workspace --lib
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-audit
+          tool: cargo-audit,cargo-deny
       - name: Security audit
-        run: cargo audit
+        run: |
+          cargo audit
+          cargo deny check
       - name: Agent skill
         run: python3 docs-site/scripts/build-skill.py --check
