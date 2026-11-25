@@ -4,6 +4,7 @@
 
 use super::PlotAnnotation;
 use super::axis::{Bounds, Scale};
+use super::measure::PlotMeasurement;
 use super::series::Series;
 use super::types::{Drag, PlotTool};
 
@@ -38,6 +39,9 @@ pub struct PlotState {
     /// Text notes, arrows, spans, and regions.
     #[cfg_attr(feature = "serde", serde(default))]
     pub annotations: Vec<PlotAnnotation>,
+    /// Distance and area measurements drawn over the data.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub measurements: Vec<PlotMeasurement>,
 }
 
 impl PlotState {
@@ -96,6 +100,31 @@ impl PlotState {
     /// Show `min..=max` (data coordinates, linear axis) on the right y axis.
     pub fn set_y2_view(&mut self, min: f64, max: f64) {
         self.y2_view = Some([min.min(max), min.max(max)]);
+    }
+
+    /// Every distance and area measurement, in the order they were added.
+    pub fn measurements(&self) -> &[PlotMeasurement] {
+        &self.measurements
+    }
+
+    /// Add a measurement. The plot draws it on the next frame.
+    pub fn add_measurement(&mut self, measurement: PlotMeasurement) {
+        self.measurements.push(measurement);
+    }
+
+    /// Remove the measurement at `index`.
+    pub fn remove_measurement(&mut self, index: usize) -> Option<PlotMeasurement> {
+        (index < self.measurements.len()).then(|| self.measurements.remove(index))
+    }
+
+    /// Remove the newest measurement and return it.
+    pub fn pop_measurement(&mut self) -> Option<PlotMeasurement> {
+        self.measurements.pop()
+    }
+
+    /// Remove every measurement.
+    pub fn clear_measurements(&mut self) {
+        self.measurements.clear();
     }
 
     /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)

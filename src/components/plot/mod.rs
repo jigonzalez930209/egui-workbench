@@ -52,6 +52,7 @@ mod interact;
 mod layout;
 mod legend;
 mod math_text;
+mod measure;
 mod overlay;
 mod paint;
 mod pdf;
@@ -88,6 +89,7 @@ pub use gpu::set_output_format;
 pub use grid::PlotGrid;
 pub use history::ViewHistory;
 pub use math_text::to_unicode_math;
+pub use measure::{DistanceSummary, Extremum, PlotMeasurement, SeriesMeasurement, region_measurements};
 use scene::Measure;
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
 pub use three::{
@@ -297,6 +299,7 @@ impl Plot<'_> {
         // The points each series drew; hover searches these instead of every point.
         let drawn = std::mem::take(&mut scene.drawn);
         annotations::paint(&mut scene.data, &transform, &state.annotations, &theme);
+        measure::paint(&mut scene, &measure, &transform, &self, state, &theme);
         let painter = ui.painter_at(rect);
         #[cfg(feature = "gpu")]
         let gpu = self.config.renderer == Renderer::Gpu;
@@ -315,6 +318,21 @@ impl Plot<'_> {
                 egui::Stroke::new(1.0, colors.selection),
                 egui::StrokeKind::Inside,
             );
+        }
+        if let (Some(Drag::Measure { start, distance }), Some(current)) = (state.drag, response.interact_pointer_pos())
+        {
+            let clipped = painter.with_clip_rect(layout.frame);
+            if distance {
+                clipped.line_segment([start, current], egui::Stroke::new(1.0, colors.selection));
+            } else {
+                clipped.rect(
+                    Rect::from_two_pos(start, current).intersect(layout.frame),
+                    0.0,
+                    colors.selection.gamma_multiply(0.06),
+                    egui::Stroke::new(1.0, colors.selection),
+                    egui::StrokeKind::Inside,
+                );
+            }
         }
 
         let toolbar = widgets::toolbar(ui, icons, &self, layout.frame, &transform, state);

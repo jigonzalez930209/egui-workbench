@@ -6,7 +6,7 @@ mod common;
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use egui_workbench::components::plot::{Bounds, Plot, PlotHover, PlotState, PlotTool, Series};
+use egui_workbench::components::plot::{Bounds, Plot, PlotHover, PlotMeasurement, PlotState, PlotTool, Series};
 use egui_workbench::egui::{self, Event, Modifiers, MouseWheelUnit, PointerButton, Pos2, TouchPhase, pos2, vec2};
 use egui_workbench::{Icons, ThemeId, theme};
 
@@ -216,6 +216,43 @@ fn the_select_tool_selects_with_a_plain_drag() {
         Modifiers::NONE,
     );
     assert!(harness.state().state.selection.is_some());
+}
+
+#[test]
+fn the_measure_tools_add_distance_and_area_measurements() {
+    let mut harness = harness();
+    harness.state_mut().state.tool = PlotTool::MeasureDistance;
+    harness.run_steps(3);
+    let frame = harness.state().frame.expect("frame");
+    drag(
+        &mut harness,
+        PointerButton::Primary,
+        frame.left_top() + vec2(90.0, 90.0),
+        frame.left_top() + vec2(240.0, 180.0),
+        Modifiers::NONE,
+    );
+    assert_eq!(harness.state().state.measurements().len(), 1);
+    let distance = harness.state().state.measurements()[0]
+        .distance_summary()
+        .expect("distance");
+    assert!(distance.distance > 0.0);
+    assert!(distance.dx.abs() > 0.0);
+
+    harness.state_mut().state.tool = PlotTool::MeasureArea;
+    drag(
+        &mut harness,
+        PointerButton::Primary,
+        frame.left_top() + vec2(120.0, 100.0),
+        frame.left_top() + vec2(300.0, 220.0),
+        Modifiers::NONE,
+    );
+    assert_eq!(harness.state().state.measurements().len(), 2);
+    assert!(matches!(
+        harness.state().state.measurements()[1],
+        PlotMeasurement::Area { .. }
+    ));
+    harness.state_mut().state.clear_measurements();
+    assert!(harness.state().state.measurements().is_empty());
 }
 
 #[test]

@@ -78,6 +78,39 @@ series.set_mode(StreamMode::Live);   // resume
 `push` drops the oldest point at capacity, trims the rolling x window, and returns whether
 the trigger fired. `revision()` changes for every accepted point; `fired()` counts edges.
 
+## Measurements
+
+Two toolbar tools draw persistent measurements in data coordinates, so they survive zoom,
+pan, and a saved `PlotState`:
+
+- **Ruler** (`PlotTool::MeasureDistance`): drag between two points. Snaps to the nearest
+  visible point within 14 pt and reports `Δx`, `Δy`, Euclidean distance, slope, and
+  angle.
+- **Area** (`PlotTool::MeasureArea`): drag a rectangle. Reports its area, and for every
+  visible series the minimum and maximum (with the slope at each extremum), the mean, the
+  trapezoidal integral, and the endpoint slope.
+
+```rust
+use egui_workbench::components::plot::{Bounds, PlotMeasurement, PlotState, region_measurements};
+
+let mut state = PlotState::default();
+state.add_measurement(PlotMeasurement::distance([1.0, 2.0], [4.0, 6.0]));
+state.add_measurement(PlotMeasurement::area(Bounds::from_corners([0.0, 0.0], [10.0, 5.0])));
+
+// The same numbers the labels show, available to the application.
+if let Some(summary) = state.measurements()[0].distance_summary() {
+    let _ = (summary.distance, summary.slope, summary.angle_deg);
+}
+let stats = region_measurements(&plot, &state, state.measurements()[1].bounds());
+for series in stats {
+    let _ = (series.min, series.max, series.integral, series.mean);
+}
+```
+
+`PlotState::pop_measurement`, `remove_measurement`, `clear_measurements`, and
+`measurements` manage the list. Measurements are serialized with the rest of the state
+when the `serde` feature is enabled.
+
 ## Axes
 
 | Scale | Use |

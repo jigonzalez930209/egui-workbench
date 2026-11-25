@@ -73,7 +73,7 @@ pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect) -> Option<Rect> {
         return None;
     }
     let tools = if plot.chart_mode() == super::ChartMode::Cartesian {
-        6
+        8
     } else {
         0
     };
@@ -121,6 +121,16 @@ pub(super) fn toolbar(
                 "Select area (or Shift-drag)",
                 Some(PlotTool::Select),
             ),
+            (
+                "lucide-ruler",
+                "Measure distance and slope (drag)",
+                Some(PlotTool::MeasureDistance),
+            ),
+            (
+                "lucide-square-dashed",
+                "Measure area, extrema, and integrals (drag)",
+                Some(PlotTool::MeasureArea),
+            ),
             ("lucide-zoom-in", "Zoom in", None),
             ("lucide-zoom-out", "Zoom out", None),
             ("lucide-maximize", "Fit data (double-click)", None),
@@ -148,7 +158,7 @@ pub(super) fn toolbar(
     let mut x = rect.left() + 2.0;
     let mut export_button = None;
     for (index, (icon, tooltip, tool)) in buttons.iter().enumerate() {
-        if index == 3 || index == 6 {
+        if index == 5 || index == 8 {
             let line_x = painter.round_to_pixel_center(x + separator * 0.5);
             painter.vline(
                 line_x,
