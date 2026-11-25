@@ -1207,6 +1207,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-workbench-chem2d"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui-workbench-chem-core",
+ "serde_json",
+]
+
+[[package]]
 name = "egui-workbench-extensions"
 version = "1.0.4"
 dependencies = [

@@ -20,7 +20,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace]
-members = ["xtask", "crates/egui-workbench-host", "crates/egui-workbench-python", "crates/egui-workbench-remote", "crates/egui-workbench-c", "crates/egui-workbench-agent", "crates/egui-workbench-extensions", "crates/egui-workbench-chem-core"]
+members = ["xtask", "crates/egui-workbench-host", "crates/egui-workbench-python", "crates/egui-workbench-remote", "crates/egui-workbench-c", "crates/egui-workbench-agent", "crates/egui-workbench-extensions", "crates/egui-workbench-chem-core", "crates/egui-workbench-chem2d"]
 resolver = "3"
 
 [features]
