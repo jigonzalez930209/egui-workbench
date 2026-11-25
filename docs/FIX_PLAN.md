@@ -102,34 +102,53 @@ Fix in three batches: P0 ships as 1.0.3 as soon as it is done, P1 in the same pa
 
 ### P0 — security and broken installs (1.0.3)
 
-- [ ] **X1** In `host_read_file`, canonicalize both the path and each granted prefix with `std::fs::canonicalize`, then compare with `Path::starts_with` (component-wise, not string). Reject a path that does not exist or cannot be canonicalized. *Verify:* new tests in `crates/egui-workbench-extensions/tests` for `/grant/../secret`, `/grant-sibling/x`, and a symlink inside the grant pointing outside it; all three return `-3`.
-- [ ] **X3** Before reading, call `std::fs::metadata(&path)?.len()` and return `-5` when it exceeds `out_cap`. *Verify:* a test with `out_cap = 4` on a 1 MiB granted file returns `-5` without allocating.
-- [ ] **X2** Turn on `Config::epoch_interruption(true)`, set a deadline before each `init`/`on_command` call, and tick the epoch from a timer thread; add `StoreLimitsBuilder::new().memory_size(64 << 20)` through `Store::limiter`. *Verify:* a test extension with `loop {}` returns `ExtensionError::Runtime` within 1 s; one that grows memory past 64 MiB fails.
-- [ ] **X4** Validate `entry` with `Path::new(&entry).components().all(|c| matches!(c, Component::Normal(_)))`. *Verify:* unit tests for `C:\x.wasm`, `\\srv\x.wasm`, `a/../b.wasm` and `/x.wasm`.
-- [ ] **X5** In `handshake`, read `Origin` and accept only an absent Origin (native clients) or one in an allow-list given to `RemoteServer` (default empty). *Verify:* a test sending `Origin: https://evil.example` gets `403` and no host access.
-- [ ] **X6** Cap the handshake at 8 KiB and 64 header lines (`reader.take(8192)`), and cap concurrent connections (for example 32) with an `AtomicUsize`. *Verify:* a test sending 16 KiB without a newline gets an error, not growing memory.
-- [ ] **S1, S2, D6** Replace `version = "0.4"` with `version = "1"` in `templates/app/Cargo.toml:17`, `xtask/src/main.rs:126` and `docs-site/guide/installation.md:107`; regenerate the skill. *Verify:* `cargo generate --git <repo> templates/app` in a temp directory, then `cargo build` resolves 1.0.x.
-- [ ] **Q2, D8** Return `env!("CARGO_PKG_VERSION")` from `wb_host_version()` (a static `CStr` built with `concat!(env!("CARGO_PKG_VERSION"), "\0")`), and add `crates/egui-workbench-wasm/package.json` and `pyproject.toml` to the release version loop. *Verify:* `c_abi.c` asserts the version equals the crate version.
+- [x] **X1** In `host_read_file`, canonicalize both the path and each granted prefix with `std::fs::canonicalize`, then compare with `Path::starts_with` (component-wise, not string). Reject a path that does not exist or cannot be canonicalized. *Verify:* new tests in `crates/egui-workbench-extensions/tests` for `/grant/../secret`, `/grant-sibling/x`, and a symlink inside the grant pointing outside it; all three return `-3`.
+- [x] **X3** Before reading, call `std::fs::metadata(&path)?.len()` and return `-5` when it exceeds `out_cap`. *Verify:* a test with `out_cap = 4` on a 1 MiB granted file returns `-5` without allocating.
+- [x] **X2** Turn on `Config::epoch_interruption(true)`, set a deadline before each `init`/`on_command` call, and tick the epoch from a timer thread; add `StoreLimitsBuilder::new().memory_size(64 << 20)` through `Store::limiter`. *Verify:* a test extension with `loop {}` returns `ExtensionError::Runtime` within 1 s; one that grows memory past 64 MiB fails.
+- [x] **X4** Validate `entry` with `Path::new(&entry).components().all(|c| matches!(c, Component::Normal(_)))`. *Verify:* unit tests for `C:\x.wasm`, `\\srv\x.wasm`, `a/../b.wasm` and `/x.wasm`.
+- [x] **X5** In `handshake`, read `Origin` and accept only an absent Origin (native clients) or one in an allow-list given to `RemoteServer` (default empty). *Verify:* a test sending `Origin: https://evil.example` gets `403` and no host access.
+- [x] **X6** Cap the handshake at 8 KiB and 64 header lines (`reader.take(8192)`), and cap concurrent connections (for example 32) with an `AtomicUsize`. *Verify:* a test sending 16 KiB without a newline gets an error, not growing memory.
+- [x] **S1, S2, D6** Replace `version = "0.4"` with `version = "1"` in `templates/app/Cargo.toml:17`, `xtask/src/main.rs:126` and `docs-site/guide/installation.md:107`; regenerate the skill. *Verify:* `cargo generate --git <repo> templates/app` in a temp directory, then `cargo build` resolves 1.0.x.
+- [x] **Q2, D8** Return `env!("CARGO_PKG_VERSION")` from `wb_host_version()` (a static `CStr` built with `concat!(env!("CARGO_PKG_VERSION"), "\0")`), and add `crates/egui-workbench-wasm/package.json` and `pyproject.toml` to the release version loop. *Verify:* `c_abi.c` asserts the version equals the crate version.
 
 ### P1 — robustness and honest gates
 
-- [ ] **Q3** Wrap the body of each `wb_*` function in `std::panic::catch_unwind(AssertUnwindSafe(…))`, setting `wb_last_error` to the panic message and returning `-1`/`NULL`. *Verify:* a Rust test that triggers a panic through the ABI returns `-1`.
-- [ ] **Q4** Use `CStr::to_str()` and return an error on invalid UTF-8. *Verify:* `c_abi.c` passes `"\xff"` and gets `NULL` plus an error.
-- [ ] **X7, X8** Make `--read-write` without `--confirm` refuse `destructive` commands; read the token from `EGUI_WORKBENCH_CONFIRM` instead of argv. *Verify:* an MCP test calling a destructive command without confirmation gets `ConfirmationRequired`.
-- [ ] **Q5** Replace the `expect` at `runtime.rs:227` with `ok_or_else(… ExtensionError::Unknown …)`.
-- [ ] **D7** Add `cargo clippy --workspace --all-targets -- -D warnings` to the release gate.
-- [ ] **D9, D10** Remove `continue-on-error` from the npm and Pages steps; skip npm publish only when `npm view egui-workbench@$version` already exists.
-- [ ] **D11** Run the new macOS/Windows C ABI jobs once by hand before tagging 1.0.3.
-- [ ] **T2, T3, T4** Extend `cargo xtask check` with `template-check`, `bash docs-site/scripts/check-examples.sh`, `cargo deny check`, `cargo +1.95 check --lib --all-features --locked`, `pytest crates/egui-workbench-python/tests`, the C ABI test, and `clients/go/check.sh`; skip a step with a clear message when its tool is missing. *Verify:* `cargo xtask check` lists each step and passes.
-- [ ] **D1–D5** Rewrite the seven "in CI" sentences to "before each tag (`cargo xtask check`)", or drop the claim when nothing checks it (semver-checks).
-- [ ] **T7** Commit `fuzz/` and document it in `CONTRIBUTING.md`.
+- [x] **Q3** Wrap the body of each `wb_*` function in `std::panic::catch_unwind(AssertUnwindSafe(…))`, setting `wb_last_error` to the panic message and returning `-1`/`NULL`. *Verify:* a Rust test that triggers a panic through the ABI returns `-1`.
+- [x] **Q4** Use `CStr::to_str()` and return an error on invalid UTF-8. *Verify:* `c_abi.c` passes `"\xff"` and gets `NULL` plus an error.
+- [x] **X7, X8** Make `--read-write` without `--confirm` refuse `destructive` commands; read the token from `EGUI_WORKBENCH_CONFIRM` instead of argv. *Verify:* an MCP test calling a destructive command without confirmation gets `ConfirmationRequired`.
+- [x] **Q5** Replace the `expect` at `runtime.rs:227` with `ok_or_else(… ExtensionError::Unknown …)`.
+- [x] **D7** Add `cargo clippy --workspace --all-targets -- -D warnings` to the release gate.
+- [x] **D9, D10** Remove `continue-on-error` from the npm and Pages steps; skip npm publish only when `npm view egui-workbench@$version` already exists.
+- [x] **D11** Run the new macOS/Windows C ABI jobs once by hand before tagging 1.0.3.
+- [x] **T2, T3, T4** Extend `cargo xtask check` with `template-check`, `bash docs-site/scripts/check-examples.sh`, `cargo deny check`, `cargo +1.95 check --lib --all-features --locked`, `pytest crates/egui-workbench-python/tests`, the C ABI test, and `clients/go/check.sh`; skip a step with a clear message when its tool is missing. *Verify:* `cargo xtask check` lists each step and passes.
+- [x] **D1–D5** Rewrite the seven "in CI" sentences to "before each tag (`cargo xtask check`)", or drop the claim when nothing checks it (semver-checks).
+- [x] **T7** Commit `fuzz/` and document it in `CONTRIBUTING.md`.
 
 ### P2 — structure (1.1)
 
-- [ ] **Q1, T5** Split `extensions/src/runtime.rs` (host functions into `runtime/host_api.rs`) and `host/src/runtime.rs` under 500 lines; add `crates` to the dirs in `tests/line_limit.rs`. *Verify:* the guard test passes with `crates` included.
-- [ ] **T1** Add `cargo xtask budgets` running `cargo test --release --test data_budget --test stream_budget -- --ignored`, and record the numbers in `docs/BENCHMARKS.md` each release.
-- [ ] **T6** The security tests from P0 cover this item.
-- [ ] **S3** Make `egui-workbench-wasm`, `web` and the probe members of the workspace (excluded from default members), or document why each keeps its own lockfile.
-- [ ] **S4, S6** Set `web` to `publish = false` with version `1.0.2` (or `0.0.0` like the probe); delete the old `.tgz` files.
-- [ ] **X9** Replace `serde_yaml` with `serde_norway` or `serde_yml`, and `chrono` with `time` or `jiff`; drop the ignores from `deny.toml`.
-- [ ] **S7** Decide on the egui-free core crate before 2.0, as the roadmap already says.
+- [x] **Q1, T5** Split `extensions/src/runtime.rs` (host functions into `runtime/host_api.rs`) and `host/src/runtime.rs` under 500 lines; add `crates` to the dirs in `tests/line_limit.rs`. *Verify:* the guard test passes with `crates` included.
+- [x] **T1** Add `cargo xtask budgets` running `cargo test --release --test data_budget --test stream_budget -- --ignored`, and record the numbers in `docs/BENCHMARKS.md` each release.
+- [x] **T6** The security tests from P0 cover this item.
+- [x] **S3** Make `egui-workbench-wasm`, `web` and the probe members of the workspace (excluded from default members), or document why each keeps its own lockfile.
+- [x] **S4, S6** Set `web` to `publish = false` with version `1.0.2` (or `0.0.0` like the probe); delete the old `.tgz` files.
+- [x] **X9** Replace `serde_yaml` with `serde_norway` or `serde_yml`, and `chrono` with `time` or `jiff`; drop the ignores from `deny.toml`.
+- [x] **S7** Decide on the egui-free core crate before 2.0, as the roadmap already says.
+
+## Status — 1.0.4 (2026-11-25)
+
+All P0, P1, and P2 items are implemented and verified. Evidence:
+
+- `cargo xtask check` passed: fmt, style-lint, clippy, rustdoc, all workspace tests,
+  template check, docs examples, C ABI client, `cargo deny`, and the 1.95 MSRV check.
+  Python, Go, semver-checks, and wasm steps skip with a message when their prerequisite
+  is not installed.
+- `cargo xtask budgets` passed the 1M-row data budget (4.22 s) and the streaming budget
+  (0.02 s).
+- The `C ABI` workflow ran green on Linux, macOS, and Windows before the tag.
+- The `Release` workflow for `v1.0.4` completed successfully and published crates.io,
+  npm, PyPI, the docs, and all three C ABI archives.
+
+X9 note: the direct `chrono` and `serde_yaml` dependencies are gone (`jiff` and
+`serde_norway` replace them). `chrono` remains a transitive dependency of
+`arrow`/`parquet` for temporal arrays, so one advisory ignore stays in `deny.toml` with
+that reason.
