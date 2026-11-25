@@ -5,13 +5,15 @@
 //! manual `platform-pixels` workflow and inspect/compare the artifacts.
 //!
 //! ```bash
-//! cargo run --example platform_probe -- --screenshot /tmp/workbench-probe.png
+//! cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml -- \
+//!   --screenshot /tmp/workbench-probe.png
 //! ```
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use eframe;
 use egui_workbench::app::ThemeState;
 use egui_workbench::egui;
 use egui_workbench::{Icons, ThemeId, TitleBar, WindowAction, show_title_bar};
@@ -36,7 +38,7 @@ fn main() -> eframe::Result {
     }
     #[allow(unused_mut)]
     let mut options = egui_workbench::native_options_sized("Workbench platform probe", [900.0, 600.0], [640.0, 420.0]);
-    #[cfg(feature = "wgpu-renderer")]
+    #[cfg(feature = "wgpu")]
     if std::env::var_os("WORKBENCH_WGPU").is_some() {
         options.renderer = eframe::Renderer::Wgpu;
     }

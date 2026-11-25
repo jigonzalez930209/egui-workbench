@@ -36,11 +36,13 @@ jobs:
         with:
           toolchain: "1.97.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/egui-workbench-platform-probe -> target
       - name: Probe
         shell: bash
         run: |
           mkdir -p artifacts
-          WORKBENCH_WGPU=1 cargo run --example platform_probe --features wgpu-renderer -- --theme "${{ inputs.theme }}" --screenshot artifacts/windows-${{ matrix.os }}.png
+          WORKBENCH_WGPU=1 cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml             --features wgpu -- --theme "${{ inputs.theme }}" --screenshot artifacts/windows-${{ matrix.os }}.png
       - uses: actions/upload-artifact@v7
         with:
           name: probe-windows-${{ matrix.os }}
@@ -62,10 +64,12 @@ jobs:
         with:
           toolchain: "1.97.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/egui-workbench-platform-probe -> target
       - name: Probe
         run: |
           mkdir -p artifacts
-          cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/macos-${{ matrix.os }}.png
+          cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml             -- --theme "${{ inputs.theme }}" --screenshot artifacts/macos-${{ matrix.os }}.png
       - uses: actions/upload-artifact@v7
         with:
           name: probe-macos-${{ matrix.os }}
@@ -92,11 +96,14 @@ jobs:
         with:
           toolchain: "1.97.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/egui-workbench-platform-probe -> target
       - name: Probe
         run: |
           mkdir -p artifacts
           xvfb-run -a -s "-screen 0 1280x900x24" \
-            cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/linux-x11-${{ matrix.os }}.png
+            cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml \
+              -- --theme "${{ inputs.theme }}" --screenshot artifacts/linux-x11-${{ matrix.os }}.png
       - uses: actions/upload-artifact@v7
         with:
           name: probe-linux-x11-${{ matrix.os }}
@@ -119,6 +126,8 @@ jobs:
         with:
           toolchain: "1.97.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/egui-workbench-platform-probe -> target
       - name: Probe
         run: |
           mkdir -p artifacts /tmp/xdg-runtime
@@ -127,7 +136,8 @@ jobs:
           weston --backend=headless-backend.so --socket=wayland-probe --width=1280 --height=900 --idle-time=0 >/tmp/weston.log 2>&1 &
           sleep 2
           WAYLAND_DISPLAY=wayland-probe LIBGL_ALWAYS_SOFTWARE=1 \
-            cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot artifacts/linux-wayland-weston.png
+            cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml \
+              -- --theme "${{ inputs.theme }}" --screenshot artifacts/linux-wayland-weston.png
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -176,11 +186,14 @@ jobs:
         with:
           toolchain: "1.97.1"
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/egui-workbench-platform-probe -> target
       - name: Probe
         shell: bash
         run: |
           mkdir -p artifacts
-          cargo run --example platform_probe -- --theme "${{ inputs.theme }}" --screenshot "artifacts/${{ matrix.label }}.png"
+          cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml \
+            -- --theme "${{ inputs.theme }}" --screenshot "artifacts/${{ matrix.label }}.png"
       - uses: actions/upload-artifact@v7
         with:
           name: probe-${{ matrix.label }}

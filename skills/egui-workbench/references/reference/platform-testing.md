@@ -12,7 +12,7 @@ GitHub-hosted runner cannot represent every desktop.
 Actions → Platform pixels → Run workflow
 ```
 
-The workflow builds one `platform_probe` example and uploads a PNG + JSON report per
+The workflow builds one standalone `platform_probe` and uploads a PNG + JSON report per
 runner. It does not run on every push.
 
 Hosted coverage:
@@ -57,7 +57,8 @@ compile/smoke signal, not as a pixel reference.
 ## The probe
 
 ```bash
-cargo run --example platform_probe -- --screenshot artifacts/probe.png
+cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml -- \
+  --screenshot artifacts/probe.png
 ```
 
 It draws the real 34 pt title bar, a 6×8 button grid, the pointer crosshair, DPI, content
