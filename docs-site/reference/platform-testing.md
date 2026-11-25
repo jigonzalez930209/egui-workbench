@@ -50,6 +50,13 @@ Choose **windows**, **macos**, **linux**, or **self-hosted** in the dispatch for
 The jobs stay queued until a runner with those labels is online. That is intentional:
 the matrix spends no hosted minutes when you do not need it.
 
+GitHub-hosted Windows and macOS runners are non-interactive and have no desktop GPU.
+The native window probe can create a process but cannot reliably paint or receive a
+frame there; each job is capped at 20 minutes and reports the failure. Hosted Linux uses
+Xvfb and works. For native Windows/macOS pixels and hit testing, use an interactive
+self-hosted runner with a logged-in desktop session. The hosted jobs remain useful as a
+compile/smoke signal, not as a pixel reference.
+
 ## The probe
 
 ```bash
