@@ -159,6 +159,13 @@ jobs:
           command: build
           target: universal2-apple-darwin
           args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - name: C ABI artifact
+        run: |
+          cargo build -p egui-workbench-c --release --locked
+          mkdir -p c-abi/include
+          cp crates/egui-workbench-c/include/egui_workbench.h c-abi/include/
+          cp target/release/libegui_workbench_c.dylib target/release/libegui_workbench_c.a c-abi/
+          zip -qr dist/egui-workbench-c-macos-aarch64.zip c-abi
       - uses: actions/upload-artifact@v7
         with:
           name: macos
@@ -174,6 +181,15 @@ jobs:
           command: build
           target: x86_64-pc-windows-msvc
           args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
+      - name: C ABI artifact
+        shell: bash
+        run: |
+          cargo build -p egui-workbench-c --release --locked
+          mkdir -p c-abi/include
+          cp crates/egui-workbench-c/include/egui_workbench.h c-abi/include/
+          cp target/release/egui_workbench_c.dll target/release/egui_workbench_c.dll.lib \
+            target/release/egui_workbench_c.lib c-abi/
+          7z a -tzip -bd dist/egui-workbench-c-windows-x86_64.zip c-abi > /dev/null
       - uses: actions/upload-artifact@v7
         with:
           name: windows
