@@ -1244,6 +1244,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui-workbench-mol3d"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui-workbench-chem-core",
+ "serde",
+]
+
+[[package]]
 name = "egui-workbench-python"
 version = "1.0.4"
 dependencies = [
