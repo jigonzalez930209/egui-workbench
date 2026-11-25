@@ -42,7 +42,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          WORKBENCH_WGPU=1 cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml             --features wgpu -- --theme "${{ inputs.theme }}" --screenshot artifacts/windows-${{ matrix.os }}.png
+          cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml \
+            --features "wgpu headless" -- --headless --theme "${{ inputs.theme }}" \
+            --screenshot artifacts/windows-${{ matrix.os }}.png
       - uses: actions/upload-artifact@v7
         with:
           name: probe-windows-${{ matrix.os }}
@@ -69,7 +71,9 @@ jobs:
       - name: Probe
         run: |
           mkdir -p artifacts
-          cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml             -- --theme "${{ inputs.theme }}" --screenshot artifacts/macos-${{ matrix.os }}.png
+          cargo run --manifest-path crates/egui-workbench-platform-probe/Cargo.toml \
+            --features "wgpu headless" -- --headless --theme "${{ inputs.theme }}" \
+            --screenshot artifacts/macos-${{ matrix.os }}.png
       - uses: actions/upload-artifact@v7
         with:
           name: probe-macos-${{ matrix.os }}
