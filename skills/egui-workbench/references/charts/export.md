@@ -49,6 +49,12 @@ font family, so the raster matches the screen. It returns
 `Result<Vec<u8>, String>`; the error is human-readable (for example a font or SVG
 failure).
 
+`scale` is clamped to 0.25–8, and the result may not exceed 100 million pixels (about
+400 MB of RGBA): a larger request returns the error `the image is too large` instead of
+allocating. 8× of a 3,500-point-wide export is already at the limit, so lower `scale` or
+the size for posters. An SVG you pass in is never allowed to load files through an
+`href`; only the plot's own primitives are drawn.
+
 ## Toolbar buttons
 
 ```rust
@@ -129,6 +135,8 @@ shows a loading toast that resolves in place.
   hover ring, guides, or popup.
 
 ## Sizes
+
+Limits: PNG output is at most 100 million pixels and `scale` is 0.25–8.
 
 For a report, use 2× the display size in points at `scale: 2.0` for a crisp raster. For
 slides, 1600×900 at `scale: 1.0` is usually enough. SVG has no scale; set `width` and
