@@ -178,3 +178,54 @@ claude plugin validate .                    # optional: the plugin and marketpla
 
 Small, focused commits. State the behavior change and the reason. Do not mix a
 snapshot-only change with a logic change.
+
+## Build size and speed
+
+The workspace profiles in `Cargo.toml` keep `target/` small. A default debug build of
+every crate with every feature wrote more than 150 GB, because each test binary links the
+whole dependency tree with full debug info; with the profiles it is about 8 GB and a clean
+`cargo test --all-features --workspace --no-run` takes about 90 seconds on 16 cores.
+
+- `[profile.dev] debug = "line-tables-only"` keeps file and line numbers in backtraces and
+  panics but drops local-variable info. If you need a debugger with variables, build one
+  crate with `CARGO_PROFILE_DEV_DEBUG=full cargo test -p <crate>` into a separate
+  `CARGO_TARGET_DIR`.
+- Dependencies build without debug info. The rendering and decoding crates (`tiny-skia`,
+  `resvg`, `usvg`, `png`, `miniz_oxide`, `fdeflate`) and `wasmi` run at `opt-level = 1`
+  so the snapshot and extension tests do not crawl.
+- `.cargo/config.toml` sets `build.jobs = 6`; a full-parallel build has been killed by the
+  out-of-memory killer while linking tests. Raise it with `CARGO_BUILD_JOBS` if you have
+  the memory.
+- Mixing `--all-features`, `--workspace`, `check`, `clippy`, and `test` writes a separate
+  set of artifacts for each. Pick one combination for day-to-day work and run
+  `cargo clean` now and then.
+
+### Release builds
+
+A clean `cargo build --release` of the C library, host, remote, and agent crates takes about
+100 s with the default `build.jobs = 6` and about 73 s with `CARGO_BUILD_JOBS=12` (16 cores,
+27 GB of memory). The limit of six protects the test links; a release build is lighter, so
+raise it for release work. `[profile.release] strip = "symbols"` shrinks the shipped binaries
+from 22 MB to 16 MB without changing build time; the `wb_*` C symbols stay exported.
+`opt-level = 2` built no faster than 3 in these measurements, so it was not adopted.
+
+### Linker
+
+`mold` 2.40.4 was measured against the `lld` that `rustc` 1.97 already uses on Linux, and it
+was not adopted: a clean release build took 69 s with `lld` and 70 s with `mold`; a clean
+test build (`cargo test --all-features --workspace --no-run`) took 97 s with either, and
+after editing the root crate the rebuild took 34 s with `lld` and 46 s with `mold`. The
+default stays.
+
+### Release workflow
+
+`release.yml` runs its independent jobs in parallel (version gate, checks, docs and npm,
+crates, wheels per OS and architecture) and `publish` waits for all of them. Linux aarch64
+and macOS x86_64 wheels build on native runners, which are free for this public repository,
+instead of cross-compiling or building `universal2` in series. The last release before this
+change took 26 min, with `macos universal2` (26 min), the Linux wheels (17 min), and the
+Windows wheel (16 min) as the longest jobs.
+
+`cache-warm.yml` calls the release workflow on `main` every Monday so a tag restores a
+warm Rust cache; only `main` saves it. Run **Release** with `workflow_dispatch` to rehearse
+every build without publishing.
