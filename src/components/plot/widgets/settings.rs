@@ -1,6 +1,6 @@
-//! The analysis menu and the pinned chart-settings panel.
+//! The analysis menu and the chart-settings dialog.
 
-use egui::{Align, Layout, Rect, RichText, Sense, Ui, pos2};
+use egui::{RichText, Ui};
 
 use super::super::{FilterKind, MeasurementAreaStyle, MeasurementMode, PlotState, TransformKind};
 
@@ -31,36 +31,17 @@ pub(super) fn analysis_menu(ui: &mut Ui, state: &mut PlotState) {
     );
 }
 
-/// The hovered/pinned settings panel. Returns whether the pointer is over it.
-pub(super) fn panel(ui: &Ui, state: &mut PlotState, anchor: Rect) -> bool {
-    let width = 320.0;
-    let screen = ui.ctx().input(|input| input.content_rect());
-    let position = pos2(
-        (anchor.left() - width - 8.0 + state.settings_offset[0]).clamp(8.0, (screen.right() - width - 8.0).max(8.0)),
-        (anchor.top() + state.settings_offset[1]).clamp(8.0, (screen.bottom() - 80.0).max(8.0)),
-    );
-    let id = ui.scope_id().with("chart_settings_panel");
-    let area = egui::Area::new(id)
-        .order(egui::Order::Foreground)
-        .fixed_pos(position)
-        .show(ui.ctx(), |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_width(width);
-                ui.horizontal(|ui| {
-                    let handle = ui.add(egui::Label::new("::").selectable(false).sense(Sense::drag()));
-                    if handle.dragged() {
-                        state.settings_offset[0] += handle.drag_delta().x;
-                        state.settings_offset[1] += handle.drag_delta().y;
-                    }
-                    ui.label(RichText::new("Chart settings").strong());
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Close").clicked() {
-                            state.settings_pinned = false;
-                            state.settings_hovered = false;
-                        }
-                    });
-                });
-                ui.separator();
+/// The chart-settings dialog opened by the gear icon.
+pub(super) fn dialog(ctx: &egui::Context, id: egui::Id, state: &mut PlotState) {
+    let mut open = state.settings_open;
+    egui::Window::new("Chart settings")
+        .id(id.with("chart_settings_dialog"))
+        .open(&mut open)
+        .resizable(true)
+        .collapsible(false)
+        .default_width(360.0)
+        .show(ctx, |ui| {
+            egui::ScrollArea::vertical().max_height(520.0).show(ui, |ui| {
                 measurement_controls(ui, state);
                 ui.separator();
                 ui.label(RichText::new("Analysis").strong());
@@ -73,18 +54,18 @@ pub(super) fn panel(ui: &Ui, state: &mut PlotState, anchor: Rect) -> bool {
                     if ui.button("Clear analysis").clicked() {
                         state.clear_analysis();
                     }
+                    if ui.button("Close").clicked() {
+                        state.settings_open = false;
+                    }
                 });
                 ui.label(
-                    RichText::new(
-                        "Hover the settings icon to preview; click it to keep this panel open. \
-                         Drag the panel by the :: handle.",
-                    )
-                    .small()
-                    .weak(),
+                    RichText::new("Changes apply immediately. The gear also emits settings_requested for applications with their own dialog.")
+                        .small()
+                        .weak(),
                 );
             });
         });
-    area.response.hovered()
+    state.settings_open = open;
 }
 
 fn measurement_controls(ui: &mut Ui, state: &mut PlotState) {

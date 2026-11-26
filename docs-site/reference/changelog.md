@@ -46,9 +46,10 @@ release may change the API, and each entry says how to migrate.
   the existing icons with a tape-measure animation, clicking the pin keeps the ribbon
   open, and dragging the pin moves the ribbon anywhere in the plot. `PlotState` exposes
   `pin_toolbar` and `collapse_toolbar`.
-- The settings gear opens a draggable chart-settings panel. The panel hosts the
-  measurement mode, area style, snap radius, labels, filter toggles and parameters, and
-  transform selection. The existing toolbar icons are unchanged.
+- The settings gear opens a chart-settings dialog (not a dropdown) with the measurement
+  mode, area style, snap radius, labels, filter toggles and parameters, and transform
+  selection. It still emits `settings_requested` for applications with their own dialog.
+  The existing toolbar icons are unchanged.
 - Measurements live in `PlotState` in data coordinates, so they survive zoom, pan, fit,
   and serde round-trips. `measurements`, `add_measurement`, `remove_measurement`,
   `pop_measurement`, and `clear_measurements` manage the list.

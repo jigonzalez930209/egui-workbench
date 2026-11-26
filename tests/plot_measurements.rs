@@ -370,7 +370,7 @@ fn the_pin_unrolls_the_tool_ribbon_and_keeps_it_open() {
 }
 
 #[test]
-fn the_gear_opens_the_settings_panel_and_changes_the_measurement_mode() {
+fn the_gear_opens_the_settings_dialog_and_changes_the_measurement_mode() {
     let mut harness = harness();
     harness.run_steps(3);
     harness.get_by_label("Chart settings").click();

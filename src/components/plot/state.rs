@@ -54,15 +54,9 @@ pub struct PlotState {
     /// Whether the user changed the measurement settings from the panel.
     #[cfg_attr(feature = "serde", serde(default))]
     pub(super) measurement_customized: bool,
-    /// Whether the settings panel is pinned open.
+    /// Whether the chart-settings dialog is open.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub settings_pinned: bool,
-    /// Transient hover state for the settings panel.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(super) settings_hovered: bool,
-    /// Dragged offset of the settings panel.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub settings_offset: [f32; 2],
+    pub settings_open: bool,
     /// Whether the tool ribbon stays unrolled.
     #[cfg_attr(feature = "serde", serde(default))]
     pub toolbar_pinned: bool,
@@ -93,9 +87,7 @@ impl Default for PlotState {
             pipeline: Pipeline::default(),
             measurement: MeasurementConfig::default(),
             measurement_customized: false,
-            settings_pinned: false,
-            settings_hovered: false,
-            settings_offset: [0.0; 2],
+            settings_open: false,
             // Keep the tools visible by default; the pin collapses the ribbon and the
             // hover animation reopens it.
             toolbar_pinned: true,

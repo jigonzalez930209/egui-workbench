@@ -204,9 +204,6 @@ pub(super) fn toolbar(
     let mut x = full.left() + 2.0;
     let mut export_button = None;
     let mut analysis_button = None;
-    let mut pin_button = None;
-    let mut settings_button = None;
-    let mut gear_hovered = false;
     for (index, (icon, tooltip, tool)) in buttons.iter().enumerate() {
         if index == 6 || index == 9 {
             if x >= visible.left() {
@@ -239,7 +236,7 @@ pub(super) fn toolbar(
             || (is_export && state.export_menu)
             || (is_analysis && state.pipeline.is_active())
             || (is_pin && state.toolbar_pinned)
-            || (is_settings && state.settings_pinned);
+            || (is_settings && state.settings_open);
         let fill = if active {
             visuals.selection.bg_fill
         } else if response.hovered() {
@@ -276,8 +273,7 @@ pub(super) fn toolbar(
                     }
                 }
                 ("lucide-settings-2", _) => {
-                    state.settings_pinned = !state.settings_pinned;
-                    state.settings_hovered = true;
+                    state.settings_open = !state.settings_open;
                     output.settings = true;
                 }
                 ("lucide-eraser", _) => state.clear_overlays(),
@@ -298,28 +294,14 @@ pub(super) fn toolbar(
         if is_analysis {
             analysis_button = Some(response.clone());
         }
-        if is_pin {
-            pin_button = Some(button);
-        }
-        if is_settings {
-            settings_button = Some(button);
-            gear_hovered = response.hovered();
-            if gear_hovered {
-                state.settings_hovered = true;
-            }
-        }
         response.on_hover_text(*tooltip);
     }
     output.rect = Some(full);
     if let Some(response) = analysis_button {
         egui::Popup::menu(&response).show(|ui| settings::analysis_menu(ui, state));
     }
-    if state.settings_pinned || state.settings_hovered {
-        let anchor = settings_button.or(pin_button);
-        let panel_hovered = anchor.is_some_and(|anchor| settings::panel(ui, state, anchor));
-        state.settings_hovered = gear_hovered || panel_hovered;
-    } else {
-        state.settings_hovered = false;
+    if state.settings_open {
+        settings::dialog(ui.ctx(), plot.id, state);
     }
     if state.export_menu
         && let Some(button) = export_button
