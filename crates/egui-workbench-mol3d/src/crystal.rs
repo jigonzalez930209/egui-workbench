@@ -81,14 +81,40 @@ impl Polyhedron {
     }
 }
 
+/// Most copies of the cell along one axis in a supercell.
+const MAX_REPEAT: usize = 32;
+
+/// Most atoms a supercell may hold; a larger request returns the scene unchanged.
+const MAX_SUPERCELL_ATOMS: usize = 2_000_000;
+
+/// Most grid points sampled by `pore_points`.
+const MAX_PORE_SAMPLES: f64 = 1_000_000.0;
+
+/// Most neighbours of one centre that enter a coordination polyhedron. The hull search is
+/// quartic in the neighbour count, and no real centre has more than twelve to sixteen.
+const MAX_COORDINATION: usize = 16;
+
 impl Mol3dScene {
     /// Expand the scene into an `na × nb × nc` supercell.
     #[must_use]
     pub fn supercell(&self, na: usize, nb: usize, nc: usize) -> Self {
-        let (na, nb, nc) = (na.max(1), nb.max(1), nc.max(1));
+        let (na, nb, nc) = (
+            na.clamp(1, MAX_REPEAT),
+            nb.clamp(1, MAX_REPEAT),
+            nc.clamp(1, MAX_REPEAT),
+        );
         let Some(cell) = self.cell else {
             return self.clone();
         };
+        // 32 x 32 x 32 copies of a large cell would be tens of millions of atoms.
+        if na
+            .saturating_mul(nb)
+            .saturating_mul(nc)
+            .saturating_mul(self.atoms.len())
+            > MAX_SUPERCELL_ATOMS
+        {
+            return self.clone();
+        }
         let axes = CellAxes::new(cell);
         let shift = |i: usize, j: usize, k: usize| axes.a * i as f64 + axes.b * j as f64 + axes.c * k as f64;
         let mut scene = Mol3dScene::default().with_cell(UnitCell {
@@ -174,7 +200,18 @@ impl Mol3dScene {
         let Some(bounds) = self.bounds() else {
             return Vec::new();
         };
-        let spacing = spacing.max(0.2);
+        let mut spacing = spacing.max(0.2);
+        // A 100 A box at 0.2 A is 125 million samples, each tested against every atom. Widen
+        // the spacing until the grid fits the budget.
+        let extent = |axis: usize| (bounds[axis + 3] - bounds[axis]).max(0.0);
+        let samples =
+            |spacing: f64| (extent(0) / spacing + 1.0) * (extent(1) / spacing + 1.0) * (extent(2) / spacing + 1.0);
+        while samples(spacing) > MAX_PORE_SAMPLES && spacing.is_finite() {
+            spacing *= 1.25;
+        }
+        if !spacing.is_finite() || !samples(spacing).is_finite() {
+            return Vec::new();
+        }
         let mut points = Vec::new();
         let mut x = bounds[0];
         while x <= bounds[3] {
@@ -210,12 +247,18 @@ impl Mol3dScene {
             {
                 continue;
             }
-            let neighbors = self
+            let mut neighbors = self
                 .atoms
                 .iter()
                 .filter(|atom| atom.id != center.id)
                 .filter(|atom| (atom.position - center.position).length() <= cutoff)
                 .collect::<Vec<_>>();
+            neighbors.sort_by(|left, right| {
+                (left.position - center.position)
+                    .length()
+                    .total_cmp(&(right.position - center.position).length())
+            });
+            neighbors.truncate(MAX_COORDINATION);
             if neighbors.len() < 3 {
                 continue;
             }
@@ -365,5 +408,61 @@ mod tests {
         let plane = miller_plane(cubic(), 1, 0, 0).expect("plane");
         assert!(plane.iter().all(|point| point.is_finite()));
         assert!((plane[1] - plane[0]).length() > 1.0);
+    }
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+    use egui_workbench_chem_core::Element;
+
+    fn cubic_scene(atoms: usize) -> Mol3dScene {
+        let cell = UnitCell::new(5.0, 5.0, 5.0, 90.0, 90.0, 90.0).expect("cell");
+        let mut scene = Mol3dScene::default().with_cell(cell);
+        for index in 0..atoms {
+            scene.push_atom(Element::from_symbol("Na").expect("Na"), [index as f64 * 1.7, 0.0, 0.0]);
+        }
+        scene
+    }
+
+    #[test]
+    fn a_huge_supercell_request_is_refused_instead_of_allocating() {
+        let scene = cubic_scene(4);
+        assert_eq!(
+            scene.supercell(usize::MAX, usize::MAX, usize::MAX).atoms.len(),
+            4 * 32 * 32 * 32
+        );
+        let big = cubic_scene(200_000);
+        assert_eq!(big.supercell(32, 32, 32).atoms.len(), 200_000, "over budget: unchanged");
+    }
+
+    #[test]
+    fn pore_sampling_stays_inside_its_budget() {
+        let mut scene = Mol3dScene::default();
+        scene.push_atom(Element::from_symbol("C").expect("C"), [0.0, 0.0, 0.0]);
+        scene.push_atom(Element::from_symbol("C").expect("C"), [100.0, 100.0, 100.0]);
+        let started = std::time::Instant::now();
+        let points = scene.pore_points(1.2, 0.2);
+        assert!(points.len() <= 1_500_000);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn coordination_hulls_use_at_most_sixteen_neighbours() {
+        let mut scene = Mol3dScene::default();
+        scene.push_atom(Element::from_symbol("Fe").expect("Fe"), [0.0, 0.0, 0.0]);
+        for index in 0..60 {
+            let angle = f64::from(index) * 0.7;
+            scene.push_atom(
+                Element::from_symbol("O").expect("O"),
+                [2.0 * angle.cos(), 2.0 * angle.sin(), f64::from(index % 5) - 2.0],
+            );
+        }
+        let polyhedra = scene.coordination_polyhedra(&["Fe"], 4.0);
+        assert!(polyhedra.iter().all(|polyhedron| polyhedron.vertices.len() <= 16));
     }
 }
