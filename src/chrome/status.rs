@@ -75,6 +75,10 @@ pub fn ellipsize_start(text: &str, max: usize) -> String {
     if count <= max {
         return text.to_owned();
     }
+    // `max - 1` below underflows for a zero width.
+    if max == 0 {
+        return String::new();
+    }
     let tail: String = text.chars().skip(count - (max - 1)).collect();
     format!("…{tail}")
 }
