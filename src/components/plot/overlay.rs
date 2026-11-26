@@ -273,7 +273,13 @@ fn axis_prims(
             let (width, _, _) = measure.text(&tick.label, config.tick_size);
             let half = width * 0.5;
             // Keep the first and last label inside the plot's rectangle.
-            let center = x.clamp(layout.rect.left() + half, layout.rect.right() - half);
+            // A label wider than the plot would make `min > max`, which `clamp` panics on.
+            let (low, high) = (layout.rect.left() + half, layout.rect.right() - half);
+            let center = if low <= high {
+                x.clamp(low, high)
+            } else {
+                layout.rect.center().x
+            };
             let at = pos2(center, frame.bottom() + config.tick_length + TICK_GAP);
             scene
                 .over
