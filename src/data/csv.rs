@@ -65,7 +65,7 @@ impl CsvSource {
     /// When the file cannot be read or parsed.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, DataError> {
         let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| DataError::Connector(error.to_string()))?;
+        let bytes = super::source::read_limited(path)?;
         let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("data.csv");
         let options = if name.ends_with(".tsv") || name.ends_with(".tab") {
             CsvOptions::tsv()
@@ -113,6 +113,8 @@ impl DataSource for CsvSource {
 /// When there is no header and no rows, or a row has more fields than the header.
 pub fn parse_csv(name: &str, bytes: &[u8], options: CsvOptions) -> Result<Dataset, DataError> {
     let text = std::str::from_utf8(bytes).map_err(|error| DataError::Connector(error.to_string()))?;
+    // A byte-order mark would stay glued to the first header name.
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut rows = parse_rows(text, options.delimiter);
     if rows.is_empty() {
         return Ok(Dataset::new().with_name(name));
@@ -212,6 +214,8 @@ fn parse_rows(text: &str, delimiter: u8) -> Vec<Vec<String>> {
         match character {
             '"' if field.is_empty() => quoted = true,
             character if character == delimiter => row.push(std::mem::take(&mut field)),
+            // A blank line is not a row of one empty field.
+            '\n' if row.is_empty() && field.is_empty() => {}
             '\n' => {
                 row.push(std::mem::take(&mut field));
                 rows.push(std::mem::take(&mut row));
