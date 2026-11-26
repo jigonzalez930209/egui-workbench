@@ -173,7 +173,11 @@ struct Parser<'a> {
     source: &'a str,
     bytes: &'a [u8],
     offset: usize,
+    depth: usize,
 }
+
+/// Deepest nesting of `!` and parentheses; the parser recurses.
+const MAX_DEPTH: usize = 64;
 
 impl<'a> Parser<'a> {
     fn new(source: &'a str) -> Result<Self, WhenError> {
@@ -181,6 +185,7 @@ impl<'a> Parser<'a> {
             source,
             bytes: source.as_bytes(),
             offset: 0,
+            depth: 0,
         })
     }
 
@@ -213,10 +218,16 @@ impl<'a> Parser<'a> {
     fn unary(&mut self) -> Result<Expression, WhenError> {
         self.skip_whitespace();
         if self.take("!") {
-            return Ok(Expression::Not(Box::new(self.unary()?)));
+            self.enter()?;
+            let inner = self.unary();
+            self.depth -= 1;
+            return Ok(Expression::Not(Box::new(inner?)));
         }
         if self.take("(") {
-            let expression = self.expression()?;
+            self.enter()?;
+            let expression = self.expression();
+            self.depth -= 1;
+            let expression = expression?;
             self.skip_whitespace();
             if !self.take(")") {
                 return Err(self.error("expected `)`"));
@@ -225,6 +236,14 @@ impl<'a> Parser<'a> {
         }
         let key = self.identifier()?;
         Ok(Expression::Key(key))
+    }
+
+    fn enter(&mut self) -> Result<(), WhenError> {
+        if self.depth >= MAX_DEPTH {
+            return Err(self.error("the expression is nested too deeply"));
+        }
+        self.depth += 1;
+        Ok(())
     }
 
     fn identifier(&mut self) -> Result<String, WhenError> {
