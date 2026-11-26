@@ -259,7 +259,7 @@ pub(super) fn toolbar(
             let max_x = (frame.width() - full.width()).max(0.0);
             let max_y = (frame.height() - full.height()).max(0.0);
             state.toolbar_anchor = Some([
-                (full.left() - frame.left() + delta.x).clamp(0.0, max_x),
+                (full.left() - frame.left() + delta.x).clamp(40.0_f32.min(max_x), max_x),
                 (full.top() - frame.top() + delta.y).clamp(0.0, max_y),
             ]);
             state.toolbar_reveal = 1.0;
