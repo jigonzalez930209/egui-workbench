@@ -8,6 +8,9 @@ use super::column::{Column, DataValue};
 use super::dataset::Dataset;
 use super::source::{ColumnSchema, DataError, DataSource};
 
+/// Most rows one query may load.
+const MAX_ROWS: usize = 5_000_000;
+
 /// A SQLite query exposed as a paged data source.
 pub struct SqliteSource {
     path: PathBuf,
@@ -91,10 +94,19 @@ impl DataSource for SqliteSource {
 /// # Errors
 /// When the database or query fails.
 pub fn read_sqlite(path: impl AsRef<Path>, query: &str) -> Result<Dataset, DataError> {
-    let connection = rusqlite::Connection::open(path).map_err(|error| DataError::Connector(error.to_string()))?;
+    // Read-only and never creating: a viewer must not modify the database, and a typo in
+    // the path must not leave an empty file behind.
+    let connection = rusqlite::Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|error| DataError::Connector(error.to_string()))?;
     let mut statement = connection
         .prepare(query)
         .map_err(|error| DataError::Connector(error.to_string()))?;
+    if !statement.readonly() {
+        return Err(DataError::Connector("only read-only statements are allowed".to_owned()));
+    }
     let names: Vec<String> = statement.column_names().iter().map(|name| (*name).to_owned()).collect();
     let mut rows = statement
         .query([])
@@ -115,6 +127,12 @@ pub fn read_sqlite(path: impl AsRef<Path>, query: &str) -> Result<Dataset, DataE
             });
         }
         values.push(record);
+        // A recursive CTE can produce rows without end.
+        if values.len() > MAX_ROWS {
+            return Err(DataError::Connector(format!(
+                "the query returned more than {MAX_ROWS} rows"
+            )));
+        }
     }
     Ok(dataset_from_values(&names, &values))
 }
@@ -165,11 +183,8 @@ fn column_from_values(name: &str, values: &[DataValue]) -> Column {
             name,
             values
                 .iter()
-                .map(|value| match value {
-                    DataValue::Null => String::new(),
-                    DataValue::Text(value) => value.clone(),
-                    other => format!("{other:?}"),
-                })
+                // `{other:?}` printed `Int(5)` in a mixed column.
+                .map(DataValue::display_text)
                 .collect::<Vec<_>>(),
         )
     };
