@@ -45,6 +45,17 @@ egui-workbench-extensions = "1.0"
 The sandboxed WebAssembly runtime, manifest, capabilities, manager view, and examples are
 in the [Extensions guide](../guide/extensions.md).
 
+## Chemistry plugins
+
+```toml
+[dependencies]
+egui-workbench-chem2d = "1.2"   # 2D structure editor
+egui-workbench-mol3d = "1.2"    # 3D molecular and crystal viewer
+```
+
+`egui-workbench-chem-core` comes in through either one. The library does not depend on
+them. They are described in the [Chemistry plugins guide](../guide/chemistry.md).
+
 ## Agents
 
 ```bash
