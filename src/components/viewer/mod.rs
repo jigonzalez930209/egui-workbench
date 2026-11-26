@@ -143,7 +143,7 @@ impl FileViewer {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn open(path: impl AsRef<Path>) -> Result<Self, ViewerError> {
         let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| ViewerError::Io(error.to_string()))?;
+        let bytes = crate::data::read_limited(path).map_err(|error| ViewerError::Io(error.to_string()))?;
         let name = path
             .file_name()
             .and_then(|name| name.to_str())

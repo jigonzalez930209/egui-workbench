@@ -180,6 +180,19 @@ API, a manager view, hot reload, and C and Rust examples live in
 
 See the [Extensions guide](https://jigonzalez930209.github.io/egui-workbench/guide/extensions.html).
 
+## Chemistry plugins
+
+```toml
+[dependencies]
+egui-workbench-chem2d = "1.2"   # 2D structure editor, SMILES and molfile, SVG/PNG export
+egui-workbench-mol3d = "1.2"    # 3D molecular and crystal viewer, offscreen renderer
+```
+
+Three optional crates published with the library: `egui-workbench-chem-core` (the shared
+document model, selection bus, events, and background jobs), `egui-workbench-chem2d`, and
+`egui-workbench-mol3d`. See the
+[Chemistry plugins guide](https://jigonzalez930209.github.io/egui-workbench/guide/chemistry.html).
+
 ## Agents and DevTools
 
 The MCP server exposes the spec, commands, accessibility tree, and patches with a

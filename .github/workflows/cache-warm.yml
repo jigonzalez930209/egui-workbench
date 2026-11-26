@@ -1,0 +1,24 @@
+name: Cache warm
+
+# Runs the release workflow's build jobs on `main` so that a tag run restores a warm Rust
+# cache. Caches written by one ref are not readable by another, except those of the
+# default branch, which every tag can read. The publishing jobs are skipped because they
+# only run for `v*` tags. Public repositories pay no minutes for standard runners; the
+# only cost is the 10 GB cache quota, which GitHub evicts oldest-first.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    uses: ./.github/workflows/release.yml
+    # A called workflow cannot ask for more than its caller grants, even for jobs that
+    # are skipped here, so these match the most the release workflow's jobs request.
+    permissions:
+      contents: write
+      pages: write
+      id-token: write

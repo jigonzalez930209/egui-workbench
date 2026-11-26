@@ -82,6 +82,27 @@ pub enum DeltaResult {
     Ok,
 }
 
+/// Most atoms a delta may add to one document. Lookups by id are linear, so an agent or a
+/// remote client that never stops adding atoms would also make every later edit slower.
+const MAX_ATOMS: usize = 100_000;
+
+/// Largest coordinate a delta may set, in the editor's units. A finite but absurd value
+/// (`1e300`) would overflow the camera and the exporters.
+const MAX_COORDINATE: f64 = 1.0e6;
+
+fn check_position(position: [f64; 2]) -> Result<(), Chem2dError> {
+    if position
+        .iter()
+        .all(|value| value.is_finite() && value.abs() <= MAX_COORDINATE)
+    {
+        Ok(())
+    } else {
+        Err(Chem2dError::Chemistry(format!(
+            "a position must be finite and within {MAX_COORDINATE} of the origin"
+        )))
+    }
+}
+
 impl ChemDocument {
     /// Apply one remote delta.
     ///
@@ -95,6 +116,12 @@ impl ChemDocument {
                 charge,
                 label,
             } => {
+                check_position(*position)?;
+                if self.molecule.atom_count() >= MAX_ATOMS {
+                    return Err(Chem2dError::Chemistry(format!(
+                        "a document holds at most {MAX_ATOMS} atoms"
+                    )));
+                }
                 let id = self.molecule.add_atom(*element, [position[0], position[1], 0.0]);
                 if let Some(atom) = self.molecule.atom_mut(id) {
                     atom.charge = *charge;
@@ -113,6 +140,7 @@ impl ChemDocument {
                 for atom in atoms {
                     self.molecule.remove_atom(*atom);
                 }
+                self.prune_superatoms();
                 Ok(DeltaResult::Ok)
             }
             DocumentDelta::RemoveBonds(bonds) => {
@@ -122,6 +150,7 @@ impl ChemDocument {
                 Ok(DeltaResult::Ok)
             }
             DocumentDelta::MoveAtom { id, position } => {
+                check_position(*position)?;
                 if !self.molecule.set_position_2d(*id, *position) {
                     return Err(Chem2dError::UnknownAtom(*id));
                 }

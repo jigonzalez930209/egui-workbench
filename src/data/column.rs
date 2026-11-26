@@ -327,6 +327,17 @@ pub enum DataValue {
 }
 
 impl DataValue {
+    /// The value as plain text, for a column that mixes types.
+    pub(crate) fn display_text(&self) -> String {
+        match self {
+            Self::Null => String::new(),
+            Self::Float(value) => value.to_string(),
+            Self::Int(value) | Self::Date(value) | Self::Time(value) => value.to_string(),
+            Self::Bool(value) => value.to_string(),
+            Self::Text(value) => value.clone(),
+        }
+    }
+
     /// A numeric value as an f64, when it is numeric.
     pub fn as_f64(&self) -> Option<f64> {
         match self {

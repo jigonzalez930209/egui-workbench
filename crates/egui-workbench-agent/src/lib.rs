@@ -7,6 +7,7 @@
 pub mod access;
 pub mod automation;
 pub mod mcp;
+mod permissions;
 
 pub use access::{AccessNode, accessibility_tree, find_node};
 pub use automation::{Automation, AutomationError, AutomationStep};

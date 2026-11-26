@@ -1,5 +1,14 @@
 # egui-workbench-mol3d
 
+> Part of the egui-workbench **chemistry plugins**, versioned with the library (`1.2.x`):
+> `egui-workbench-chem-core`, `egui-workbench-chem2d`, and `egui-workbench-mol3d`. Guide:
+> <https://jigonzalez930209.github.io/egui-workbench/guide/chemistry.html>
+
+```toml
+[dependencies]
+egui-workbench-mol3d = "1.2"
+```
+
 A 3D molecular, biomolecular, and crystallographic viewport for `egui-workbench`, built on
 the shared `egui-workbench-chem-core` model.
 
@@ -63,6 +72,14 @@ exact depth buffer, then composites through a fullscreen texture pass; the ID-bu
 runs in the same geometry with `frag_depth`. WASM and orthographic cameras use the CPU
 painter/ray-picking fallback. The offscreen software renderer remains the reference for
 regression images.
+
+## Limits for untrusted input
+
+A `.cube` header cannot ask for a grid larger than the file. A supercell is at most 32
+copies per axis and 2,000,000 atoms, pore sampling at most 1,000,000 points, a coordination
+polyhedron uses its 16 nearest neighbors, an orbital grid is at most 160 points per edge,
+and a CPU render is at most 8,192 pixels per side and 36 megapixels. The dihedral follows
+the IUPAC sign (anti is 180 degrees).
 
 ## Examples
 

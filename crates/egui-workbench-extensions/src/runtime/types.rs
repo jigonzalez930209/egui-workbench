@@ -82,3 +82,11 @@ pub fn dataset_views(datasets: &std::collections::BTreeMap<String, usize>) -> Ve
         })
         .collect()
 }
+
+pub(super) fn hex(bytes: &[u8]) -> String {
+    let mut text = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        text.push_str(&format!("{byte:02x}"));
+    }
+    text
+}

@@ -135,7 +135,9 @@ impl Host {
                 });
             }
         }
-        self.events.extend(events);
+        for event in events {
+            self.push_event(event);
+        }
     }
 
     fn show_dialogs(&mut self, ctx: &egui::Context, spec: &HostSpec, events: &mut Vec<HostEvent>) {
@@ -144,6 +146,7 @@ impl Host {
                 continue;
             }
             let mut open = true;
+            let before = events.len();
             egui::Window::new(&dialog.title)
                 .open(&mut open)
                 .collapsible(false)
@@ -165,6 +168,13 @@ impl Host {
                         }
                     });
                 });
+            // The title-bar close button dismisses the window, not the spec; report it as
+            // a cancel so the embedder can patch `open` to false.
+            if !open && events.len() == before {
+                events.push(HostEvent::Command {
+                    id: format!("{}.cancel", dialog.id),
+                });
+            }
         }
     }
 }

@@ -104,10 +104,17 @@ impl IdPool {
 
     /// Allocate `(slot, generation)`.
     pub fn allocate(&mut self) -> (u32, u32) {
-        let slot = if let Some(slot) = self.free.pop() {
+        // A pool read from a document can list a free slot that has no generation; skip
+        // those instead of indexing past the end below.
+        let mut reused = None;
+        while let Some(slot) = self.free.pop() {
             if let Some(generation) = self.generations.get_mut(slot as usize) {
                 *generation = generation.wrapping_add(1);
+                reused = Some(slot);
+                break;
             }
+        }
+        let slot = if let Some(slot) = reused {
             slot
         } else {
             let slot = self.generations.len() as u32;
@@ -169,5 +176,18 @@ mod tests {
         assert!(pool.release(slot));
         assert!(!pool.release(slot));
         assert_eq!(pool.live(), 0);
+    }
+}
+
+#[cfg(test)]
+mod hardening_tests {
+    use super::*;
+
+    #[test]
+    fn a_pool_with_a_dangling_free_slot_does_not_panic() {
+        let mut pool: IdPool = serde_json::from_str(r#"{"generations":[],"free":[7],"live":0}"#).expect("json");
+        let (slot, generation) = pool.allocate();
+        assert_eq!((slot, generation), (0, 1));
+        assert!(pool.contains(slot, generation));
     }
 }

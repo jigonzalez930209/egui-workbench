@@ -63,7 +63,7 @@ fn serve_stdio(mut host: Host) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let message = match read_frame(stdin.lock()) {
             Ok(message) => message,
-            Err(egui_workbench_host::FrameError::Io(error)) if error.contains("unexpected end") => break,
+            Err(egui_workbench_host::FrameError::Closed) => break,
             Err(error) => return Err(error.into()),
         };
         let response = host.handle(message);

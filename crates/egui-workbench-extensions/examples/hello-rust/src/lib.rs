@@ -27,6 +27,17 @@ pub extern "C" fn init() -> i32 {
     0
 }
 
+static mut INBOX: [u8; 256] = [0; 256];
+
+/// The host copies the command id into this buffer instead of guessing a free offset.
+#[unsafe(no_mangle)]
+pub extern "C" fn alloc(len: i32) -> i32 {
+    if len < 0 || len as usize > 256 {
+        return -1;
+    }
+    core::ptr::addr_of_mut!(INBOX) as i32
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn on_command(ptr: *const u8, len: i32) -> i32 {
     unsafe {

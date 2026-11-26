@@ -239,7 +239,17 @@ impl JobQueue {
         let result = std::thread::Builder::new()
             .name("egui-workbench-chem-job".to_owned())
             .spawn(move || {
-                let result = job.run(&context);
+                // A panicking job would otherwise end the thread without a wake-up and
+                // leave the handle reporting only "stopped without a result".
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job.run(&context)))
+                    .unwrap_or_else(|payload| {
+                        let message = payload
+                            .downcast_ref::<&str>()
+                            .map(|text| (*text).to_owned())
+                            .or_else(|| payload.downcast_ref::<String>().cloned())
+                            .unwrap_or_else(|| "panic".to_owned());
+                        Err(JobError::Failed(format!("the job panicked: {message}")))
+                    });
                 let _ = sender.send(result);
                 context.request_repaint();
             });

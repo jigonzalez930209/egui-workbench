@@ -222,6 +222,10 @@ fn parse_bracket(body: &str) -> Result<SmilesAtom, SmilesError> {
             .take_while(|character| character.is_ascii_digit())
             .collect::<String>();
         hydrogens = digits.parse().unwrap_or(1);
+        // `to_molecule` adds one atom per hydrogen, so an unchecked count is a memory bomb.
+        if hydrogens > MAX_BRACKET_HYDROGENS {
+            return Err(error("too many hydrogens on a bracket atom"));
+        }
     }
     for sign in ['+', '-'] {
         if let Some(position) = rest.find(sign) {
@@ -229,7 +233,16 @@ fn parse_bracket(body: &str) -> Result<SmilesAtom, SmilesError> {
                 .chars()
                 .take_while(|character| character.is_ascii_digit())
                 .collect::<String>();
-            let magnitude = digits.parse::<i8>().unwrap_or(1);
+            // `[Fe++]` repeats the sign instead of giving a digit.
+            let repeated = rest[position..]
+                .chars()
+                .take_while(|character| *character == sign)
+                .count();
+            let magnitude = if digits.is_empty() {
+                i8::try_from(repeated).unwrap_or(i8::MAX)
+            } else {
+                digits.parse::<i8>().map_err(|_| error("charge out of range"))?
+            };
             charge = if sign == '+' { magnitude } else { -magnitude };
             break;
         }
@@ -241,6 +254,9 @@ fn parse_bracket(body: &str) -> Result<SmilesAtom, SmilesError> {
         hydrogens,
     })
 }
+
+/// Most explicit hydrogens accepted inside one bracket atom.
+const MAX_BRACKET_HYDROGENS: usize = 8;
 
 fn default_order(left: bool, right: bool) -> BondOrder {
     if left && right {

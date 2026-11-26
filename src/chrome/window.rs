@@ -89,6 +89,10 @@ pub fn handle_window_edges(ctx: &Context) {
     if !ctx.input(|input| input.pointer.primary_pressed()) {
         return;
     }
+    // A maximized or fullscreen window has no edges to drag.
+    if is_maximized(ctx) || ctx.input(|input| input.viewport().fullscreen.unwrap_or(false)) {
+        return;
+    }
     let Some(position) = ctx.pointer_latest_pos() else {
         return;
     };

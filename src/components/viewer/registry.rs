@@ -79,7 +79,7 @@ impl ViewerFile {
     /// When the file cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, String> {
         let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+        let bytes = crate::data::read_limited(path).map_err(|error| error.to_string())?;
         Ok(Self::new(
             path.file_name()
                 .and_then(|name| name.to_str())
@@ -93,6 +93,20 @@ impl ViewerFile {
     pub fn text(&self) -> Option<&str> {
         std::str::from_utf8(&self.bytes).ok()
     }
+}
+
+/// Decode a PNG or JPEG with bounds. A few bytes can declare a 60000 x 60000 image, which
+/// would otherwise allocate gigabytes.
+fn decode_image(bytes: &[u8]) -> Option<image::DynamicImage> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(16_384);
+    limits.max_image_height = Some(16_384);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+    reader.limits(limits);
+    reader.decode().ok()
 }
 
 /// Log level filter for the log viewer.
@@ -272,7 +286,7 @@ impl ViewerRegistry {
             let image = if svg {
                 crate::foundation::icons::rasterize(&file.bytes, 512)
             } else {
-                image::load_from_memory(&file.bytes).ok().map(|image| {
+                decode_image(&file.bytes).map(|image| {
                     let rgba = image.to_rgba8();
                     egui::ColorImage::from_rgba_unmultiplied(
                         [rgba.width() as usize, rgba.height() as usize],

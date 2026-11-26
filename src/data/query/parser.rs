@@ -225,14 +225,23 @@ impl<'a> Lexer<'a> {
     }
 }
 
+/// Deepest nesting of parentheses, `not`, and brackets. The parser recurses, so an
+/// unbounded query would overflow the stack.
+const MAX_DEPTH: usize = 64;
+
 pub(super) struct Parser {
     tokens: Vec<(Token, usize)>,
     index: usize,
+    depth: usize,
 }
 
 impl Parser {
     pub(super) fn new(tokens: Vec<(Token, usize)>) -> Self {
-        Self { tokens, index: 0 }
+        Self {
+            tokens,
+            index: 0,
+            depth: 0,
+        }
     }
 
     pub(super) fn expression(&mut self) -> Result<Expr, QueryError> {
@@ -257,9 +266,20 @@ impl Parser {
 
     fn not(&mut self) -> Result<Expr, QueryError> {
         if self.take(&Token::Not) {
-            return Ok(Expr::Not(Box::new(self.not()?)));
+            self.enter()?;
+            let inner = self.not();
+            self.depth -= 1;
+            return Ok(Expr::Not(Box::new(inner?)));
         }
         self.comparison()
+    }
+
+    fn enter(&mut self) -> Result<(), QueryError> {
+        if self.depth >= MAX_DEPTH {
+            return Err(self.error("the expression is nested too deeply", self.offset()));
+        }
+        self.depth += 1;
+        Ok(())
     }
 
     fn comparison(&mut self) -> Result<Expr, QueryError> {
@@ -333,7 +353,10 @@ impl Parser {
             Token::False => Ok(Expr::Literal(DataValue::Bool(false))),
             Token::Null => Ok(Expr::Literal(DataValue::Null)),
             Token::LParen => {
-                let expression = self.expression()?;
+                self.enter()?;
+                let expression = self.expression();
+                self.depth -= 1;
+                let expression = expression?;
                 if !self.take(&Token::RParen) {
                     return Err(self.error("expected `)`", offset));
                 }

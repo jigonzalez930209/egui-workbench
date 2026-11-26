@@ -3,27 +3,76 @@ name: Release
 # One tag-driven flow. Strict checks run locally before the tag; this workflow keeps the
 # release gate small, builds each target once, and publishes every artifact from the same
 # run. No push/PR workflow duplicates these builds.
+#
+# Layout (public repository, so standard runners cost no minutes): the independent jobs
+# run in parallel and only `publish` waits for all of them.
+#
+#   versions          fast tag/version/changelog gate, no toolchain download
+#   checks            fmt, lint, clippy, library tests
+#   docs-npm          docs site and the npm package
+#   crates            cargo publish: the library, the companion crates, and the chemistry
+#                     plugins (after versions + checks)
+#   wheels-linux      x86_64 and aarch64 on native runners (no emulation)
+#   wheels-macos      arm64 and x86_64 on native runners (no universal2 double build)
+#   wheel-windows     amd64
+#   docs, publish     tag only
+#
+# `workflow_dispatch` rehearses every build job without publishing anything, and
+# `cache-warm.yml` calls this workflow on `main` so tag runs restore a warm Rust cache
+# (a tag can read the default branch's caches but not write ones other refs can use).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Only `main` (through cache-warm.yml) saves the Rust cache; tags and rehearsals restore.
+  SAVE_CACHE: ${{ github.ref == 'refs/heads/main' }}
+
 jobs:
-  test-build:
-    name: test, docs, npm, crates
+  versions:
+    name: versions
     runs-on: ubuntu-latest
     env:
-      CARGO_BUILD_JOBS: 4
+      # `cargo metadata` needs no particular toolchain; skip the rust-toolchain.toml download.
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+      - name: Version, changelog, skill
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            expected="$GITHUB_REF_NAME"
+          else
+            expected="v$(cargo metadata --no-deps --format-version 1 \
+              | jq -r '.packages[] | select(.name == "egui-workbench") | .version')"
+          fi
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "egui-workbench") | .version')
+          [ "v$version" = "$expected" ] || { echo "::error::tag $expected != Cargo.toml $version"; exit 1; }
+          for name in egui-workbench-host egui-workbench-python egui-workbench-remote egui-workbench-agent egui-workbench-extensions egui-workbench-c egui-workbench-chem-core egui-workbench-chem2d egui-workbench-mol3d; do
+            found=$(cargo metadata --no-deps --format-version 1 \
+              | jq -r --arg name "$name" '.packages[] | select(.name == $name) | .version')
+            [ "v$found" = "$expected" ] || { echo "::error::$name $found != $expected"; exit 1; }
+          done
+          [ "v$(jq -r .version .claude-plugin/plugin.json)" = "$expected" ] || { echo "::error::plugin version"; exit 1; }
+          [ "v$(jq -r .version crates/egui-workbench-wasm/package.json)" = "$expected" ] || { echo "::error::npm package version"; exit 1; }
+          [ "v$(python3 -c "import tomllib; print(tomllib.load(open('crates/egui-workbench-python/pyproject.toml','rb'))['project']['version'])")" = "$expected" ] || { echo "::error::pyproject version"; exit 1; }
+          grep -q "^## \[${expected#v}\]" CHANGELOG.md || { echo "::error::missing changelog"; exit 1; }
+          python3 docs-site/scripts/build-skill.py --check
+
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
       - name: System dependencies
         run: |
           sudo apt-get update
@@ -35,9 +84,32 @@ jobs:
         with:
           toolchain: "1.97.1"
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: checks
+          save-if: ${{ env.SAVE_CACHE }}
+      - name: Basic checks
+        run: |
+          cargo fmt --all --check
+          cargo xtask style-lint
+          cargo clippy --workspace --all-targets -- -D warnings
+          xvfb-run -a cargo test --workspace --lib
+
+  docs-npm:
+    name: docs and npm package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
         with:
+          shared-key: docs-npm
+          save-if: ${{ env.SAVE_CACHE }}
           workspaces: |
             . -> target
             web -> target
@@ -51,27 +123,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             docs-site/package-lock.json
-      - name: Version, changelog, skill
-        run: |
-          version=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "egui-workbench") | .version')
-          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME != Cargo.toml $version"; exit 1; }
-          for name in egui-workbench-host egui-workbench-python egui-workbench-remote egui-workbench-agent egui-workbench-extensions egui-workbench-c; do
-            found=$(cargo metadata --no-deps --format-version 1 \
-              | jq -r --arg name "$name" '.packages[] | select(.name == $name) | .version')
-            [ "v$found" = "$GITHUB_REF_NAME" ] || { echo "::error::$name $found != $GITHUB_REF_NAME"; exit 1; }
-          done
-          [ "v$(jq -r .version .claude-plugin/plugin.json)" = "$GITHUB_REF_NAME" ] || { echo "::error::plugin version"; exit 1; }
-          [ "v$(jq -r .version crates/egui-workbench-wasm/package.json)" = "$GITHUB_REF_NAME" ] || { echo "::error::npm package version"; exit 1; }
-          [ "v$(python3 -c "import tomllib; print(tomllib.load(open('crates/egui-workbench-python/pyproject.toml','rb'))['project']['version'])")" = "$GITHUB_REF_NAME" ] || { echo "::error::pyproject version"; exit 1; }
-          grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md || { echo "::error::missing changelog"; exit 1; }
-          python3 docs-site/scripts/build-skill.py --check
-      - name: Basic checks
-        run: |
-          cargo fmt --all --check
-          cargo xtask style-lint
-          cargo clippy --workspace --all-targets -- -D warnings
-          xvfb-run -a cargo test --workspace --lib
       - name: Docs dependencies
         working-directory: docs-site
         run: npm ci
@@ -95,6 +146,27 @@ jobs:
         with:
           name: npm
           path: crates/egui-workbench-wasm/egui-workbench-*.tgz
+
+  crates:
+    name: publish crates
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versions, checks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: crates
+          save-if: false
       - name: Publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -112,10 +184,23 @@ jobs:
           publish -p egui-workbench-extensions
           publish -p egui-workbench-agent
           publish -p egui-workbench-remote
+          # The chemistry plugins: `chem2d` and `mol3d` depend on `chem-core`, so it goes first.
+          publish -p egui-workbench-chem-core
+          publish -p egui-workbench-chem2d
+          publish -p egui-workbench-mol3d
 
-  linux-wheels:
-    name: linux wheels
-    runs-on: ubuntu-latest
+  wheels-linux:
+    name: wheels linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          # A native arm64 runner replaces the cross build and its emulation.
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - name: System dependencies
@@ -124,43 +209,65 @@ jobs:
           sudo apt-get install -y \
             libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
             libxcursor-dev libxrandr-dev libgl1-mesa-dev
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wheels-linux-${{ matrix.arch }}
+          save-if: ${{ env.SAVE_CACHE }}
       - uses: PyO3/maturin-action@v1
         with:
           command: build
-          target: x86_64
+          target: ${{ matrix.arch }}
           manylinux: auto
           args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
-      - uses: PyO3/maturin-action@v1
-        with:
-          command: build
-          target: aarch64
-          manylinux: auto
-          args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
-      - uses: PyO3/maturin-action@v1
+      - name: Source distribution
+        if: matrix.arch == 'x86_64'
+        uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
       - name: C ABI artifact
         run: |
-          cargo build -p egui-workbench-c --release
+          cargo build -p egui-workbench-c --release --locked
           mkdir -p c-abi/include
           cp crates/egui-workbench-c/include/egui_workbench.h c-abi/include/
           cp target/release/libegui_workbench_c.so c-abi/
-          zip -qr dist/egui-workbench-c-linux-x86_64.zip c-abi
+          zip -qr dist/egui-workbench-c-linux-${{ matrix.arch }}.zip c-abi
       - uses: actions/upload-artifact@v7
         with:
-          name: linux
+          name: linux-${{ matrix.arch }}
           path: dist/*
 
-  macos-wheel:
-    name: macos universal2
-    runs-on: macos-latest
+  wheels-macos:
+    name: wheels macos ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+          # `universal2` compiled both architectures one after the other on one runner;
+          # two native jobs run side by side and pip picks the matching wheel.
+          - arch: x86_64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wheels-macos-${{ matrix.arch }}
+          save-if: ${{ env.SAVE_CACHE }}
       - uses: PyO3/maturin-action@v1
         with:
           command: build
-          target: universal2-apple-darwin
+          target: ${{ matrix.target }}
           args: --release --locked --out dist --manifest-path crates/egui-workbench-python/Cargo.toml
       - name: C ABI artifact
         run: |
@@ -168,17 +275,24 @@ jobs:
           mkdir -p c-abi/include
           cp crates/egui-workbench-c/include/egui_workbench.h c-abi/include/
           cp target/release/libegui_workbench_c.dylib target/release/libegui_workbench_c.a c-abi/
-          zip -qr dist/egui-workbench-c-macos-aarch64.zip c-abi
+          zip -qr dist/egui-workbench-c-macos-${{ matrix.arch }}.zip c-abi
       - uses: actions/upload-artifact@v7
         with:
-          name: macos
+          name: macos-${{ matrix.arch }}
           path: dist/*
 
-  windows-wheel:
-    name: windows amd64
+  wheel-windows:
+    name: wheels windows amd64
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wheels-windows
+          save-if: ${{ env.SAVE_CACHE }}
       - uses: PyO3/maturin-action@v1
         with:
           command: build
@@ -200,7 +314,8 @@ jobs:
 
   docs:
     name: deploy docs
-    needs: test-build
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versions, checks, docs-npm]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -214,7 +329,8 @@ jobs:
 
   publish:
     name: publish
-    needs: [test-build, linux-wheels, macos-wheel, windows-wheel]
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [versions, checks, docs-npm, crates, wheels-linux, wheels-macos, wheel-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

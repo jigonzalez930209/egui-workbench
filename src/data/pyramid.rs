@@ -92,6 +92,15 @@ impl MinMaxPyramid {
         if let Some(tile) = self.cache.borrow().get(&(level, index)) {
             return Ok(Some(*tile));
         }
+        // A level past the width of `usize` has no tiles; building it would shift out of
+        // range and reserve `level` empty slots.
+        if self
+            .block
+            .checked_shl(u32::try_from(level).unwrap_or(u32::MAX))
+            .is_none_or(|block| block >> level != self.block)
+        {
+            return Ok(None);
+        }
         self.build_level(level)?;
         let tile = self
             .levels

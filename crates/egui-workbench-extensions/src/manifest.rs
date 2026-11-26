@@ -29,8 +29,17 @@ impl ApiRange {
     /// Whether this host (`HOST_API_VERSION`) is inside the range. Comparison is major
     /// and minor only; the host API is not patch-sensitive.
     pub fn allows(&self, version: &str) -> bool {
-        compare(version, &self.min) >= 0 && compare(version, &self.max) < 0
+        // An unparsable bound used to read as `0.0`, which made `min: "abc"` accept any host.
+        [version, &self.min, &self.max].iter().all(|text| well_formed(text))
+            && compare(version, &self.min) >= 0
+            && compare(version, &self.max) < 0
     }
+}
+
+/// `major.minor` with optional further numeric parts.
+fn well_formed(version: &str) -> bool {
+    let mut parts = version.split('.');
+    parts.clone().count() >= 2 && parts.all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 fn compare(left: &str, right: &str) -> i32 {
@@ -107,6 +116,11 @@ impl Capability {
             "selection" => Self::Selection,
             other => {
                 if let Some(prefix) = other.strip_prefix("filesystem:read:") {
+                    // An empty prefix names nothing; reject it instead of granting a
+                    // capability that can never match (or, resolved later, the working dir).
+                    if prefix.is_empty() {
+                        return Err(ManifestError::Capability(other.to_owned()));
+                    }
                     Self::FilesystemRead {
                         prefix: prefix.to_owned(),
                     }
@@ -134,8 +148,8 @@ pub struct ExtensionManifest {
     pub entry: String,
     /// Optional `sha256:` checksum of the module.
     pub checksum: Option<String>,
-    /// Optional signature over the module and manifest, checked by the installer when
-    /// the embedding application configures a key.
+    /// Optional signature over the module. A manager refuses a signed manifest unless the
+    /// application installed a verifier with `ExtensionManager::with_signature_verifier`.
     pub signature: Option<String>,
     /// Capabilities, in manifest spelling.
     #[serde(default)]
@@ -165,7 +179,15 @@ impl ExtensionManifest {
     /// # Errors
     /// When a field is invalid.
     pub fn validate(&self) -> Result<(), ManifestError> {
-        if self.id.is_empty() || self.id.contains('/') || self.id.contains('\\') {
+        // The id names directories and log lines: keep it to a plain reverse-DNS spelling.
+        if self.id.is_empty()
+            || self.id.len() > 128
+            || self.id.starts_with('.')
+            || !self
+                .id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+        {
             return Err(ManifestError::Id(self.id.clone()));
         }
         if self.version.split('.').count() < 2 || self.version.split('.').any(|part| part.parse::<u64>().is_err()) {
@@ -228,7 +250,11 @@ impl std::fmt::Display for ManifestError {
             Self::Id(id) => write!(formatter, "invalid extension id `{id}`"),
             Self::Version(version) => write!(formatter, "invalid extension version `{version}`"),
             Self::Entry(entry) => write!(formatter, "invalid entry `{entry}`"),
-            Self::Api { min, max } => write!(formatter, "host API 0.15 is outside {min}..{max}"),
+            Self::Api { min, max } => write!(
+                formatter,
+                "host API {} is outside {min}..{max}",
+                crate::HOST_API_VERSION
+            ),
             Self::Capability(capability) => write!(formatter, "unknown capability `{capability}`"),
         }
     }

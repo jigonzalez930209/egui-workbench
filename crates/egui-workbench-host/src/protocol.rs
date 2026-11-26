@@ -177,6 +177,8 @@ impl Message {
 pub enum FrameError {
     /// The underlying stream failed.
     Io(String),
+    /// The peer closed the stream cleanly before a new frame began.
+    Closed,
     /// The payload was not valid JSON or protocol.
     Protocol(ProtocolError),
 }
@@ -185,12 +187,16 @@ impl std::fmt::Display for FrameError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(error) => formatter.write_str(error),
+            Self::Closed => formatter.write_str("the stream was closed"),
             Self::Protocol(error) => write!(formatter, "{error}"),
         }
     }
 }
 
 impl std::error::Error for FrameError {}
+
+/// Largest frame accepted by [`read_frame`].
+const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 
 /// Write one length-prefixed frame.
 ///
@@ -213,17 +219,26 @@ pub fn write_frame(mut writer: impl Write, message: &Message) -> Result<(), Fram
 /// When reading, decoding, or validating fails.
 pub fn read_frame(mut reader: impl Read) -> Result<Message, FrameError> {
     let mut length = [0u8; 4];
-    reader
-        .read_exact(&mut length)
-        .map_err(|error| FrameError::Io(error.to_string()))?;
+    match reader.read_exact(&mut length) {
+        Ok(()) => {}
+        // `read_exact` reports a clean end of stream as `UnexpectedEof`; the message text
+        // is not stable, so match on the kind.
+        Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => return Err(FrameError::Closed),
+        Err(error) => return Err(FrameError::Io(error.to_string())),
+    }
     let length = u32::from_be_bytes(length) as usize;
-    if length > 64 * 1024 * 1024 {
+    if length > MAX_FRAME_BYTES {
         return Err(FrameError::Protocol(ProtocolError::FrameTooLarge(length)));
     }
-    let mut bytes = vec![0u8; length];
-    reader
-        .read_exact(&mut bytes)
+    // Grow with the bytes that arrive instead of reserving the announced length.
+    let mut bytes = Vec::new();
+    let read = reader
+        .take(length as u64)
+        .read_to_end(&mut bytes)
         .map_err(|error| FrameError::Io(error.to_string()))?;
+    if read != length {
+        return Err(FrameError::Io("the frame ended early".to_owned()));
+    }
     let json =
         String::from_utf8(bytes).map_err(|error| FrameError::Protocol(ProtocolError::Json(error.to_string())))?;
     Message::decode(&json).map_err(FrameError::Protocol)

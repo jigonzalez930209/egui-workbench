@@ -1,6 +1,11 @@
 [alias]
 xtask = "run --package xtask --"
 
+[build]
+# A full-parallel build of this workspace has been killed by the out-of-memory killer while
+# linking test binaries. Six jobs keep the machine responsive.
+jobs = 6
+
 [env]
 # Snapshot tests create one wgpu device per harness, in parallel. wgpu's debug object
 # labels (VK_EXT_debug_utils, on in debug builds) crash the Vulkan loader when devices

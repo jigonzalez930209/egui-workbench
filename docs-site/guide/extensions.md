@@ -65,8 +65,45 @@ capabilities, and the commands, panels, and viewers they contributed.
 
 `api` is the host range the extension supports; the host rejects a range that does not
 include `HOST_API_VERSION` (`0.15`). `entry` cannot escape the extension directory.
-`checksum` is verified on install and reload. `signature` is carried for applications
-that add a signing policy.
+`checksum` is verified on install and reload, against the same bytes that are loaded.
+`id` is a plain reverse-DNS name: ASCII letters, digits, `.`, `-`, `_`, not starting with
+a dot. Both `api` bounds must be `major.minor`; an unparsable bound rejects the manifest.
+`filesystem:read:` needs a non-empty prefix.
+
+`signature` is checked only when the application configures a verifier:
+
+```rust
+let manager = ExtensionManager::new(dir)?
+    .with_signature_verifier(|module_bytes, manifest| my_policy.verify(module_bytes, manifest));
+```
+
+Without a verifier, a manifest that carries `signature` is refused with
+`ExtensionError::Signature`. The crate ships no signature algorithm.
+
+### Passing the command id
+
+When the host runs a command it copies the id into the module's memory. Export
+`alloc(len: i32) -> i32` and the host writes into the buffer you return:
+
+```rust
+static mut INBOX: [u8; 256] = [0; 256];
+
+#[unsafe(no_mangle)]
+pub extern "C" fn alloc(len: i32) -> i32 {
+    if len < 0 || len as usize > 256 { return -1; }
+    core::ptr::addr_of_mut!(INBOX) as i32
+}
+```
+
+A module without `alloc` still works, but the host writes the id at offset 1024, which
+can overwrite the module's data.
+
+### Limits
+
+Each call gets a fuel budget, and memory is capped at 64 MiB with one instance, one
+memory, and four tables. `host_read_file` reads regular files only and returns an error
+when the file exceeds the buffer. An extension keeps at most 1,024 contributions and
+1,024 log lines between drains.
 
 Capabilities:
 

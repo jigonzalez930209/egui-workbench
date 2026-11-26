@@ -125,17 +125,27 @@ pub fn to_svg(document: &ChemDocument, options: ExportOptions) -> String {
     output
 }
 
+/// Most pixels a PNG export may allocate (about 400 MB of RGBA).
+const MAX_PIXELS: u64 = 100_000_000;
+
 /// Render the document as a PNG at `dpi` (96 DPI is 1x).
 ///
 /// # Errors
 /// When the SVG cannot be rasterized or encoded.
 pub fn to_png(document: &ChemDocument, options: ExportOptions, dpi: u32) -> Result<Vec<u8>, String> {
     let svg = to_svg(document, options);
-    let tree =
-        resvg::usvg::Tree::from_str(&svg, &resvg::usvg::Options::default()).map_err(|error| error.to_string())?;
-    let scale = dpi.max(72) as f32 / 96.0;
+    let mut usvg_options = resvg::usvg::Options::default();
+    // The SVG is generated here, but its labels come from the document: never let one pull
+    // in a file through an `href`.
+    usvg_options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+    let tree = resvg::usvg::Tree::from_str(&svg, &usvg_options).map_err(|error| error.to_string())?;
+    // `dpi` and the size are caller-controlled: u32::MAX would ask for terapixels.
+    let scale = dpi.clamp(72, 1_200) as f32 / 96.0;
     let width = (options.width as f32 * scale).round().max(1.0) as u32;
     let height = (options.height as f32 * scale).round().max(1.0) as u32;
+    if u64::from(width) * u64::from(height) > MAX_PIXELS {
+        return Err("the image is too large".to_owned());
+    }
     let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).ok_or_else(|| "pixmap".to_owned())?;
     resvg::render(
         &tree,

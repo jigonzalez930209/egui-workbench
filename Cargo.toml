@@ -1,6 +1,6 @@
 [package]
 name = "egui-workbench"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
@@ -18,6 +18,44 @@ include = ["/src/**", "/assets/**", "/locales/**", "/README.md", "/CHANGELOG.md"
 all-features = true
 # Show which items need `material-icons` / `lucide-icons`.
 rustdoc-args = ["--cfg", "docsrs"]
+
+# Build profiles tuned for disk use and compile time. A default debug build of this
+# workspace writes more than 150 GB: every test binary links the whole dependency tree with
+# full debug info. Line tables keep readable backtraces and panics at a fraction of the size.
+[profile.dev]
+debug = "line-tables-only"
+
+# Dependencies are not debugged line by line, so skip their debug info entirely. The few
+# crates on the hot path of rendering and decoding run at opt-level 1: the snapshot tests
+# rasterize SVGs and PNGs, which is several times slower unoptimized.
+[profile.dev.package."*"]
+debug = false
+
+[profile.dev.package.tiny-skia]
+opt-level = 1
+[profile.dev.package.resvg]
+opt-level = 1
+[profile.dev.package.usvg]
+opt-level = 1
+[profile.dev.package.png]
+opt-level = 1
+[profile.dev.package.miniz_oxide]
+opt-level = 1
+[profile.dev.package.fdeflate]
+opt-level = 1
+[profile.dev.package.wasmi]
+opt-level = 1
+
+# Release builds: symbol stripping cuts the shipped C library and host binary by about a
+# quarter (22 MB -> 16 MB) at no cost in build time, and the dynamic symbols that C callers
+# link against (`wb_*`) stay. Optimization is left at 3: opt-level 2 built no faster in
+# measurements (96 s against 98 s), and the rendering code runs slower at 2.
+[profile.release]
+strip = "symbols"
+
+# Tests use the dev settings; this only names the choice.
+[profile.test]
+inherits = "dev"
 
 [workspace]
 members = ["xtask", "crates/egui-workbench-host", "crates/egui-workbench-python", "crates/egui-workbench-remote", "crates/egui-workbench-c", "crates/egui-workbench-agent", "crates/egui-workbench-extensions", "crates/egui-workbench-chem-core", "crates/egui-workbench-chem2d", "crates/egui-workbench-mol3d"]

@@ -36,6 +36,13 @@ const MAX_CONNECTIONS: usize = 32;
 const MAX_HANDSHAKE_BYTES: u64 = 8 * 1024;
 const MAX_HEADER_LINES: usize = 64;
 
+/// Time a client has to finish the WebSocket upgrade.
+const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Time a write may block on a client that stopped reading.
+const WRITE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+/// Largest WebSocket frame payload accepted.
+const MAX_FRAME_BYTES: u64 = 64 * 1024 * 1024;
+
 impl RemoteServer {
     /// Bind `addr` and serve `host`. Use port `0` in tests to pick a free port.
     ///
@@ -164,9 +171,13 @@ fn serve_connection(
     handler: CommandHandler,
     allowed_origins: &[String],
 ) -> Result<(), RemoteError> {
+    // A client that opens a socket and goes quiet must not hold a connection slot.
+    stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT)).map_err(io)?;
+    stream.set_write_timeout(Some(WRITE_TIMEOUT)).map_err(io)?;
     let mut reader = BufReader::new(stream.try_clone().map_err(io)?);
     let mut writer = stream;
     handshake(&mut reader, &mut writer, allowed_origins)?;
+    writer.set_read_timeout(None).map_err(io)?;
 
     write_message(
         &mut writer,
@@ -202,9 +213,17 @@ fn handle_message(
         Message::Request { id, request } => (id, request),
         Message::Patch { patch } => {
             let mut guard = host.lock().unwrap_or_else(|error| error.into_inner());
-            guard.apply(&patch)?;
+            let applied = guard.apply(&patch);
             drop(guard);
-            return write_spec(writer, host);
+            return match applied {
+                Ok(()) => write_spec(writer, host),
+                Err(error) => write_message(
+                    writer,
+                    &Message::Error {
+                        message: error.to_string(),
+                    },
+                ),
+            };
         }
         Message::Hello { .. } => {
             return write_message(
@@ -287,6 +306,7 @@ fn decode_message(payload: &[u8]) -> Result<Message, RemoteError> {
     read_frame(Cursor::new(payload.to_vec())).map_err(|error| match error {
         FrameError::Protocol(error) => RemoteError::Protocol(error.to_string()),
         FrameError::Io(error) => RemoteError::Io(error),
+        FrameError::Closed => RemoteError::Io("the payload ended early".to_owned()),
         _ => RemoteError::Protocol("unknown frame error".to_owned()),
     })
 }
@@ -391,33 +411,41 @@ fn read_websocket(reader: &mut impl Read) -> Result<Option<Frame>, RemoteError> 
     }
     let opcode = header[0] & 0x0F;
     let masked = header[1] & 0x80 != 0;
+    // RFC 6455 section 5.1: a server closes the connection on an unmasked client frame.
+    if !masked {
+        return Err(RemoteError::WebSocket("client frame is not masked".to_owned()));
+    }
     let length = match header[1] & 0x7F {
         126 => {
             let mut extended = [0u8; 2];
             reader.read_exact(&mut extended).map_err(io)?;
-            u16::from_be_bytes(extended) as usize
+            u64::from(u16::from_be_bytes(extended))
         }
         127 => {
             let mut extended = [0u8; 8];
             reader.read_exact(&mut extended).map_err(io)?;
-            usize::try_from(u64::from_be_bytes(extended))
-                .map_err(|_| RemoteError::WebSocket("frame is too large".to_owned()))?
+            u64::from_be_bytes(extended)
         }
-        length => length as usize,
+        length => u64::from(length),
     };
-    if length > 64 * 1024 * 1024 {
+    if length > MAX_FRAME_BYTES {
         return Err(RemoteError::WebSocket(format!("frame of {length} bytes is too large")));
     }
-    let mut mask = [0u8; 4];
-    if masked {
-        reader.read_exact(&mut mask).map_err(io)?;
+    // Control frames (close, ping, pong) carry at most 125 bytes.
+    if opcode & 0x8 != 0 && length > 125 {
+        return Err(RemoteError::WebSocket("control frame is too large".to_owned()));
     }
-    let mut payload = vec![0u8; length];
-    reader.read_exact(&mut payload).map_err(io)?;
-    if masked {
-        for (index, byte) in payload.iter_mut().enumerate() {
-            *byte ^= mask[index % 4];
-        }
+    let mut mask = [0u8; 4];
+    reader.read_exact(&mut mask).map_err(io)?;
+    // Grow with the bytes that actually arrive instead of trusting the declared length:
+    // 32 connections each announcing 64 MiB must not reserve 2 GiB up front.
+    let mut payload = Vec::new();
+    let received = reader.by_ref().take(length).read_to_end(&mut payload).map_err(io)?;
+    if received as u64 != length {
+        return Err(RemoteError::WebSocket("the frame ended early".to_owned()));
+    }
+    for (index, byte) in payload.iter_mut().enumerate() {
+        *byte ^= mask[index % 4];
     }
     Ok(Some(Frame { opcode, payload }))
 }

@@ -8,6 +8,9 @@
 //! - import `workbench.host_dataset_rows(name_ptr, name_len) -> i32`
 //! - import `workbench.host_selection(ptr, len)`
 //! - export `memory`, `init() -> i32`, and `on_command(ptr, len) -> i32`
+//! - optionally export `alloc(len) -> ptr`; the host copies the command id into that
+//!   buffer. Without it the id is written at offset 1024, which can overwrite module
+//!   data, so new modules should export `alloc`.
 //!
 //! No WASI is linked. A module can only touch the filesystem through a granted
 //! `filesystem:read:<prefix>` capability and only see a dataset row count.
@@ -32,6 +35,7 @@ mod host_api;
 mod types;
 
 pub use error::ExtensionError;
+use types::hex;
 pub use types::{
     CommandContribution, DatasetView, ExtensionInfo, PanelContribution, PluginLog, ViewerContribution, dataset_views,
 };
@@ -50,6 +54,20 @@ struct HostState {
     limiter: StoreLimits,
 }
 
+impl HostState {
+    fn deny(&mut self, entry: String) {
+        if self.denied.len() < MAX_LOGS {
+            self.denied.push(entry);
+        }
+    }
+}
+
+/// Most commands, panels, and viewers one extension may register.
+const MAX_CONTRIBUTIONS: usize = 1024;
+
+/// Most log lines and denials one extension keeps between drains.
+const MAX_LOGS: usize = 1024;
+
 struct PluginRuntime {
     store: Store<HostState>,
     instance: Instance,
@@ -65,8 +83,12 @@ struct Installed {
     runtime: Option<PluginRuntime>,
 }
 
+/// Checks a manifest signature over the module bytes.
+pub type SignatureVerifier = Box<dyn Fn(&[u8], &ExtensionManifest) -> bool + Send + Sync>;
+
 /// The extension manager and its installed set.
 pub struct ExtensionManager {
+    verifier: Option<SignatureVerifier>,
     root: PathBuf,
     extensions: BTreeMap<String, Installed>,
     datasets: BTreeMap<String, usize>,
@@ -84,6 +106,7 @@ impl ExtensionManager {
         let root = directory.into();
         std::fs::create_dir_all(&root).map_err(|error| ExtensionError::Io(error.to_string()))?;
         Ok(Self {
+            verifier: None,
             root,
             extensions: BTreeMap::new(),
             datasets: BTreeMap::new(),
@@ -91,6 +114,18 @@ impl ExtensionManager {
             logs: Vec::new(),
             denied: Vec::new(),
         })
+    }
+
+    /// Configure the check applied to manifests that carry a `signature`.
+    ///
+    /// Without a verifier, a signed manifest is refused: a signature nobody checked must
+    /// not read as trust.
+    pub fn with_signature_verifier(
+        mut self,
+        verifier: impl Fn(&[u8], &ExtensionManifest) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.verifier = Some(Box::new(verifier));
+        self
     }
 
     /// Install a directory containing `extension.json` and the module.
@@ -277,23 +312,36 @@ impl ExtensionManager {
                 .get_memory(&runtime.store, "memory")
                 .ok_or_else(|| ExtensionError::Runtime("the module does not export memory".to_owned()))?;
             let bytes = command.as_bytes();
-            let offset = 1024usize;
-            if memory.data_size(&runtime.store) < offset + bytes.len() {
+            runtime
+                .store
+                .set_fuel(FUEL_PER_CALL)
+                .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
+            let offset = match runtime.instance.get_typed_func::<i32, i32>(&runtime.store, "alloc") {
+                Ok(alloc) => {
+                    let length = i32::try_from(bytes.len())
+                        .map_err(|_| ExtensionError::Runtime("the command id is too long".to_owned()))?;
+                    let pointer = alloc
+                        .call(&mut runtime.store, length)
+                        .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
+                    usize::try_from(pointer)
+                        .map_err(|_| ExtensionError::Runtime("alloc returned a negative pointer".to_owned()))?
+                }
+                Err(_) => 1024usize,
+            };
+            if memory.data_size(&runtime.store) < offset.saturating_add(bytes.len()) {
                 return Err(ExtensionError::Runtime("the module memory is too small".to_owned()));
             }
             memory
                 .write(&mut runtime.store, offset, bytes)
                 .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
-            runtime
-                .store
-                .set_fuel(FUEL_PER_CALL)
-                .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
             let code = runtime
                 .on_command
                 .call(&mut runtime.store, (offset as i32, bytes.len() as i32))
                 .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
-            self.logs.extend(runtime.store.data().logs.clone());
-            self.denied.extend(runtime.store.data().denied.clone());
+            // Take, don't clone: the store keeps its vectors across calls, so cloning
+            // re-reported every earlier line on each invocation.
+            self.logs.append(&mut runtime.store.data_mut().logs);
+            self.denied.append(&mut runtime.store.data_mut().denied);
             return Ok(Some(code));
         }
         Ok(None)
@@ -329,17 +377,19 @@ impl ExtensionManager {
             .extensions
             .get(id)
             .ok_or_else(|| ExtensionError::Unknown(id.to_owned()))?;
-        self.verify_checksum(&extension.manifest, &extension.directory)?;
+        // Check and load the same bytes; verifying one read and loading another would let a
+        // file swapped in between pass the checksum.
+        let bytes = self.module_bytes(&extension.manifest, &extension.directory)?;
         let mut runtime = PluginRuntime::new(
             &extension.manifest,
-            &extension.directory,
+            bytes,
             extension.granted.clone(),
             self.datasets.clone(),
             self.selection.clone(),
         )?;
         runtime.init()?;
-        self.logs.extend(runtime.store.data().logs.clone());
-        self.denied.extend(runtime.store.data().denied.clone());
+        self.logs.append(&mut runtime.store.data_mut().logs);
+        self.denied.append(&mut runtime.store.data_mut().denied);
         let extension = self
             .extensions
             .get_mut(id)
@@ -349,32 +399,43 @@ impl ExtensionManager {
     }
 
     fn verify_checksum(&self, manifest: &ExtensionManifest, directory: &Path) -> Result<(), ExtensionError> {
-        let Some(expected) = &manifest.checksum else {
-            return Ok(());
-        };
+        self.module_bytes(manifest, directory).map(|_| ())
+    }
+
+    /// Read the module and verify the manifest checksum against those exact bytes.
+    fn module_bytes(&self, manifest: &ExtensionManifest, directory: &Path) -> Result<Vec<u8>, ExtensionError> {
         let path = manifest.module_path(directory);
         let bytes = std::fs::read(&path).map_err(|error| ExtensionError::Io(error.to_string()))?;
-        let actual = format!("sha256:{}", hex(&Sha256::digest(&bytes)));
-        if actual != *expected {
-            return Err(ExtensionError::Checksum {
-                expected: expected.clone(),
-                actual,
-            });
+        if let Some(expected) = &manifest.checksum {
+            let actual = format!("sha256:{}", hex(&Sha256::digest(&bytes)));
+            if !actual.eq_ignore_ascii_case(expected.trim()) {
+                return Err(ExtensionError::Checksum {
+                    expected: expected.clone(),
+                    actual,
+                });
+            }
         }
-        Ok(())
+        if manifest.signature.is_some() {
+            match &self.verifier {
+                None => return Err(ExtensionError::Signature("no verifier is configured".to_owned())),
+                Some(verify) if !verify(&bytes, manifest) => {
+                    return Err(ExtensionError::Signature("the signature was rejected".to_owned()));
+                }
+                Some(_) => {}
+            }
+        }
+        Ok(bytes)
     }
 }
 
 impl PluginRuntime {
     fn new(
         manifest: &ExtensionManifest,
-        directory: &Path,
+        bytes: Vec<u8>,
         granted: BTreeSet<Capability>,
         datasets: BTreeMap<String, usize>,
         selection: String,
     ) -> Result<Self, ExtensionError> {
-        let path = manifest.module_path(directory);
-        let bytes = std::fs::read(&path).map_err(|error| ExtensionError::Io(error.to_string()))?;
         let mut config = Config::default();
         config.consume_fuel(true);
         let engine = Engine::new(&config);
@@ -384,7 +445,13 @@ impl PluginRuntime {
             granted,
             datasets,
             selection,
-            limiter: StoreLimitsBuilder::new().memory_size(MEMORY_LIMIT).build(),
+            limiter: StoreLimitsBuilder::new()
+                .memory_size(MEMORY_LIMIT)
+                .instances(1)
+                .memories(1)
+                .tables(4)
+                .table_elements(65_536)
+                .build(),
             ..HostState::default()
         };
         let mut store = Store::new(&engine, state);
@@ -424,12 +491,4 @@ impl PluginRuntime {
         }
         Ok(())
     }
-}
-
-fn hex(bytes: &[u8]) -> String {
-    let mut text = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        text.push_str(&format!("{byte:02x}"));
-    }
-    text
 }

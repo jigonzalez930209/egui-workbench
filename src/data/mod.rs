@@ -43,7 +43,7 @@ pub use pyramid::{LodTile, MinMaxPyramid};
 pub use query::{Query, QueryError};
 #[cfg(feature = "ring")]
 pub use ring::RingBuffer;
-pub use source::{ColumnSchema, DataError, DataSource, MemorySource};
+pub use source::{ColumnSchema, DataError, DataSource, MAX_FILE_BYTES, MemorySource, read_limited};
 #[cfg(feature = "sqlite")]
 pub use sqlite::{SqliteSource, read_sqlite};
 pub use stream::{StreamMode, StreamingSeries, Trigger};

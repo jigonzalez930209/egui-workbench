@@ -1154,7 +1154,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "arrow",
  "bytemuck",
@@ -1181,7 +1181,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-agent"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "base64 0.22.1",
  "egui-workbench",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-c"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "egui-workbench-host",
  "serde_json",
@@ -1200,7 +1200,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-chem-core"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1208,7 +1208,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-chem2d"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "eframe",
  "egui",
@@ -1220,7 +1220,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-extensions"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "egui",
  "egui-workbench-host",
@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-host"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "eframe",
  "egui",
@@ -1248,7 +1248,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-mol3d"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "bytemuck",
  "eframe",
@@ -1264,7 +1264,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-python"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "arrow",
  "egui-workbench",
@@ -1275,7 +1275,7 @@ dependencies = [
 
 [[package]]
 name = "egui-workbench-remote"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "base64 0.22.1",
  "egui-workbench-host",

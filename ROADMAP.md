@@ -17,13 +17,13 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 1.1.0
+## Where we are: 1.2.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
 palette, toasts, a shadcn-style component layer, 2,410 Lucide icons, the Material file
 icons, `Plot` (many chart families, legend animations, SVG/PNG export), `Plot3D`, a
-read-only `FileViewer`, the optional runtime (`ThemeState`, `Documents`, `Keymap`,
+read-only `FileViewer`, the chemistry plugins (2D editor and 3D viewer), the optional runtime (`ThemeState`, `Documents`, `Keymap`,
 `CloseGuard`, `show_workbench`), a starter template, an agent skill, and a documentation
 site whose demos run the real library in WebAssembly. More than 400 tests and 87 pixel
 snapshots protect it; they run locally with `cargo xtask check` before each tag, not in
@@ -100,6 +100,17 @@ pixel matrix, and the support boundary.
 
 1.0.2 makes the platform probe a standalone crate, runs the headless wgpu probe on hosted
 Windows and macOS with a byte-for-byte comparison, and adds the `wgpu-renderer` feature.
+
+1.1.0 added plot analysis: the ruler and area measurement tools, curve-versus-chord
+areas, the analysis menu (smoothing filters and transforms), and the tool ribbon.
+
+1.2.0 publishes the chemistry plugins as companion crates versioned with the library:
+`egui-workbench-chem-core` (the shared document model, selection bus, events, and
+background jobs), `egui-workbench-chem2d` (the 2D structure editor), and
+`egui-workbench-mol3d` (the 3D molecular and crystal viewer). It also hardens the whole
+workspace: bounded readers and limits for untrusted files, read-only SQLite, a safe
+session writer, corrected dihedral and aromaticity chemistry, and a release workflow that
+builds each platform in parallel on native runners.
 
 1.0 shipped with some of the entry criteria below still open. They are listed in
 [Known gaps at 1.0](#known-gaps-at-10) rather than marked done.

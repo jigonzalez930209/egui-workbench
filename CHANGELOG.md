@@ -7,6 +7,180 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-26
+
+This release publishes the chemistry crates as plugins of the library and hardens the
+whole workspace. Upgrade notes are at the end of this section.
+
+### Added
+
+- **Chemistry plugins.** `egui-workbench-chem-core`, `egui-workbench-chem2d`, and
+  `egui-workbench-mol3d` are published to crates.io at `1.2.0`, versioned with the library
+  (they were unpublished `0.1.0` workspace members). `chem-core` is the egui-free document
+  model, selection bus, events, and background jobs; `chem2d` is the 2D structure editor
+  with SMILES, molfile, SDF, RXN, and CDXML, properties, and SVG/PNG export; `mol3d` is the
+  3D molecular and crystal viewer with an offscreen renderer and an optional wgpu path. The
+  library does not depend on them. See the new
+  [Chemistry plugins guide](https://jigonzalez930209.github.io/egui-workbench/guide/chemistry.html).
+- `ExtensionManager::with_signature_verifier`, `ExtensionError::Signature`,
+  `FrameError::Closed`, `Host::peek_events`, `data::read_limited`, and `data::MAX_FILE_BYTES`.
+- Extension modules may export `alloc(len) -> ptr` to receive the command id.
+- A `cache-warm.yml` workflow and a `workflow_dispatch` rehearsal for the release workflow.
+
+### Security
+
+- **Extensions.** The runtime checks a module's memory range before allocating, so a
+  module can no longer make the host reserve up to 2 GiB with one `host_*` call.
+  `host_read_file` reads only regular files (a FIFO or device node no longer hangs it) and
+  reads at most `out_cap + 1` bytes. The checksum is verified on the same bytes that are
+  loaded. Logs, denials, and contributions are bounded, and the module's instances,
+  memories, and tables are limited. Ids are plain reverse-DNS names, `api` bounds must
+  parse, and an empty `filesystem:read:` prefix is rejected.
+- **Extension signatures.** A manifest with `signature` is refused unless the application
+  installs a verifier with `ExtensionManager::with_signature_verifier`. Before, the field
+  was accepted and never checked.
+- **Remote server.** Handshake and write timeouts stop idle sockets from holding the 32
+  connection slots. Frame payloads grow with the bytes that arrive instead of reserving
+  the announced length (up to 64 MiB per connection). Unmasked client frames and control
+  frames over 125 bytes are rejected, as RFC 6455 requires.
+- **MCP agent.** An empty `EGUI_WORKBENCH_CONFIRM` token no longer matches an empty
+  `confirmation`, and tokens compare in constant time. Without an allow-list,
+  `run_command` only accepts commands the spec declares. The audit log keeps at most 240
+  characters per entry and 10,000 entries; successful calls used to store their whole
+  result, including screenshots.
+- **Root crate: data connectors.** The SQLite connector opens the database read-only
+  and refuses statements that write, so a query can no longer modify a file or create one
+  at a mistyped path; a query stops at 5,000,000 rows. CSV, Arrow, Parquet, and the
+  viewer refuse files over 512 MiB (`read_limited`, `MAX_FILE_BYTES`). The image viewer
+  decodes with a 16,384-pixel and 512 MiB limit, and SVGs no longer load files named by
+  an `href`. A PNG export is capped at 100 million pixels.
+- **Root crate: parsers.** The data query and `When` expression parsers stop at 64 levels
+  of nesting instead of overflowing the stack. `Localizer::load` accepts only plain
+  locale names, so `../x` cannot choose the file read, and `{ $name }` values are no
+  longer expanded a second time by a later argument. A workspace `version` above
+  `u32::MAX` is rejected instead of wrapping to a small number.
+- **Root crate: session files.** Workspace, stash, and journal writes go through a
+  hidden, uniquely named temporary file created exclusively, flushed to disk, and
+  renamed over the target. The old code removed the target first, so a crash between
+  the two steps left no file, and its predictable temporary name followed symlinks.
+- **Root crate: workbooks and plots.** A workbook over 512 MiB, or a sheet over
+  50,000,000 cells, is refused. A plot tick label wider than the plot used to panic in
+  `clamp`; it is now centred. Cells of a crafted `.xlsx` are still expanded by `calamine`
+  before the cell limit can apply, so a hostile workbook can use a lot of memory; open
+  untrusted workbooks in a separate process.
+- **Chemistry crates.** The 2D superatom library had four wrong structures: `Boc` had an
+  O=O bond, `OTs` had no aryl ring (it was a mesylate), `bpy` and `phen` contained
+  three-membered rings, and `EDTA` bonded its acetate arms to carbons instead of nitrogens.
+  They are rebuilt (tolyl ring, 2,2'-bipyridine, 1,10-phenanthroline, and four
+  CH2-COOH arms), and a test now checks every entry for valence, connectivity, and ring size.
+- **Dihedral angles were 180 degrees off.** `dihedral` and the 3D `Dihedral` measurement
+  read an anti arrangement as 0 and a syn one as 180; they follow the IUPAC sign convention
+  now (anti 180, syn 0, +90 for a clockwise quarter turn).
+- **π–π stacking was never reported.** The ring search discarded every ring it found. Contacts
+  and hydrogen bonds also paired atoms within three bonds (every bond angle read as a clash);
+  they are skipped. Both searches no longer scan all atom pairs or look atoms up by a linear
+  scan, which was cubic on a protein.
+- **2D properties.** The Hill formula puts carbon-free compounds in alphabetical order
+  (`ClH`, not `HCl`). Fused aromatic carbons (4.5 bond orders) no longer report a valence
+  error, and carbocations, carbanions, and `BH4-` get the hydrogens their group implies. The
+  label and the formula share one hydrogen count. Alternating-bond rings of four or eight atoms
+  are no longer aromatic, and Kekulé furan, pyrrole, and thiophene are. The pyrrole template is
+  drawn in Kekulé form so its N-H shows. `format_chemical_text` no longer turns the bond in
+  `CH_3-CH_3` into a subscript minus.
+- **2D editing.** `add_chain` spaced atoms unevenly (alternate bonds were 1.5 and 2.5 long); every
+  bond is 1.5 now with a 120 degree angle. A command that fails halfway is rolled back. Deleting
+  atoms prunes expanded superatom groups. Deltas reject non-finite or absurd coordinates and
+  stop at 100,000 atoms; chains stop at 1,000 atoms; `relax` no longer freezes on a few hundred
+  atoms; PNG export caps its size and dpi.
+- **3D limits.** A supercell is limited to 32 copies per axis and 2,000,000 atoms, `pore_points`
+  to 1,000,000 samples, a coordination polyhedron to its 16 nearest neighbours, an orbital grid
+  to 160 points per edge, and a CPU render to 8192 pixels per edge and 36 megapixels. The surface
+  grid is built per atom instead of per grid point and atom pair. A zero-size or oversized GPU
+  offscreen target returns nothing instead of failing wgpu validation.
+- **Chemistry core.** Removing an atom freed its slot but not its bonds' slots; they stay free
+  now. An `IdPool` read from a document with a dangling free slot no longer panics.
+- **Host.** A patch cannot nest the spec deeper than 128 levels. The pending event queue
+  holds at most 10,000 events, and `read_frame` grows with the bytes received.
+- **C ABI.** An interior NUL in an error message no longer erases the message.
+- **File readers.** A `.cube` header cannot request a grid larger than the file.
+  Fixed-width molfile and mol columns, short mmCIF rows, a CIF loop with only `_fract_x`,
+  a zero cube dimension, and a bare `M  CHG` line panicked; they now return an
+  error or are skipped. A SMILES bracket atom accepts at most 8 explicit hydrogens.
+
+### Fixed
+
+- **Charts.** A plot tick label wider than the plot used to panic in `clamp`; it is centered.
+  PNG export refuses more than 100 million pixels with `the image is too large`. SVG rasterizing
+  no longer follows an `href` to a file, in plots and in the viewer.
+- CSV files with a byte-order mark kept it in the first column name, and a blank line
+  became a row with a null value.
+- SQLite and workbook columns that mix types showed `Int(5)` instead of `5`. A workbook's
+  first sheet was the alphabetically first, not the workbook's first.
+- Arrow timestamps in seconds, milliseconds, or microseconds failed to load; they are
+  converted to nanoseconds.
+- `MinMaxPyramid::tile` with a level of 64 or more panicked or reserved memory for the
+  empty levels.
+- `Keybindings::import_vscode` imported VS Code's `-command` removal entries as bindings
+  to a command that does not exist; they are skipped. Binding an empty key sequence is
+  an error.
+- `show_choice_window` answered Esc even when the window was closed. The stepper
+  control panicked on an inverted range, `ellipsize_start(text, 0)` underflowed, and
+  Left on a collapsed leaf in a tree emitted a toggle.
+- Edge resizing started on a maximized or fullscreen window. A host spec's
+  `window.resizable` was never applied.
+- `RingBuffer::read_range` copied the whole buffer for every page; it copies the page.
+- `egui-workbench --stdio` exited with an error at a normal end of input. `read_frame`
+  now returns `FrameError::Closed` for a clean close.
+- `Host::reload_if_changed` dropped the shared action queue, registered custom widgets,
+  and unpolled events. It keeps them.
+- Extension logs were reported again on every `invoke`.
+- A patch reset every input widget to its spec value. Widgets the patch does not touch
+  keep the user's value.
+- mmCIF used the first `loop_` instead of `_atom_site`; CIF rejected coordinates with an
+  uncertainty such as `0.1234(5)`; CDXML rejected carbon nodes without `Element` and
+  matched `B="` inside `LabelB="`.
+- Molfile: atom number `0` or a malformed number bonded atom 1, a truncated atom or bond
+  block was accepted, `M  CHG` lines held more than 8 entries, and V3000 wrote the charge
+  in the atom-map field. V3000 now uses `CHG=`.
+- SMILES `[Fe++]` gave +1 instead of +2.
+- Python: a NumPy buffer whose size is not a multiple of the dtype width lost its tail.
+- A host dialog's window close button emits `<id>.cancel`.
+- The MCP server returns `-32601` for an unknown method, and `get_state` no longer drains
+  pending events.
+- A panicking chem job reports `Failed("the job panicked: …")` and wakes the UI.
+- `infer_bonds` uses a spatial grid instead of comparing all atom pairs, and PDB/CIF
+  loading no longer scans the atom list per atom.
+
+### Changed
+
+- `FrameError` has a new variant `Closed`.
+- `ExtensionError` has a new variant `Signature`.
+- Extension modules may export `alloc(len) -> ptr`; the host copies the command id there.
+  Without it the id is written at offset 1024, which can overwrite module data.
+- `Host::peek_events` reads pending events without draining them.
+- A signed manifest no longer installs without a verifier.
+- An MCP session without `--allow` can no longer run a command id the spec does not
+  declare.
+
+### Upgrade notes
+
+- **macOS wheels.** PyPI now receives one wheel per architecture (`macosx_arm64` and
+  `macosx_x86_64`) instead of a `universal2` wheel; pip picks the right one. Linux aarch64
+  wheels are built natively.
+- **Dihedral angles change sign convention.** A dihedral you stored from 1.1 is 180 degrees
+  off from the IUPAC value that 1.2 reports. Recompute stored values.
+- **Signed extensions.** A manifest with `signature` is refused unless the application installs
+  a verifier. Remove the field or add `with_signature_verifier`.
+- **MCP.** Without `--allow`, `run_command` only runs commands the spec declares.
+- **Chains and patches.** `add_chain` draws uniform 1.5 bonds at 120 degrees; a patch keeps the
+  values the user entered in widgets it does not touch; a `.cube` or supercell request beyond
+  the documented limits is refused or clamped.
+- **Charts.** PNG export is capped at 100 million pixels, and `scale` stays within 0.25 to 8.
+  Tick labels wider than the plot are centered instead of panicking.
+- **Builds.** The workspace profiles use `debug = "line-tables-only"` and strip release
+  binaries; a full debug build is about 9 GB instead of more than 150 GB. See
+  `CONTRIBUTING.md`.
+
 ## [1.1.0] - 2026-11-25
 
 ### Added
@@ -779,7 +953,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.0.2...v1.0.4
 [0.3.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.0...v0.3.1

@@ -50,16 +50,32 @@ pub fn surface_grid(scene: &Mol3dScene, probe_radius: f64, resolution: usize, pa
         ((size.z / step).ceil() as usize + 1).clamp(2, resolution),
     ];
     let mut grid = VolumeGrid::new(min, Vec3::new(step, step, step), dims);
-    for z in 0..dims[2] {
-        for y in 0..dims[1] {
-            for x in 0..dims[0] {
-                let point = grid.position(x, y, z);
-                let nearest = scene
-                    .atoms
-                    .iter()
-                    .map(|atom| (point - atom.position).length() - vdw_radius(atom.element))
-                    .fold(f64::INFINITY, f64::min);
-                grid.set(x, y, z, nearest - probe_radius);
+    // The field is the signed distance to the nearest atom's accessible sphere, clipped at
+    // `margin` beyond it. The isosurface lives at zero, so nothing farther matters, and the
+    // clip lets each atom update only the grid points near it. Evaluating every point
+    // against every atom cost grid points x atoms: tens of billions for a protein.
+    let margin = 2.5 * step;
+    grid.values.fill(margin);
+    for atom in &scene.atoms {
+        let reach = vdw_radius(atom.element) + probe_radius + margin;
+        let center = atom.position;
+        if !(center.x.is_finite() && center.y.is_finite() && center.z.is_finite()) {
+            continue;
+        }
+        let span = |value: f64, origin: f64, count: usize| {
+            let low = ((value - reach - origin) / step).floor().max(0.0) as usize;
+            let high = (((value + reach - origin) / step).ceil().max(0.0) as usize).min(count - 1);
+            low..=high
+        };
+        for z in span(center.z, min.z, dims[2]) {
+            for y in span(center.y, min.y, dims[1]) {
+                for x in span(center.x, min.x, dims[0]) {
+                    let point = grid.position(x, y, z);
+                    let value = (point - center).length() - vdw_radius(atom.element) - probe_radius;
+                    if value < grid.at(x, y, z) {
+                        grid.set(x, y, z, value);
+                    }
+                }
             }
         }
     }
@@ -112,5 +128,36 @@ mod tests {
         assert!(grid.sample(Vec3::new(4.0, 4.0, 4.0)) > 0.0);
         let smoothed = smoothed_surface_grid(&scene, 1.4, 24, 2.0);
         assert_eq!(smoothed.dimensions, grid.dimensions);
+    }
+
+    #[test]
+    fn the_surface_of_a_large_scene_is_built_in_bounded_time() {
+        let mut scene = Mol3dScene::default();
+        for index in 0..2_000 {
+            let (x, y, z) = (index % 10, (index / 10) % 10, index / 100);
+            scene.push_atom(
+                Element::from_symbol("C").expect("C"),
+                [f64::from(x) * 1.5, f64::from(y) * 1.5, f64::from(z) * 1.5],
+            );
+        }
+        let started = std::time::Instant::now();
+        let grid = surface_grid(&scene, 1.4, 96, 2.0);
+        assert!(grid.values.iter().all(|value| value.is_finite()));
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "{:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn the_distance_field_is_exact_near_the_surface() {
+        let mut scene = Mol3dScene::default();
+        scene.push_atom(Element::from_symbol("C").expect("C"), [0.0, 0.0, 0.0]);
+        let grid = surface_grid(&scene, 1.4, 48, 3.0);
+        let radius = crate::representation::vdw_radius(Element::from_symbol("C").expect("C")) + 1.4;
+        // On the +x axis, at the sphere of radius vdw + probe, the field is zero.
+        let value = grid.sample(Vec3::new(radius, 0.0, 0.0));
+        assert!(value.abs() < 0.1, "field {value} at the accessible surface");
     }
 }

@@ -72,15 +72,21 @@ pub fn to_v2000(molecule: &Molecule2D, name: &str) -> String {
         .enumerate()
         .filter(|(_, atom)| atom.charge != 0)
         .collect::<Vec<_>>();
-    if !charges.is_empty() {
-        output.push_str(&format!("M  CHG{:>3}", charges.len()));
-        for (index, atom) in charges {
+    // The format allows eight entries per `M  CHG` line.
+    for chunk in charges.chunks(8) {
+        output.push_str(&format!("M  CHG{:>3}", chunk.len()));
+        for (index, atom) in chunk {
             output.push_str(&format!("{:>4}{:>4}", index + 1, atom.charge));
         }
         output.push('\n');
     }
     output.push_str("M  END\n");
     output
+}
+
+/// A fixed-width column, or `None` when it is out of range or splits a character.
+fn field(line: &str, from: usize, to: usize) -> Option<&str> {
+    line.get(from..to).map(str::trim)
 }
 
 /// Read a V2000 or V3000 molfile.
@@ -107,53 +113,77 @@ pub fn from_molfile(text: &str) -> Result<Molecule2D, MolfileError> {
         .ok_or_else(|| error("invalid bond count"))?;
     let mut molecule = Molecule2D::new();
     let mut ids = Vec::with_capacity(atom_count);
+    // `str::get` instead of `[a..b]`: a multi-byte character inside a fixed column would
+    // make the slice panic on untrusted input.
     for line in lines.iter().skip(counts + 1).take(atom_count) {
-        if line.len() < 34 {
-            return Err(error("short atom line"));
-        }
-        let x = line[0..10].trim().parse::<f64>().map_err(|_| error("bad x"))?;
-        let y = line[10..20].trim().parse::<f64>().map_err(|_| error("bad y"))?;
-        let z = line[20..30].trim().parse::<f64>().map_err(|_| error("bad z"))?;
-        let symbol = line[31..34].trim();
+        let coordinate = |from: usize, to: usize, name: &str| {
+            field(line, from, to)
+                .and_then(|part| part.parse::<f64>().ok())
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| error(name))
+        };
+        let x = coordinate(0, 10, "bad x")?;
+        let y = coordinate(10, 20, "bad y")?;
+        let z = coordinate(20, 30, "bad z")?;
+        let symbol = field(line, 31, 34).ok_or_else(|| error("short atom line"))?;
         let element = Element::from_symbol(symbol).ok_or_else(|| error("unknown element"))?;
         ids.push(molecule.add_atom(element, [x, y, z]));
     }
-    for line in lines.iter().skip(counts + 1 + atom_count).take(bond_count) {
-        if line.len() < 9 {
-            return Err(error("short bond line"));
-        }
-        let a = line[0..3].trim().parse::<usize>().map_err(|_| error("bad bond atom"))?;
-        let b = line[3..6].trim().parse::<usize>().map_err(|_| error("bad bond atom"))?;
-        let order = match line[6..9].trim().parse::<u8>().unwrap_or(1) {
+    if ids.len() < atom_count {
+        return Err(error("truncated atom block"));
+    }
+    let bond_start = counts + 1 + atom_count;
+    let mut bond_lines = 0;
+    for line in lines.iter().skip(bond_start).take(bond_count) {
+        bond_lines += 1;
+        let a = field(line, 0, 3)
+            .and_then(|part| part.parse::<usize>().ok())
+            .ok_or_else(|| error("bad bond atom"))?;
+        let b = field(line, 3, 6)
+            .and_then(|part| part.parse::<usize>().ok())
+            .ok_or_else(|| error("bad bond atom"))?;
+        let order = match field(line, 6, 9).and_then(|part| part.parse::<u8>().ok()).unwrap_or(1) {
             2 => BondOrder::Double,
             3 => BondOrder::Triple,
             4 => BondOrder::Aromatic,
             _ => BondOrder::Single,
         };
-        let stereo = match line.get(9..12).and_then(|part| part.trim().parse::<u8>().ok()) {
+        let stereo = match field(line, 9, 12).and_then(|part| part.parse::<u8>().ok()) {
             Some(1) => BondStereo::Wedge,
             Some(6) => BondStereo::Hash,
             Some(3) => BondStereo::Either,
             _ => BondStereo::None,
         };
-        if let (Some(a), Some(b)) = (ids.get(a.saturating_sub(1)), ids.get(b.saturating_sub(1))) {
+        // Atom numbers are 1-based; `0` used to saturate to the first atom.
+        if let (Some(a), Some(b)) = (
+            a.checked_sub(1).and_then(|index| ids.get(index)),
+            b.checked_sub(1).and_then(|index| ids.get(index)),
+        ) {
             let id = molecule.add_bond(*a, *b, order)?;
             if let Some(entry) = molecule.bonds.iter_mut().find(|entry| entry.id == id) {
                 entry.stereo = stereo;
             }
         }
     }
+    if bond_lines < bond_count {
+        return Err(error("truncated bond block"));
+    }
     for line in lines.iter().filter(|line| line.starts_with("M  CHG")) {
-        let numbers = line[6..]
+        let numbers = line
+            .get(6..)
+            .unwrap_or_default()
             .split_whitespace()
             .filter_map(|part| part.parse::<i32>().ok())
             .collect::<Vec<_>>();
-        for pair in numbers[1..].chunks(2) {
+        // The first number is the entry count; a bare `M  CHG` line has none.
+        for pair in numbers.get(1..).unwrap_or_default().chunks(2) {
             if let [atom, charge] = pair
-                && let Some(id) = ids.get((*atom as usize).saturating_sub(1))
+                && let Some(index) = usize::try_from(*atom).ok().and_then(|atom| atom.checked_sub(1))
+                && let Some(id) = ids.get(index)
                 && let Some(entry) = molecule.atom_mut(*id)
+                && let Ok(charge) = i8::try_from(*charge)
             {
-                entry.charge = *charge as i8;
+                entry.charge = charge;
             }
         }
     }
@@ -168,14 +198,19 @@ pub fn to_v3000(molecule: &Molecule2D, name: &str) -> String {
         molecule.bonds.len()
     );
     for (index, atom) in molecule.atoms.iter().enumerate() {
+        // Field six is the atom-atom mapping number; the charge is the `CHG=` property.
+        let charge = if atom.charge == 0 {
+            String::new()
+        } else {
+            format!(" CHG={}", atom.charge)
+        };
         output.push_str(&format!(
-            "M  V30 {} {} {:.4} {:.4} {:.4} {}\n",
+            "M  V30 {} {} {:.4} {:.4} {:.4} 0{charge}\n",
             index + 1,
             atom.element.symbol(),
             atom.position[0],
             atom.position[1],
             atom.position[2],
-            atom.charge
         ));
     }
     output.push_str("M  V30 END ATOM\nM  V30 BEGIN BOND\n");
@@ -233,7 +268,11 @@ pub fn from_v3000(text: &str) -> Result<Molecule2D, MolfileError> {
                 let y = fields[3].parse::<f64>().map_err(|_| error("bad V30 y"))?;
                 let z = fields[4].parse::<f64>().map_err(|_| error("bad V30 z"))?;
                 let id = molecule.add_atom(element, [x, y, z]);
-                if let Some(charge) = fields.get(5).and_then(|field| field.parse::<i8>().ok())
+                if let Some(charge) = fields
+                    .iter()
+                    .skip(5)
+                    .find_map(|field| field.strip_prefix("CHG="))
+                    .and_then(|value| value.parse::<i8>().ok())
                     && let Some(atom) = molecule.atom_mut(id)
                 {
                     atom.charge = charge;
@@ -247,9 +286,15 @@ pub fn from_v3000(text: &str) -> Result<Molecule2D, MolfileError> {
                     4 => BondOrder::Aromatic,
                     _ => BondOrder::Single,
                 };
-                let a = fields[2].parse::<usize>().unwrap_or(1);
-                let b = fields[3].parse::<usize>().unwrap_or(1);
-                if let (Some(a), Some(b)) = (ids.get(a.saturating_sub(1)), ids.get(b.saturating_sub(1))) {
+                // A malformed or zero atom number skips the bond; it used to bond atom 1.
+                let atom = |field: &str| {
+                    field
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|number| number.checked_sub(1))
+                        .and_then(|index| ids.get(index))
+                };
+                if let (Some(a), Some(b)) = (atom(fields[2]), atom(fields[3])) {
                     let _ = molecule.add_bond(*a, *b, order);
                 }
             }

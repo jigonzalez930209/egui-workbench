@@ -158,7 +158,9 @@ impl Measurement {
 
 /// The angle between the planes `a-b-c` and `b-c-d`, in `(-180, 180]`.
 pub fn dihedral(a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Option<f64> {
-    let first = b - a;
+    // Both arms point away from the axis: from `b` to `a` and from `c` to `d`. Using `b - a`
+    // for the first one put the result 180 degrees off (anti read as 0, syn as 180).
+    let first = a - b;
     let axis = c - b;
     let last = d - c;
     if axis.length() <= 1.0e-9 {
@@ -324,5 +326,29 @@ mod tests {
             b: AtomId::new(99, 1),
         };
         assert!(missing.evaluate(&scene).is_none());
+    }
+
+    #[test]
+    fn the_dihedral_follows_the_iupac_convention() {
+        let v = Vec3::new;
+        // Looking from b to c, a is up (+y). Rotating a clockwise to d is positive.
+        let axis = (v(0.0, 0.0, 0.0), v(1.0, 0.0, 0.0));
+        let angle = |a: Vec3, d: Vec3| dihedral(a, axis.0, axis.1, d).expect("dihedral");
+        assert!(
+            (angle(v(0.0, 1.0, 0.0), v(1.0, 1.0, 0.0)) - 0.0).abs() < 1.0e-9,
+            "syn is 0"
+        );
+        assert!(
+            (angle(v(0.0, 1.0, 0.0), v(1.0, -1.0, 0.0)).abs() - 180.0).abs() < 1.0e-9,
+            "anti is 180"
+        );
+        assert!(
+            (angle(v(0.0, 1.0, 0.0), v(1.0, 0.0, 1.0)) - 90.0).abs() < 1.0e-9,
+            "+z is +90"
+        );
+        assert!(
+            (angle(v(0.0, 1.0, 0.0), v(1.0, 0.0, -1.0)) + 90.0).abs() < 1.0e-9,
+            "-z is -90"
+        );
     }
 }
