@@ -46,7 +46,7 @@ pub(super) fn navigate<K: Clone + PartialEq>(
             next = index + 1;
         }
     } else if pressed(egui::Key::ArrowLeft) {
-        if row.expanded {
+        if row.folder && row.expanded {
             event = Some(TreeEvent::Toggle(row.key.clone()));
         } else if let Some(parent) = row.parent
             && let Some(position) = flat.iter().position(|candidate| candidate.key == parent)
