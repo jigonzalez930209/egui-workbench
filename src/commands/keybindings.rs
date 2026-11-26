@@ -208,6 +208,10 @@ mod file {
                 serde_json::from_str(json).map_err(|error| KeybindingsError::InvalidVscode(error.to_string()))?;
             let mut file = Self::new();
             for entry in entries {
+                // VS Code writes `-command` to remove a default binding; it is not a command.
+                if entry.command.starts_with('-') {
+                    continue;
+                }
                 let keys = normalize_vscode_keys(&entry.key);
                 if KeySequence::parse(&keys).is_none() {
                     continue;
