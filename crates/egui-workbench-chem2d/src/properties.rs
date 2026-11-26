@@ -59,9 +59,10 @@ pub fn properties(molecule: &Molecule) -> MolecularProperties {
             (symbol.clone(), percentage)
         })
         .collect();
-    let carbons = count(&counts, "C") as f64;
+    // Tetravalent Si counts like C, trivalent P like N.
+    let carbons = (count(&counts, "C") + count(&counts, "Si")) as f64;
     let hydrogens = count(&counts, "H") as f64;
-    let nitrogens = count(&counts, "N") as f64;
+    let nitrogens = (count(&counts, "N") + count(&counts, "P")) as f64;
     let halogens = ["F", "Cl", "Br", "I"]
         .iter()
         .map(|symbol| count(&counts, symbol) as f64)
@@ -116,17 +117,12 @@ fn count(counts: &BTreeMap<String, usize>, symbol: &str) -> usize {
 pub fn valence_issues(molecule: &Molecule) -> Vec<(egui_workbench_chem_core::AtomId, i16)> {
     let mut issues = Vec::new();
     for atom in &molecule.atoms {
-        let Some(base) = common_valence(atom.element) else {
+        let Some(target) = target_valence(atom.element, atom.charge) else {
             continue;
         };
-        let target = (base + i16::from(atom.charge)).max(0);
-        let bonded = molecule
-            .bonds
-            .iter()
-            .filter(|bond| bond.a == atom.id || bond.b == atom.id)
-            .map(|bond| f64::from(bond.order.order()))
-            .sum::<f64>()
-            .round() as i16;
+        let Some(bonded) = bonded_valence(molecule, atom.id, atom.element) else {
+            continue;
+        };
         if bonded > target {
             issues.push((atom.id, bonded - target));
         }
@@ -134,22 +130,58 @@ pub fn valence_issues(molecule: &Molecule) -> Vec<(egui_workbench_chem_core::Ato
     issues
 }
 
-fn implicit_hydrogens(molecule: &Molecule, id: egui_workbench_chem_core::AtomId) -> usize {
+/// The valence used by one atom in its bonds, or `None` when it cannot be known.
+///
+/// Aromatic bonds count 1.5, so a carbon shared by two rings (three aromatic bonds) sums
+/// to 4.5; rounding that up to 5 reported a valence error on every naphthalene. It uses
+/// one sigma bond per neighbour plus the single pi bond a carbon contributes, so the sum
+/// is truncated for carbon. Aromatic N, O, S, and Se need a Kekulé structure: `None`.
+fn bonded_valence(molecule: &Molecule, id: egui_workbench_chem_core::AtomId, element: Element) -> Option<i16> {
+    let mut sum = 0.0;
+    let mut aromatic = false;
+    for bond in molecule.bonds.iter().filter(|bond| bond.a == id || bond.b == id) {
+        sum += f64::from(bond.order.order());
+        aromatic |= bond.order == egui_workbench_chem_core::BondOrder::Aromatic;
+    }
+    if !aromatic {
+        return Some(sum.round() as i16);
+    }
+    if matches!(element.atomic_number(), 7 | 8 | 16 | 34) {
+        return None;
+    }
+    Some(sum.floor() as i16)
+}
+
+pub(crate) fn implicit_hydrogens(molecule: &Molecule, id: egui_workbench_chem_core::AtomId) -> usize {
     let Some(atom) = molecule.atom(id) else {
         return 0;
     };
-    let Some(base) = common_valence(atom.element) else {
+    let Some(target) = target_valence(atom.element, atom.charge) else {
         return 0;
     };
-    let target = (base + i16::from(atom.charge)).max(0);
-    let bonded = molecule
-        .bonds
-        .iter()
-        .filter(|bond| bond.a == id || bond.b == id)
-        .map(|bond| f64::from(bond.order.order()))
-        .sum::<f64>()
-        .round() as i16;
+    // An aromatic heteroatom cannot be given a hydrogen count without kekulizing the ring
+    // (pyridine N has none, pyrrole N has one), so it gets none rather than a guess.
+    let Some(bonded) = bonded_valence(molecule, id, atom.element) else {
+        return 0;
+    };
     usize::try_from((target - bonded).max(0)).unwrap_or(0)
+}
+
+/// The valence an atom of `element` with formal `charge` fills with bonds and hydrogens.
+///
+/// Charge moves the valence in opposite directions by group: boron gains a bond when it
+/// is negative (BH4-), carbon and silicon lose one either way (a carbocation and a
+/// carbanion are both trivalent), and the elements of groups 15-17 gain one when positive
+/// (NH4+, H3O+) and lose one when negative (NH2-, OH-).
+pub(crate) fn target_valence(element: Element, charge: i8) -> Option<i16> {
+    let base = common_valence(element)?;
+    let charge = i16::from(charge);
+    let target = match element.atomic_number() {
+        5 => base - charge,
+        6 | 14 => base - charge.abs(),
+        _ => base + charge,
+    };
+    Some(target.max(0))
 }
 
 fn common_valence(element: Element) -> Option<i16> {
@@ -173,16 +205,21 @@ fn common_valence(element: Element) -> Option<i16> {
 
 fn hill_formula(counts: &BTreeMap<String, usize>) -> String {
     let mut output = String::new();
-    for symbol in ["C", "H"] {
-        if let Some(count) = counts.get(symbol) {
-            output.push_str(symbol);
-            if *count > 1 {
-                output.push_str(&count.to_string());
+    // Hill order: carbon, then hydrogen, then the rest alphabetically. Without carbon,
+    // everything including hydrogen is alphabetical (`ClH`, not `HCl`).
+    let has_carbon = counts.contains_key("C");
+    if has_carbon {
+        for symbol in ["C", "H"] {
+            if let Some(count) = counts.get(symbol) {
+                output.push_str(symbol);
+                if *count > 1 {
+                    output.push_str(&count.to_string());
+                }
             }
         }
     }
     for (symbol, count) in counts {
-        if symbol == "C" || symbol == "H" {
+        if has_carbon && (symbol == "C" || symbol == "H") {
             continue;
         }
         output.push_str(symbol);
@@ -272,5 +309,82 @@ mod tests {
             .expect("bond")
             .stereo = BondStereo::Wedge;
         assert_eq!(stereo_descriptors(&molecule).len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod chemistry_tests {
+    use super::*;
+    use crate::document::Molecule2D;
+    use egui_workbench_chem_core::{BondOrder, Element};
+
+    fn element(symbol: &str) -> Element {
+        Element::from_symbol(symbol).expect("element")
+    }
+
+    #[test]
+    fn the_hill_formula_orders_carbon_free_compounds_alphabetically() {
+        let mut molecule = Molecule2D::new();
+        let h = molecule.add_atom(element("H"), [0.0; 3]);
+        let cl = molecule.add_atom(element("Cl"), [1.0, 0.0, 0.0]);
+        molecule.add_bond(h, cl, BondOrder::Single).expect("bond");
+        assert_eq!(properties(&molecule).formula, "ClH");
+    }
+
+    #[test]
+    fn methane_keeps_carbon_then_hydrogen() {
+        let mut molecule = Molecule2D::new();
+        molecule.add_atom(element("C"), [0.0; 3]);
+        assert_eq!(properties(&molecule).formula, "CH4");
+    }
+
+    #[test]
+    fn naphthalene_has_no_valence_issue_and_eight_hydrogens() {
+        // Two fused hexagons sharing the edge between atoms 5 and 0.
+        let mut molecule = Molecule2D::new();
+        let ids: Vec<_> = (0..10)
+            .map(|index| molecule.add_atom(element("C"), [f64::from(index), 0.0, 0.0]))
+            .collect();
+        let rings: [[usize; 6]; 2] = [[0, 1, 2, 3, 4, 5], [5, 0, 6, 7, 8, 9]];
+        for ring in rings {
+            for slot in 0..6 {
+                let _ = molecule.add_bond(ids[ring[slot]], ids[ring[(slot + 1) % 6]], BondOrder::Aromatic);
+            }
+        }
+        // Atoms 0 and 5 are shared: three aromatic bonds each.
+        assert!(valence_issues(&molecule).is_empty(), "{:?}", valence_issues(&molecule));
+        assert_eq!(properties(&molecule).formula, "C10H8");
+    }
+}
+
+#[cfg(test)]
+mod charge_tests {
+    use super::*;
+    use crate::document::Molecule2D;
+    use egui_workbench_chem_core::Element;
+
+    fn lone(symbol: &str, charge: i8) -> Molecule2D {
+        let mut molecule = Molecule2D::new();
+        let id = molecule.add_atom(Element::from_symbol(symbol).expect("element"), [0.0; 3]);
+        molecule.atom_mut(id).expect("atom").charge = charge;
+        molecule
+    }
+
+    #[test]
+    fn charged_atoms_get_the_hydrogens_their_group_implies() {
+        // (element, charge, hydrogens): CH3+, CH3-, NH4+, NH2-, OH-, H3O+, BH4-.
+        for (symbol, charge, expected) in [
+            ("C", 1, 3),
+            ("C", -1, 3),
+            ("N", 1, 4),
+            ("N", -1, 2),
+            ("O", -1, 1),
+            ("O", 1, 3),
+            ("B", -1, 4),
+        ] {
+            let molecule = lone(symbol, charge);
+            let id = molecule.atoms[0].id;
+            assert_eq!(implicit_hydrogens(&molecule, id), expected, "{symbol}{charge:+}");
+        }
     }
 }
