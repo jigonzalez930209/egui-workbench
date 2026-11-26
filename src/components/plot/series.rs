@@ -358,6 +358,42 @@ impl<'a> Series<'a> {
         &self.data
     }
 
+    /// A copy with processed data. Filters keep the series kind; transforms force a
+    /// line so the frequency-domain result is readable.
+    pub(super) fn with_data(&self, data: Vec<[f64; 2]>, force_line: bool) -> Series<'static> {
+        let kind = if force_line {
+            Kind::Line {
+                width: 1.5,
+                style: LineStyle::Solid,
+                fill_to: None,
+                step: false,
+                markers: None,
+                smoothing: Smoothing::None,
+            }
+        } else {
+            self.kind.clone()
+        };
+        Series {
+            name: self.name.clone(),
+            data: Cow::Owned(data),
+            kind,
+            color: self.color,
+            y_errors: None,
+            legend: self.legend,
+            axis: self.axis,
+            ohlc: if force_line {
+                None
+            } else {
+                self.ohlc.as_ref().map(|rows| Cow::Owned(rows.to_vec()))
+            },
+            cells: if force_line {
+                None
+            } else {
+                self.cells.as_ref().map(|cells| Cow::Owned(cells.to_vec()))
+            },
+        }
+    }
+
     pub(super) fn is_reference(&self) -> bool {
         matches!(self.kind, Kind::HLine(_) | Kind::VLine(_))
     }

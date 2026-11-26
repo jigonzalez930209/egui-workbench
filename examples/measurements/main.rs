@@ -7,7 +7,10 @@
 //! Use the ruler button and drag between points, or the area button and drag a
 //! rectangle. The toolbar is in the top-right corner of every chart.
 
-use egui_workbench::components::plot::{Plot, PlotMeasurement, PlotState, Series, region_measurements};
+use egui_workbench::components::plot::{
+    FilterKind, MeasurementAreaStyle, MeasurementConfig, MeasurementMode, Plot, PlotMeasurement, PlotState, Series,
+    TransformKind, curve_area_summary, region_measurements,
+};
 use egui_workbench::eframe;
 use egui_workbench::egui::{self, RichText};
 use egui_workbench::{Icons, ThemeId, theme};
@@ -38,6 +41,7 @@ struct Chart {
     primary: Vec<[f64; 2]>,
     secondary: Option<Vec<[f64; 2]>>,
     state: PlotState,
+    measurement: MeasurementConfig,
 }
 
 impl Chart {
@@ -49,6 +53,7 @@ impl Chart {
             primary,
             secondary,
             state: PlotState::default(),
+            measurement: MeasurementConfig::default(),
         }
     }
 }
@@ -116,11 +121,12 @@ impl MeasurementsApp {
                         primary,
                         secondary,
                         state,
+                        measurement,
                     } = chart;
                     ui.vertical(|ui| {
                         ui.label(RichText::new(title.as_str()).strong());
                         ui.label(RichText::new(hint.as_str()).small().weak());
-                        let plot = plot_for(*kind, title, primary, secondary.as_deref());
+                        let plot = plot_for(*kind, title, primary, secondary.as_deref(), measurement);
                         plot.show(ui, icons, state);
                     });
                     if index % 2 == 1 {
@@ -131,6 +137,134 @@ impl MeasurementsApp {
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Chart settings");
+        let mode = self
+            .charts
+            .first()
+            .map(|chart| chart.measurement.mode)
+            .unwrap_or_default();
+        ui.label("Area tool");
+        for (value, label) in [
+            (MeasurementMode::Rectangle, "Rectangle (current)"),
+            (MeasurementMode::CurveSegment, "Curve vs chord"),
+        ] {
+            if ui.radio(mode == value, label).clicked() {
+                for chart in &mut self.charts {
+                    chart.measurement.mode = value;
+                }
+            }
+        }
+        let style = self
+            .charts
+            .first()
+            .map(|chart| chart.measurement.area_style)
+            .unwrap_or_default();
+        ui.label("Area label");
+        for (value, label) in [
+            (MeasurementAreaStyle::Absolute, "Absolute area"),
+            (MeasurementAreaStyle::Signed, "Signed area"),
+        ] {
+            if ui.radio(style == value, label).clicked() {
+                for chart in &mut self.charts {
+                    chart.measurement.area_style = value;
+                }
+            }
+        }
+        let mut snap = self.charts.first().map_or(14.0, |chart| chart.measurement.snap_radius);
+        if ui
+            .add(egui::Slider::new(&mut snap, 4.0..=30.0).text("Snap radius (pt)"))
+            .changed()
+        {
+            for chart in &mut self.charts {
+                chart.measurement.snap_radius = snap;
+            }
+        }
+        let mut labels = self.charts.first().is_none_or(|chart| chart.measurement.show_labels);
+        if ui.checkbox(&mut labels, "Show measurement labels").changed() {
+            for chart in &mut self.charts {
+                chart.measurement.show_labels = labels;
+            }
+        }
+        ui.separator();
+        ui.heading("Analysis (all charts)");
+        for filter in FilterKind::ALL {
+            let enabled = self
+                .charts
+                .iter()
+                .all(|chart| chart.state.pipeline().is_filter_enabled(filter));
+            let mut enabled = enabled;
+            if ui.checkbox(&mut enabled, filter.label()).changed() {
+                for chart in &mut self.charts {
+                    chart.state.set_filter(filter, enabled);
+                }
+            }
+        }
+        let transform = self.charts.first().and_then(|chart| chart.state.pipeline().transform);
+        for kind in TransformKind::ALL {
+            if ui.radio(transform == Some(kind), kind.label()).clicked() {
+                for chart in &mut self.charts {
+                    chart
+                        .state
+                        .set_transform(if transform == Some(kind) { None } else { Some(kind) });
+                }
+            }
+        }
+        if ui.button("Clear analysis").clicked() {
+            for chart in &mut self.charts {
+                chart.state.clear_analysis();
+            }
+        }
+        egui::CollapsingHeader::new("Filter parameters")
+            .default_open(false)
+            .show(ui, |ui| {
+                let mut settings = self
+                    .charts
+                    .first()
+                    .map(|chart| chart.state.pipeline().filter_settings)
+                    .unwrap_or_default();
+                let mut changed = false;
+                changed |= ui
+                    .add(
+                        egui::Slider::new(&mut settings.savgol_window, 5..=31)
+                            .step_by(2.0)
+                            .text("Savitzky–Golay window"),
+                    )
+                    .changed();
+                changed |= ui
+                    .add(egui::Slider::new(&mut settings.savgol_order, 1..=5).text("Savitzky–Golay order"))
+                    .changed();
+                changed |= ui
+                    .add(
+                        egui::Slider::new(&mut settings.moving_window, 3..=31)
+                            .step_by(2.0)
+                            .text("Moving-average window"),
+                    )
+                    .changed();
+                changed |= ui
+                    .add(egui::Slider::new(&mut settings.gaussian_sigma, 0.5..=10.0).text("Gaussian sigma"))
+                    .changed();
+                changed |= ui
+                    .add(
+                        egui::Slider::new(&mut settings.median_window, 3..=31)
+                            .step_by(2.0)
+                            .text("Median window"),
+                    )
+                    .changed();
+                changed |= ui
+                    .add(egui::Slider::new(&mut settings.lowpass_alpha, 0.01..=1.0).text("Low-pass alpha"))
+                    .changed();
+                if changed {
+                    for chart in &mut self.charts {
+                        chart.state.pipeline_mut().filter_settings = settings;
+                    }
+                }
+            });
+        ui.label(
+            RichText::new("The sliders icon on each chart opens the same filters and transforms.")
+                .small()
+                .weak(),
+        );
+        ui.separator();
         ui.heading("Measurements");
         ui.label("Values are in data coordinates and survive zoom, pan, and fit.");
         ui.horizontal(|ui| {
@@ -157,7 +291,13 @@ impl MeasurementsApp {
                 }
             });
             let measurements = chart.state.measurements().to_vec();
-            let plot = plot_for(chart.kind, &chart.title, &chart.primary, chart.secondary.as_deref());
+            let plot = plot_for(
+                chart.kind,
+                &chart.title,
+                &chart.primary,
+                chart.secondary.as_deref(),
+                &chart.measurement,
+            );
             for (index, measurement) in measurements.iter().enumerate() {
                 match measurement {
                     PlotMeasurement::Distance { .. } => {
@@ -215,6 +355,28 @@ impl MeasurementsApp {
                             }
                         }
                     }
+                    PlotMeasurement::CurveArea { .. } => {
+                        if let Some(summary) = curve_area_summary(&plot, &chart.state, measurement) {
+                            ui.monospace(format!(
+                                "#{} curve area  signed={:.4}  absolute={:.4}  chord={:.4}",
+                                index + 1,
+                                summary.area,
+                                summary.absolute_area,
+                                summary.chord.distance
+                            ));
+                            ui.monospace(format!(
+                                "   arc={:.4}  max dev={:.4} at ({:.3}, {:.3})  slope={}",
+                                summary.arc_length,
+                                summary.max_deviation,
+                                summary.max_deviation_at[0],
+                                summary.max_deviation_at[1],
+                                summary
+                                    .chord
+                                    .slope
+                                    .map_or_else(|| "∞".to_owned(), |slope| format!("{slope:.4}"))
+                            ));
+                        }
+                    }
                     _ => {}
                 }
                 ui.add_space(4.0);
@@ -234,12 +396,22 @@ impl eframe::App for MeasurementsApp {
     }
 }
 
-fn plot_for<'a>(kind: ChartKind, title: &str, primary: &'a [[f64; 2]], secondary: Option<&'a [[f64; 2]]>) -> Plot<'a> {
+fn plot_for<'a>(
+    kind: ChartKind,
+    title: &str,
+    primary: &'a [[f64; 2]],
+    secondary: Option<&'a [[f64; 2]]>,
+    measurement: &MeasurementConfig,
+) -> Plot<'a> {
     let plot = Plot::new(("measurement", title))
         .title(title.to_owned())
         .height(250.0)
         .x_label("x")
-        .y_label("y");
+        .y_label("y")
+        .measurement_mode(measurement.mode)
+        .measurement_area_style(measurement.area_style)
+        .measurement_snap_radius(measurement.snap_radius)
+        .measurement_labels(measurement.show_labels);
     match kind {
         ChartKind::Damped => plot.series(Series::line("damped", primary)),
         ChartKind::Cubic => plot.series(Series::scatter("cubic", primary)),

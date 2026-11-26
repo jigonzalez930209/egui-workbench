@@ -8,6 +8,7 @@ use super::LegendPosition;
 use super::animation::LegendHoverConfig;
 use super::axis::Scale;
 use super::chart_config::{DirectionArrowConfig, GaugeConfig, HeatmapConfig, PieConfig, RadarConfig, WaterfallConfig};
+use super::measure::MeasurementConfig;
 use super::series::{LineStyle, Marker, Smoothing, YAxis};
 
 /// Which renderer draws the data layer.
@@ -237,6 +238,8 @@ pub struct PlotConfig {
     pub colors: PlotColors,
     /// Per-series overrides.
     pub series: Vec<SeriesStyle>,
+    /// Measurement mode, snapping, and labels.
+    pub measurement: MeasurementConfig,
     /// CPU or GPU data layer.
     pub renderer: Renderer,
 }
@@ -279,6 +282,7 @@ impl Default for PlotConfig {
             waterfall: WaterfallConfig::default(),
             colors: PlotColors::default(),
             series: Vec::new(),
+            measurement: MeasurementConfig::default(),
             renderer: Renderer::Cpu,
         }
     }

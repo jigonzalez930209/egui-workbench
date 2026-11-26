@@ -4,8 +4,11 @@
 
 use super::PlotAnnotation;
 use super::axis::{Bounds, Scale};
+use super::filter::FilterKind;
 use super::measure::PlotMeasurement;
+use super::pipeline::Pipeline;
 use super::series::Series;
+use super::transforms::TransformKind;
 use super::types::{Drag, PlotTool};
 
 /// The interactive state of one plot. Keep it in the application model.
@@ -42,6 +45,9 @@ pub struct PlotState {
     /// Distance and area measurements drawn over the data.
     #[cfg_attr(feature = "serde", serde(default))]
     pub measurements: Vec<PlotMeasurement>,
+    /// Filters and transforms applied to the visible series.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub pipeline: Pipeline,
 }
 
 impl PlotState {
@@ -125,6 +131,40 @@ impl PlotState {
     /// Remove every measurement.
     pub fn clear_measurements(&mut self) {
         self.measurements.clear();
+    }
+
+    /// The filter/transform pipeline.
+    pub fn pipeline(&self) -> &Pipeline {
+        &self.pipeline
+    }
+
+    /// The filter/transform pipeline, mutably.
+    pub fn pipeline_mut(&mut self) -> &mut Pipeline {
+        &mut self.pipeline
+    }
+
+    /// Enable or disable one filter.
+    pub fn toggle_filter(&mut self, filter: FilterKind) {
+        self.pipeline.toggle_filter(filter);
+    }
+
+    /// Enable or disable one filter explicitly.
+    pub fn set_filter(&mut self, filter: FilterKind, enabled: bool) {
+        self.pipeline.set_filter(filter, enabled);
+    }
+
+    /// Replace the transform. A new transform clears measurements because the data
+    /// domain changed.
+    pub fn set_transform(&mut self, transform: Option<TransformKind>) {
+        if self.pipeline.transform != transform {
+            self.pipeline.set_transform(transform);
+            self.measurements.clear();
+        }
+    }
+
+    /// Disable every filter and transform.
+    pub fn clear_analysis(&mut self) {
+        self.pipeline.clear();
     }
 
     /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)

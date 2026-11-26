@@ -73,7 +73,7 @@ pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect) -> Option<Rect> {
         return None;
     }
     let tools = if plot.chart_mode() == super::ChartMode::Cartesian {
-        8
+        9
     } else {
         0
     };
@@ -128,9 +128,14 @@ pub(super) fn toolbar(
             ),
             (
                 "lucide-square-dashed",
-                "Measure area, extrema, and integrals (drag)",
+                if plot.config.measurement.mode == super::MeasurementMode::CurveSegment {
+                    "Measure curve area against its chord (drag)"
+                } else {
+                    "Measure area, extrema, and integrals (drag)"
+                },
                 Some(PlotTool::MeasureArea),
             ),
+            ("lucide-sliders-horizontal", "Filters and transforms (analysis)", None),
             ("lucide-zoom-in", "Zoom in", None),
             ("lucide-zoom-out", "Zoom out", None),
             ("lucide-maximize", "Fit data (double-click)", None),
@@ -157,8 +162,9 @@ pub(super) fn toolbar(
     );
     let mut x = rect.left() + 2.0;
     let mut export_button = None;
+    let mut analysis_button = None;
     for (index, (icon, tooltip, tool)) in buttons.iter().enumerate() {
-        if index == 5 || index == 8 {
+        if index == 6 || index == 9 {
             let line_x = painter.round_to_pixel_center(x + separator * 0.5);
             painter.vline(
                 line_x,
@@ -172,7 +178,10 @@ pub(super) fn toolbar(
         let response = ui.interact(button, plot.id.with(("tool", *icon)), Sense::click());
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, *tooltip));
         let is_export = *icon == "lucide-download";
-        let active = tool.is_some_and(|tool| tool == state.tool) || (is_export && state.export_menu);
+        let is_analysis = *icon == "lucide-sliders-horizontal";
+        let active = tool.is_some_and(|tool| tool == state.tool)
+            || (is_export && state.export_menu)
+            || (is_analysis && state.pipeline.is_active());
         let fill = if active {
             visuals.selection.bg_fill
         } else if response.hovered() {
@@ -190,6 +199,7 @@ pub(super) fn toolbar(
         if response.clicked() {
             match (*icon, tool) {
                 (_, Some(tool)) => state.tool = *tool,
+                ("lucide-sliders-horizontal", _) => {}
                 ("lucide-zoom-in", _) => {
                     super::interact::zoom_at(state, transform, frame.center(), 1.25, super::interact::ZoomAxes::ALL);
                 }
@@ -205,15 +215,57 @@ pub(super) fn toolbar(
         if is_export {
             export_button = Some(button);
         }
+        if is_analysis {
+            analysis_button = Some(response.clone());
+        }
         response.on_hover_text(*tooltip);
     }
     output.rect = Some(rect);
+    if let Some(response) = analysis_button {
+        egui::Popup::menu(&response).show(|ui| analysis_menu(ui, plot, state));
+    }
     if state.export_menu
         && let Some(button) = export_button
     {
         output.export = export_menu(ui, plot, button, state);
     }
     output
+}
+
+fn analysis_menu(ui: &mut Ui, plot: &Plot<'_>, state: &mut PlotState) {
+    ui.set_min_width(260.0);
+    ui.label(egui::RichText::new("Filters").strong());
+    for filter in super::FilterKind::ALL {
+        let mut enabled = state.pipeline().is_filter_enabled(filter);
+        if ui.checkbox(&mut enabled, filter.label()).changed() {
+            state.pipeline_mut().set_filter(filter, enabled);
+        }
+    }
+    ui.separator();
+    ui.label(egui::RichText::new("Transforms").strong());
+    let current = state.pipeline().transform;
+    for transform in super::TransformKind::ALL {
+        if ui.radio(current == Some(transform), transform.label()).clicked() {
+            state.set_transform(if current == Some(transform) {
+                None
+            } else {
+                Some(transform)
+            });
+        }
+    }
+    ui.separator();
+    if ui.button("Clear analysis").clicked() {
+        state.clear_analysis();
+    }
+    ui.label(
+        egui::RichText::new(
+            "Filters apply to every visible series. Transforms use the first series; \
+             cross-correlation uses the first two.",
+        )
+        .small()
+        .weak(),
+    );
+    let _ = plot;
 }
 
 /// A two-row menu under the export button. Closes on a choice or a click elsewhere.

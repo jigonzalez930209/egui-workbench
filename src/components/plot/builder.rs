@@ -27,6 +27,30 @@ impl<'a> Plot<'a> {
         }
     }
 
+    /// Set the area tool mode: rectangle or curve-vs-chord.
+    pub fn measurement_mode(mut self, mode: super::MeasurementMode) -> Self {
+        self.config.measurement.mode = mode;
+        self
+    }
+
+    /// Set which area the curve-segment label emphasizes.
+    pub fn measurement_area_style(mut self, style: super::MeasurementAreaStyle) -> Self {
+        self.config.measurement.area_style = style;
+        self
+    }
+
+    /// Set the measurement snap radius in points.
+    pub fn measurement_snap_radius(mut self, radius: f32) -> Self {
+        self.config.measurement.snap_radius = radius.max(2.0);
+        self
+    }
+
+    /// Show or hide measurement labels.
+    pub fn measurement_labels(mut self, show: bool) -> Self {
+        self.config.measurement.show_labels = show;
+        self
+    }
+
     /// Replace the whole appearance (text, sizes, colors, axes, grid, legend, and
     /// per-series styles). Call it first; the other builder methods edit it.
     pub fn config(mut self, config: PlotConfig) -> Self {
