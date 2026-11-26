@@ -27,6 +27,12 @@ pub(super) fn render(
     height: u32,
 ) -> Option<OffscreenScene> {
     let buffers = resources.buffers.get(&id)?;
+    // A zero or oversized texture is a wgpu validation error, which aborts the frame. A
+    // collapsed panel or a very large window can ask for either.
+    let limit = device.limits().max_texture_dimension_2d;
+    if width == 0 || height == 0 || width > limit || height > limit {
+        return None;
+    }
     let color = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("workbench_mol3d_scene_color"),
         size: wgpu::Extent3d {
