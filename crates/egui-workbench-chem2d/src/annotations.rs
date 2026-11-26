@@ -119,17 +119,14 @@ pub fn format_chemical_text(text: &str) -> String {
     let mut output = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     while let Some(character) = chars.next() {
-        if (character == '_' || character == '^')
-            && chars
-                .peek()
-                .is_some_and(|next| next.is_ascii_digit() || *next == '+' || *next == '-')
-        {
-            let superscript = character == '^';
+        let superscript = character == '^';
+        // A subscript takes digits only. Letting it swallow a following `-` or `+` turned
+        // the bond in `CH_3-CH_3` into a subscript minus; signs belong to superscript
+        // charges (`SO_4^2-`).
+        let accepts = |next: char| next.is_ascii_digit() || (superscript && (next == '+' || next == '-'));
+        if (character == '_' || superscript) && chars.peek().is_some_and(|next| accepts(*next)) {
             let mut number = String::new();
-            while chars
-                .peek()
-                .is_some_and(|next| next.is_ascii_digit() || *next == '-' || *next == '+')
-            {
+            while chars.peek().is_some_and(|next| accepts(*next)) {
                 number.push(chars.next().unwrap_or_default());
             }
             output.push_str(&map_script(&number, superscript));
@@ -343,5 +340,13 @@ mod tests {
         let json = serde_json::to_string(&conditions).expect("serialize");
         let restored: Annotation = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(restored, conditions);
+    }
+
+    #[test]
+    fn a_subscript_does_not_swallow_the_bond_after_it() {
+        assert_eq!(format_chemical_text("CH_3-CH_3"), "CH₃-CH₃");
+        assert_eq!(format_chemical_text("SO_4^2-"), "SO₄²⁻");
+        assert_eq!(format_chemical_text("Fe^3+"), "Fe³⁺");
+        assert_eq!(format_chemical_text("H_2O"), "H₂O");
     }
 }
