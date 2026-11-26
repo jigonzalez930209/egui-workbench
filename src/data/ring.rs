@@ -75,11 +75,19 @@ impl RingBuffer {
 
     /// A dataset of the buffered rows, oldest first.
     pub fn snapshot(&self) -> Dataset {
+        self.snapshot_range(0..self.rows.len())
+    }
+
+    /// A dataset of the buffered rows in `range`, oldest first. A reader that pages
+    /// through the ring pays for its page, not for the whole buffer.
+    fn snapshot_range(&self, range: std::ops::Range<usize>) -> Dataset {
+        let end = range.end.min(self.rows.len());
+        let start = range.start.min(end);
         let mut columns = Vec::with_capacity(self.schema.len());
         for (index, schema) in self.schema.iter().enumerate() {
             columns.push(column_from_schema(
                 schema,
-                self.rows.iter().map(|row| row[index].clone()).collect(),
+                self.rows.range(start..end).map(|row| row[index].clone()).collect(),
             ));
         }
         Dataset::from_columns(columns)
@@ -160,7 +168,7 @@ impl DataSource for RingBuffer {
 
     fn read_range(&self, range: std::ops::Range<usize>) -> Result<Dataset, DataError> {
         super::source::check_range(&range, self.rows.len())?;
-        Ok(self.snapshot().slice(range))
+        Ok(self.snapshot_range(range))
     }
 
     fn revision(&self) -> u64 {
