@@ -235,7 +235,9 @@ impl Workspace {
     pub fn from_json(json: &str) -> Result<Self, SessionError> {
         let mut value: serde_json::Value =
             serde_json::from_str(json).map_err(|error| SessionError::Json(error.to_string()))?;
-        let version = value.get("version").and_then(serde_json::Value::as_u64).unwrap_or(0) as u32;
+        // `as u32` wrapped 2^32 + 1 to 1 and let a far newer file through.
+        let raw = value.get("version").and_then(serde_json::Value::as_u64).unwrap_or(0);
+        let version = u32::try_from(raw).unwrap_or(u32::MAX);
         if version > Self::VERSION {
             return Err(SessionError::UnsupportedVersion(version));
         }
@@ -298,14 +300,47 @@ impl std::error::Error for SessionError {}
 /// Write a file through a temporary sibling and a rename, so a crash leaves either the
 /// old file or the new one, never a partial write.
 pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let temp = path.with_extension(format!("tmp-{}", std::process::id()));
-    std::fs::write(&temp, bytes).map_err(|error| error.to_string())?;
-    if path.exists() {
-        // Windows refuses to rename over an existing file. The temporary file is still
-        // complete, so a crash here leaves recoverable data in the sibling.
-        std::fs::remove_file(path).map_err(|error| error.to_string())?;
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "the path has no file name".to_owned())?;
+    // A hidden sibling named after the whole file name: `with_extension` made `a.json`
+    // and `a.txt` share a temporary, and two writers in one process shared it too.
+    let temp = path.with_file_name(format!(
+        ".{name}.tmp-{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    let written = (|| {
+        // `create_new` refuses an existing file or symlink at the temporary path.
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)
+            .map_err(|error| error.to_string())?;
+        file.write_all(bytes).map_err(|error| error.to_string())?;
+        // Flush to disk before the rename, or a power cut can leave an empty file.
+        file.sync_all().map_err(|error| error.to_string())
+    })();
+    if let Err(error) = written {
+        let _ = std::fs::remove_file(&temp);
+        return Err(error);
     }
-    std::fs::rename(&temp, path).map_err(|error| error.to_string())
+    // POSIX `rename` replaces the target atomically. Removing the old file first opened a
+    // window in which a crash left no file at all.
+    if let Err(error) = std::fs::rename(&temp, path) {
+        // Windows refuses to rename over an existing file; fall back to remove + rename,
+        // and keep the complete temporary file if that also fails.
+        if path.exists() && std::fs::remove_file(path).is_ok() && std::fs::rename(&temp, path).is_ok() {
+            return Ok(());
+        }
+        return Err(error.to_string());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -394,7 +429,8 @@ mod tests {
         workspace.save(&path).expect("save");
         let back = Workspace::load(&path).expect("load");
         assert_eq!(back, workspace);
-        assert!(!path.with_extension(format!("tmp-{}", std::process::id())).exists());
+        let leftovers = std::fs::read_dir(&directory).expect("dir").count();
+        assert_eq!(leftovers, 1, "no temporary file stays behind");
         let _ = std::fs::remove_dir_all(directory);
     }
 }
