@@ -84,7 +84,9 @@ pub fn parse_pdb(text: &str) -> Result<Mol3dScene, FormatError> {
                 });
             if let (Some(serial), Some(x), Some(y), Some(z), Some(element)) = (serial, x, y, z, element) {
                 let id = scene.push_atom(element, [x, y, z]);
-                if let Some(atom) = scene.atoms.iter_mut().find(|atom| atom.id == id) {
+                // The atom just pushed is the last one; scanning from the front made PDB
+                // loading quadratic.
+                if let Some(atom) = scene.atoms.iter_mut().rev().find(|atom| atom.id == id) {
                     atom.label = line
                         .get(12..16)
                         .map(str::trim)
@@ -152,22 +154,29 @@ pub fn parse_pdb(text: &str) -> Result<Mol3dScene, FormatError> {
 /// When the atom-site headers are missing.
 pub fn parse_mmcif(text: &str) -> Result<Mol3dScene, FormatError> {
     let lines = text.lines().map(str::trim).collect::<Vec<_>>();
-    let Some(loop_index) = lines.iter().position(|line| *line == "loop_") else {
-        return Err(error("no mmCIF loop"));
-    };
-    let mut headers = Vec::new();
-    let mut cursor = loop_index + 1;
-    while let Some(line) = lines.get(cursor) {
-        if line.starts_with("_atom_site.") {
-            headers.push(line.to_owned());
-            cursor += 1;
-        } else {
-            break;
-        }
-    }
-    if headers.is_empty() {
+    // Real files open with other loops; use the one whose first header is `_atom_site.`.
+    let Some((headers, mut cursor)) =
+        lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| **line == "loop_")
+            .find_map(|(index, _)| {
+                let mut headers = Vec::new();
+                let mut cursor = index + 1;
+                while let Some(line) = lines.get(cursor)
+                    && line.starts_with('_')
+                {
+                    headers.push((*line).to_owned());
+                    cursor += 1;
+                }
+                headers
+                    .first()
+                    .is_some_and(|header| header.starts_with("_atom_site."))
+                    .then_some((headers, cursor))
+            })
+    else {
         return Err(error("no atom_site loop"));
-    }
+    };
     let column = |name: &str| headers.iter().position(|header| *header == name);
     let x_column = column("_atom_site.Cartn_x");
     let y_column = column("_atom_site.Cartn_y");
@@ -184,7 +193,9 @@ pub fn parse_mmcif(text: &str) -> Result<Mol3dScene, FormatError> {
             break;
         }
         let fields = line.split_whitespace().collect::<Vec<_>>();
-        if fields.len() <= element_column {
+        // Every column that is read must exist; checking only the element column let a
+        // short row index past the end.
+        if fields.len() <= element_column.max(x_column).max(y_column).max(z_column) {
             cursor += 1;
             continue;
         }
@@ -200,6 +211,11 @@ pub fn parse_mmcif(text: &str) -> Result<Mol3dScene, FormatError> {
     }
     scene.infer_bonds();
     Ok(scene)
+}
+
+/// A fixed-width column, or `None` when it is out of range or splits a character.
+fn column(line: &str, from: usize, to: usize) -> Option<&str> {
+    line.get(from..to).map(str::trim)
 }
 
 /// Read a V2000 molfile or the first SDF record.
@@ -223,29 +239,39 @@ pub fn parse_mol(text: &str) -> Result<Mol3dScene, FormatError> {
         .ok_or_else(|| error("bad mol bond count"))?;
     let mut scene = Mol3dScene::default();
     let mut ids = Vec::new();
+    // `str::get`, not `[a..b]`: a multi-byte character inside a column would panic.
     for line in lines.iter().skip(counts + 1).take(atom_count) {
-        if line.len() < 34 {
-            return Err(error("short mol atom line"));
-        }
-        let x = line[0..10].trim().parse::<f64>().map_err(|_| error("bad mol x"))?;
-        let y = line[10..20].trim().parse::<f64>().map_err(|_| error("bad mol y"))?;
-        let z = line[20..30].trim().parse::<f64>().map_err(|_| error("bad mol z"))?;
-        let element = Element::from_symbol(line[31..34].trim()).ok_or_else(|| error("unknown mol element"))?;
+        let coordinate = |from: usize, to: usize, name: &str| {
+            column(line, from, to)
+                .and_then(|part| part.parse::<f64>().ok())
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| error(name))
+        };
+        let x = coordinate(0, 10, "bad mol x")?;
+        let y = coordinate(10, 20, "bad mol y")?;
+        let z = coordinate(20, 30, "bad mol z")?;
+        let symbol = column(line, 31, 34).ok_or_else(|| error("short mol atom line"))?;
+        let element = Element::from_symbol(symbol).ok_or_else(|| error("unknown mol element"))?;
         ids.push(scene.push_atom(element, [x, y, z]));
     }
+    if ids.len() < atom_count {
+        return Err(error("truncated mol atom block"));
+    }
     for line in lines.iter().skip(counts + 1 + atom_count).take(bond_count) {
-        if line.len() < 9 {
-            return Err(error("short mol bond line"));
-        }
-        let a = line[0..3].trim().parse::<usize>().unwrap_or(1);
-        let b = line[3..6].trim().parse::<usize>().unwrap_or(1);
-        let order = match line[6..9].trim().parse::<u8>().unwrap_or(1) {
+        let atom = |from: usize, to: usize| {
+            column(line, from, to)
+                .and_then(|part| part.parse::<usize>().ok())
+                .and_then(|number| number.checked_sub(1))
+                .and_then(|index| ids.get(index))
+        };
+        let order = match column(line, 6, 9).and_then(|part| part.parse::<u8>().ok()).unwrap_or(1) {
             2 => BondOrder::Double,
             3 => BondOrder::Triple,
             4 => BondOrder::Aromatic,
             _ => BondOrder::Single,
         };
-        if let (Some(a), Some(b)) = (ids.get(a.saturating_sub(1)), ids.get(b.saturating_sub(1))) {
+        // A bad or zero atom number skips the bond; it used to bond atom 1.
+        if let (Some(a), Some(b)) = (atom(0, 3), atom(3, 6)) {
             scene.bonds.push(Bond3D {
                 id: BondId::new(scene.bonds.len() as u32 + 1, 1),
                 a: *a,
