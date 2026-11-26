@@ -1,13 +1,17 @@
 [package]
 name = "egui-workbench-chem-core"
-version = "0.1.0"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
 description = "Shared, egui-free chemical document model, selection bus, events, bridges, and cooperative background jobs for egui-workbench."
 readme = "README.md"
 repository = "https://github.com/jigonzalez930209/egui-workbench"
-publish = false
+homepage = "https://jigonzalez930209.github.io/egui-workbench/"
+documentation = "https://docs.rs/egui-workbench-chem-core"
+keywords = ["chemistry", "molecule", "egui", "workbench", "jobs"]
+categories = ["science", "data-structures"]
+include = ["/src/**", "/README.md"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
