@@ -3,6 +3,7 @@
 use std::ops::{Deref, DerefMut};
 
 use egui_workbench_chem_core::{Atom, Bond, ChemSelection, DocumentId, Molecule};
+use serde::{Deserialize, Serialize};
 
 /// A 2D atom; the shared molecule stores its z coordinate as `0`.
 pub type Atom2D = Atom;
@@ -14,7 +15,7 @@ pub type Bond2D = Bond;
 ///
 /// The molecule is the same type a 3D panel uses, so ids, elements, bond orders,
 /// stereochemistry, and selection are shared. The 2D editor ignores the z coordinate.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Molecule2D(Molecule);
 
 impl Molecule2D {
@@ -131,6 +132,16 @@ impl Molecule2D {
     pub fn bond_count(&self) -> usize {
         self.0.bonds.len()
     }
+
+    /// The smallest-first cycle basis.
+    pub fn rings(&self) -> Vec<crate::rings::Ring> {
+        crate::rings::cycle_basis(self)
+    }
+
+    /// The aromatic rings.
+    pub fn aromatic_rings(&self) -> Vec<crate::rings::Ring> {
+        crate::rings::aromatic_rings(self)
+    }
 }
 
 impl Deref for Molecule2D {
@@ -148,7 +159,7 @@ impl DerefMut for Molecule2D {
 }
 
 /// One 2D chemical document.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChemDocument {
     /// Stable document id.
     pub id: DocumentId,
@@ -156,6 +167,10 @@ pub struct ChemDocument {
     pub name: String,
     /// The shared molecule.
     pub molecule: Molecule2D,
+    /// Expanded superatom groups.
+    pub superatoms: Vec<crate::superatom::SuperatomGroup>,
+    /// Reaction arrows, conditions, and brackets.
+    pub annotations: Vec<crate::annotations::Annotation>,
 }
 
 impl ChemDocument {
@@ -165,6 +180,8 @@ impl ChemDocument {
             id,
             name: name.into(),
             molecule: Molecule2D::new(),
+            superatoms: Vec::new(),
+            annotations: Vec::new(),
         }
     }
 

@@ -3,7 +3,10 @@
 use egui_workbench_chem_core::{AtomId, BondId, BondOrder, BondStereo, ChemSelection, Element};
 
 use crate::Chem2dError;
+use crate::annotations::Annotation;
 use crate::document::ChemDocument;
+use crate::superatom::SuperatomGroup;
+use crate::templates::RingTemplate;
 
 /// One atomic edit.
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +51,61 @@ pub enum Command {
         /// xy displacement in Angstrom.
         delta: [f64; 2],
     },
+    /// Stamp a ring template.
+    AddRing {
+        /// Template to add.
+        template: RingTemplate,
+        /// Center in Angstrom.
+        center: [f64; 2],
+        /// Rotation in radians.
+        rotation: f64,
+    },
+    /// Add a zig-zag carbon chain.
+    AddChain {
+        /// First atom position.
+        start: [f64; 2],
+        /// Number of carbons.
+        count: usize,
+        /// Main direction in radians.
+        angle: f64,
+    },
+    /// Rotate a fragment around `center`.
+    RotateFragment {
+        /// Atoms to rotate.
+        atoms: Vec<AtomId>,
+        /// Rotation center.
+        center: [f64; 2],
+        /// Angle in radians.
+        radians: f64,
+    },
+    /// Mirror a fragment across its centroid.
+    MirrorFragment {
+        /// Atoms to mirror.
+        atoms: Vec<AtomId>,
+        /// Mirror x (vertical axis) when true, y when false.
+        vertical: bool,
+    },
+    /// Expand a labeled pseudo atom into its superatom fragment.
+    ExpandSuperatom {
+        /// Pseudo atom.
+        pseudo: AtomId,
+    },
+    /// Collapse an expanded superatom.
+    ContractSuperatom {
+        /// Group to remove.
+        group: SuperatomGroup,
+    },
+    /// Add a reaction arrow, conditions box, or polymer bracket.
+    AddAnnotation(Annotation),
+    /// Insert a parsed SMILES graph.
+    InsertSmiles {
+        /// SMILES string.
+        text: String,
+        /// Center position.
+        center: [f64; 2],
+    },
+    /// Normalize bond lengths and overlaps.
+    CleanLayout,
 }
 
 impl Command {
@@ -95,6 +153,87 @@ impl Command {
                     }
                 }
                 document.molecule.translate(atoms, *delta);
+            }
+            Self::AddRing {
+                template,
+                center,
+                rotation,
+            } => {
+                let ids = crate::templates::add_ring(&mut document.molecule, *template, *center, *rotation);
+                selection.clear();
+                for id in ids {
+                    selection.select_atom(id, egui_workbench_chem_core::SelectionMode::Add);
+                }
+            }
+            Self::AddChain { start, count, angle } => {
+                let ids = crate::templates::add_chain(&mut document.molecule, *start, *count, *angle);
+                selection.clear();
+                for id in ids {
+                    selection.select_atom(id, egui_workbench_chem_core::SelectionMode::Add);
+                }
+            }
+            Self::RotateFragment { atoms, center, radians } => {
+                let (sine, cosine) = radians.sin_cos();
+                for id in atoms {
+                    let Some(atom) = document.molecule.atom_mut(*id) else {
+                        return Err(Chem2dError::UnknownAtom(*id));
+                    };
+                    let x = atom.position[0] - center[0];
+                    let y = atom.position[1] - center[1];
+                    atom.position[0] = center[0] + x * cosine - y * sine;
+                    atom.position[1] = center[1] + x * sine + y * cosine;
+                }
+            }
+            Self::MirrorFragment { atoms, vertical } => {
+                let mut count = 0.0;
+                let mut sum = [0.0; 2];
+                for id in atoms {
+                    let Some(atom) = document.molecule.atom(*id) else {
+                        return Err(Chem2dError::UnknownAtom(*id));
+                    };
+                    sum[0] += atom.position[0];
+                    sum[1] += atom.position[1];
+                    count += 1.0;
+                }
+                if count == 0.0 {
+                    return Ok(());
+                }
+                let center = [sum[0] / count, sum[1] / count];
+                for id in atoms {
+                    let Some(atom) = document.molecule.atom_mut(*id) else {
+                        return Err(Chem2dError::UnknownAtom(*id));
+                    };
+                    if *vertical {
+                        atom.position[0] = 2.0 * center[0] - atom.position[0];
+                    } else {
+                        atom.position[1] = 2.0 * center[1] - atom.position[1];
+                    }
+                }
+            }
+            Self::ExpandSuperatom { pseudo } => {
+                let group = document.expand_superatom(*pseudo)?;
+                selection.clear();
+                for atom in group.atoms {
+                    selection.select_atom(atom, egui_workbench_chem_core::SelectionMode::Add);
+                }
+            }
+            Self::ContractSuperatom { group } => {
+                document.contract_superatom(group)?;
+                selection.clear();
+                selection.select_atom(group.pseudo, egui_workbench_chem_core::SelectionMode::Replace);
+            }
+            Self::AddAnnotation(annotation) => document.annotations.push(annotation.clone()),
+            Self::InsertSmiles { text, center } => {
+                let graph =
+                    crate::smiles::parse_smiles(text).map_err(|error| Chem2dError::Chemistry(error.to_string()))?;
+                let ids = graph.insert(document, *center);
+                selection.clear();
+                for atom in ids {
+                    selection.select_atom(atom, egui_workbench_chem_core::SelectionMode::Add);
+                }
+            }
+            Self::CleanLayout => {
+                crate::layout::relax(&mut document.molecule);
             }
         }
         Ok(())

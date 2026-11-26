@@ -1210,8 +1210,11 @@ dependencies = [
 name = "egui-workbench-chem2d"
 version = "0.1.0"
 dependencies = [
+ "eframe",
  "egui",
  "egui-workbench-chem-core",
+ "resvg",
+ "serde",
  "serde_json",
 ]
 

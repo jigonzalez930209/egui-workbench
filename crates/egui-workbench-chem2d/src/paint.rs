@@ -24,6 +24,15 @@ pub fn paint(
         paint_grid(&painter, viewport, camera, visuals.weak_text_color());
     }
     let bond_color = visuals.text_color().gamma_multiply(0.8);
+    let rings = document.molecule.rings();
+    let mut ring_centroids = std::collections::BTreeMap::new();
+    for ring in &rings {
+        if let Some(centroid) = ring.centroid(&document.molecule) {
+            for bond in &ring.bonds {
+                ring_centroids.insert(*bond, camera.world_to_screen(centroid, viewport));
+            }
+        }
+    }
     for bond in &document.molecule.bonds {
         let (Some(a), Some(b)) = (document.molecule.atom(bond.a), document.molecule.atom(bond.b)) else {
             continue;
@@ -41,7 +50,38 @@ pub fn paint(
             bond_color
         };
         let width = if highlighted { 3.0 } else { 1.5 };
-        draw_bond(&painter, start, end, bond, color, width);
+        draw_bond(
+            &painter,
+            start,
+            end,
+            bond,
+            color,
+            width,
+            ring_centroids.get(&bond.id).copied(),
+        );
+    }
+    for ring in &rings {
+        if !ring.aromatic {
+            continue;
+        }
+        let Some(centroid) = ring.centroid(&document.molecule) else {
+            continue;
+        };
+        let center = camera.world_to_screen(centroid, viewport);
+        let radius = ring
+            .atoms
+            .iter()
+            .filter_map(|id| document.molecule.atom(*id))
+            .map(|atom| camera.world_to_screen(position(atom), viewport).distance(center))
+            .fold(f32::INFINITY, f32::min)
+            * 0.55;
+        if radius > 2.0 {
+            painter.circle_stroke(
+                center,
+                radius,
+                Stroke::new(1.0, visuals.selection.stroke.color.gamma_multiply(0.7)),
+            );
+        }
     }
     for atom in &document.molecule.atoms {
         let center = camera.world_to_screen(position(atom), viewport);
@@ -72,6 +112,7 @@ pub fn paint(
             );
         }
     }
+    crate::annotations::paint(ui, viewport, document, camera);
 }
 
 fn paint_grid(painter: &egui::Painter, viewport: Rect, camera: Camera2D, color: Color32) {
@@ -104,7 +145,15 @@ fn paint_grid(painter: &egui::Painter, viewport: Rect, camera: Camera2D, color: 
     }
 }
 
-fn draw_bond(painter: &egui::Painter, start: Pos2, end: Pos2, bond: &Bond, color: Color32, width: f32) {
+fn draw_bond(
+    painter: &egui::Painter,
+    start: Pos2,
+    end: Pos2,
+    bond: &Bond,
+    color: Color32,
+    width: f32,
+    inward: Option<Pos2>,
+) {
     let delta = end - start;
     let length = delta.length();
     if length <= f32::EPSILON {
@@ -154,6 +203,13 @@ fn draw_bond(painter: &egui::Painter, start: Pos2, end: Pos2, bond: &Bond, color
             painter.line_segment([middle - cross, middle + cross], Stroke::new(width, color));
             return;
         }
+        BondStereo::Dotted => {
+            for index in 1..10 {
+                let t = index as f32 / 10.0;
+                painter.circle_filled(start + delta * t, width * 0.6, color);
+            }
+            return;
+        }
         BondStereo::None => {}
         _ => {}
     }
@@ -162,9 +218,18 @@ fn draw_bond(painter: &egui::Painter, start: Pos2, end: Pos2, bond: &Bond, color
             painter.line_segment([start, end], Stroke::new(width, color));
         }
         BondOrder::Double => {
-            let offset = normal * 2.5;
-            painter.line_segment([start + offset, end + offset], Stroke::new(width, color));
-            painter.line_segment([start - offset, end - offset], Stroke::new(width, color));
+            painter.line_segment([start, end], Stroke::new(width, color));
+            let midpoint = start + delta * 0.5;
+            let mut offset = normal * 2.5;
+            if let Some(inward) = inward {
+                if offset.dot(inward - midpoint) < 0.0 {
+                    offset = -offset;
+                }
+                painter.line_segment([start + offset, end + offset], Stroke::new(width, color));
+            } else {
+                painter.line_segment([start + offset, end + offset], Stroke::new(width, color));
+                painter.line_segment([start - offset, end - offset], Stroke::new(width, color));
+            }
         }
         BondOrder::Triple => {
             for offset in [-4.0, 0.0, 4.0] {

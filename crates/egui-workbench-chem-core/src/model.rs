@@ -77,6 +77,8 @@ pub enum BondStereo {
     Wavy,
     /// A crossed double bond with undefined E/Z.
     Either,
+    /// A dotted bond for a weak or non-covalent interaction.
+    Dotted,
 }
 
 /// One bond between two atoms.
