@@ -246,14 +246,14 @@ impl Plot<'_> {
             }
             Some(Drag::Measure { start, distance }) if response.drag_stopped() => {
                 let end = response.interact_pointer_pos().unwrap_or(start);
-                let radius = self.config.measurement.snap_radius;
+                let radius = state.measurement.snap_radius;
                 if distance {
                     let from = snap::snap_point(self, state, transform, start, radius);
                     let to = snap::snap_point(self, state, transform, end, radius);
                     if from != to && from.iter().chain(to.iter()).all(|value| value.is_finite()) {
                         state.add_measurement(PlotMeasurement::distance(from, to));
                     }
-                } else if self.config.measurement.mode == MeasurementMode::CurveSegment {
+                } else if state.measurement.mode == MeasurementMode::CurveSegment {
                     if let Some((series, start_index, from)) = snap::snap_hit(self, state, transform, start, radius)
                         && let Some((end_index, to)) =
                             snap::nearest_on_series(self, state, transform, &series, end, radius)

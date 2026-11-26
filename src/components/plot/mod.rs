@@ -249,6 +249,9 @@ impl Plot<'_> {
     }
 
     fn show_inner(self, ui: &mut Ui, icons: &mut Icons, state: &mut PlotState) -> PlotResponse {
+        if !state.measurement_customized {
+            state.measurement = self.config.measurement;
+        }
         let available = ui.available_size();
         let width = self.width.unwrap_or(available.x).max(120.0);
         let height = self
@@ -353,7 +356,7 @@ impl Plot<'_> {
         if let (Some(Drag::Measure { start, distance }), Some(current)) = (state.drag, response.interact_pointer_pos())
         {
             let clipped = painter.with_clip_rect(layout.frame);
-            if distance || self.config.measurement.mode == MeasurementMode::CurveSegment {
+            if distance || state.measurement.mode == MeasurementMode::CurveSegment {
                 clipped.line_segment([start, current], egui::Stroke::new(1.0, colors.selection));
             } else {
                 clipped.rect(

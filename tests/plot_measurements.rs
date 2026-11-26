@@ -243,7 +243,10 @@ fn the_toolbar_selects_both_measurement_tools() {
 #[test]
 fn curve_segment_mode_measures_the_area_between_curve_and_chord() {
     let mut harness = harness();
-    harness.state_mut().measurement.mode = MeasurementMode::CurveSegment;
+    harness.state_mut().state.set_measurement(MeasurementConfig {
+        mode: MeasurementMode::CurveSegment,
+        ..MeasurementConfig::default()
+    });
     harness.state_mut().state.tool = PlotTool::MeasureArea;
     harness.run_steps(3);
     let a = harness.state().line_a_screen.expect("line a");
@@ -295,4 +298,47 @@ fn the_analysis_icon_toggles_filters_and_transforms() {
         harness.state().state.pipeline().transform,
         Some(egui_workbench::components::plot::TransformKind::Fft)
     );
+}
+
+#[test]
+fn the_clear_icon_appears_only_with_overlays_and_clears_them() {
+    let mut harness = harness();
+    harness.run_steps(3);
+    assert!(
+        harness
+            .query_by_label("Clear measurements, analysis, and annotations")
+            .is_none()
+    );
+    harness
+        .state_mut()
+        .state
+        .add_measurement(PlotMeasurement::distance([0.0, 0.0], [1.0, 1.0]));
+    harness
+        .state_mut()
+        .state
+        .set_filter(egui_workbench::components::plot::FilterKind::Gaussian, true);
+    harness.run_steps(2);
+    harness
+        .get_by_label("Clear measurements, analysis, and annotations")
+        .click();
+    harness.run_steps(2);
+    assert!(harness.state().state.measurements().is_empty());
+    assert!(!harness.state().state.pipeline().is_active());
+    assert!(
+        harness
+            .query_by_label("Clear measurements, analysis, and annotations")
+            .is_none()
+    );
+}
+
+#[test]
+fn the_pin_opens_the_settings_panel_and_changes_the_measurement_mode() {
+    let mut harness = harness();
+    harness.run_steps(3);
+    harness.get_by_label("Chart settings (hover) · click to pin").click();
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Chart settings").is_some());
+    harness.get_by_label("Curve vs chord").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().state.measurement.mode, MeasurementMode::CurveSegment);
 }

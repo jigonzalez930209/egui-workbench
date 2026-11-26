@@ -171,10 +171,10 @@ pub(super) fn paint(
             stroke: None,
         });
     }
-    if !plot.config.measurement.show_labels {
+    if !state.measurement.show_labels {
         return;
     }
-    let area = match plot.config.measurement.area_style {
+    let area = match state.measurement.area_style {
         MeasurementAreaStyle::Signed => summary.area,
         MeasurementAreaStyle::Absolute => summary.absolute_area,
     };

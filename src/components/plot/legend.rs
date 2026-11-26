@@ -62,7 +62,7 @@ pub(super) fn layout(
         plot.config.legend_size,
         frame,
         state.legend_position(),
-        super::widgets::toolbar_rect(plot, frame),
+        super::widgets::toolbar_rect(plot, frame, state),
         &entries,
         include_hidden,
     )

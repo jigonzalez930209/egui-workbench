@@ -9,6 +9,8 @@ use super::legend::LegendLayout;
 use super::{ExportFormat, Plot, PlotState, PlotTool, YAxis};
 use crate::Icons;
 
+mod settings;
+
 /// Toggle series from legend rows and move the legend by dragging it. Returns the
 /// legend rectangle (blocks hover).
 pub(super) fn legend(ui: &mut Ui, plot: &Plot<'_>, legend: &LegendLayout, frame: Rect, state: &mut PlotState) -> Rect {
@@ -68,7 +70,7 @@ const SEPARATOR: f32 = 7.0;
 
 /// Where the toolbar goes, or `None` when it is off or the frame is too narrow. The
 /// legend uses it to stay clear of the buttons.
-pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect) -> Option<Rect> {
+pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect, state: &PlotState) -> Option<Rect> {
     if !plot.config.toolbar {
         return None;
     }
@@ -77,15 +79,14 @@ pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect) -> Option<Rect> {
     } else {
         0
     };
-    let buttons = tools + usize::from(plot.settings_button) + usize::from(plot.export_button);
+    let has_clear = state.has_overlays();
+    let buttons =
+        tools + usize::from(plot.settings_button) + usize::from(plot.export_button) + usize::from(has_clear) + 1;
     if buttons == 0 {
         return None;
     }
-    let groups = if tools > 0 && (plot.settings_button || plot.export_button) {
-        2.0
-    } else {
-        1.0
-    };
+    let extras = plot.settings_button || plot.export_button || has_clear;
+    let groups = if tools > 0 && extras { 2.0 } else { 1.0 };
     let width = BUTTON * buttons as f32 + SEPARATOR * groups + 4.0;
     let rect = Rect::from_min_size(
         pos2(frame.right() - 6.0 - width, frame.top() + 6.0),
@@ -147,8 +148,12 @@ pub(super) fn toolbar(
     if plot.export_button {
         buttons.push(("lucide-download", "Export as SVG or PNG", None));
     }
+    if state.has_overlays() {
+        buttons.push(("lucide-eraser", "Clear measurements, analysis, and annotations", None));
+    }
+    buttons.push(("lucide-pin", "Chart settings (hover) · click to pin", None));
     let separator = SEPARATOR;
-    let Some(rect) = toolbar_rect(plot, frame) else {
+    let Some(rect) = toolbar_rect(plot, frame, state) else {
         return output;
     };
     let visuals = ui.visuals().clone();
@@ -163,6 +168,8 @@ pub(super) fn toolbar(
     let mut x = rect.left() + 2.0;
     let mut export_button = None;
     let mut analysis_button = None;
+    let mut pin_button = None;
+    let mut pin_hovered = false;
     for (index, (icon, tooltip, tool)) in buttons.iter().enumerate() {
         if index == 6 || index == 9 {
             let line_x = painter.round_to_pixel_center(x + separator * 0.5);
@@ -179,9 +186,11 @@ pub(super) fn toolbar(
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, *tooltip));
         let is_export = *icon == "lucide-download";
         let is_analysis = *icon == "lucide-sliders-horizontal";
+        let is_pin = *icon == "lucide-pin";
         let active = tool.is_some_and(|tool| tool == state.tool)
             || (is_export && state.export_menu)
-            || (is_analysis && state.pipeline.is_active());
+            || (is_analysis && state.pipeline.is_active())
+            || (is_pin && state.settings_pinned);
         let fill = if active {
             visuals.selection.bg_fill
         } else if response.hovered() {
@@ -200,6 +209,11 @@ pub(super) fn toolbar(
             match (*icon, tool) {
                 (_, Some(tool)) => state.tool = *tool,
                 ("lucide-sliders-horizontal", _) => {}
+                ("lucide-pin", _) => {
+                    state.settings_pinned = !state.settings_pinned;
+                    state.settings_hovered = true;
+                }
+                ("lucide-eraser", _) => state.clear_overlays(),
                 ("lucide-zoom-in", _) => {
                     super::interact::zoom_at(state, transform, frame.center(), 1.25, super::interact::ZoomAxes::ALL);
                 }
@@ -218,11 +232,21 @@ pub(super) fn toolbar(
         if is_analysis {
             analysis_button = Some(response.clone());
         }
+        if is_pin {
+            pin_button = Some(button);
+            pin_hovered |= response.hovered() && !ui.input(|input| input.pointer.any_down());
+        }
         response.on_hover_text(*tooltip);
     }
     output.rect = Some(rect);
     if let Some(response) = analysis_button {
-        egui::Popup::menu(&response).show(|ui| analysis_menu(ui, plot, state));
+        egui::Popup::menu(&response).show(|ui| settings::analysis_menu(ui, state));
+    }
+    if state.settings_pinned || state.settings_hovered || pin_hovered {
+        let panel_hovered = pin_button.is_some_and(|anchor| settings::panel(ui, state, anchor));
+        state.settings_hovered = pin_hovered || panel_hovered;
+    } else {
+        state.settings_hovered = false;
     }
     if state.export_menu
         && let Some(button) = export_button
@@ -230,42 +254,6 @@ pub(super) fn toolbar(
         output.export = export_menu(ui, plot, button, state);
     }
     output
-}
-
-fn analysis_menu(ui: &mut Ui, plot: &Plot<'_>, state: &mut PlotState) {
-    ui.set_min_width(260.0);
-    ui.label(egui::RichText::new("Filters").strong());
-    for filter in super::FilterKind::ALL {
-        let mut enabled = state.pipeline().is_filter_enabled(filter);
-        if ui.checkbox(&mut enabled, filter.label()).changed() {
-            state.pipeline_mut().set_filter(filter, enabled);
-        }
-    }
-    ui.separator();
-    ui.label(egui::RichText::new("Transforms").strong());
-    let current = state.pipeline().transform;
-    for transform in super::TransformKind::ALL {
-        if ui.radio(current == Some(transform), transform.label()).clicked() {
-            state.set_transform(if current == Some(transform) {
-                None
-            } else {
-                Some(transform)
-            });
-        }
-    }
-    ui.separator();
-    if ui.button("Clear analysis").clicked() {
-        state.clear_analysis();
-    }
-    ui.label(
-        egui::RichText::new(
-            "Filters apply to every visible series. Transforms use the first series; \
-             cross-correlation uses the first two.",
-        )
-        .small()
-        .weak(),
-    );
-    let _ = plot;
 }
 
 /// A two-row menu under the export button. Closes on a choice or a click elsewhere.

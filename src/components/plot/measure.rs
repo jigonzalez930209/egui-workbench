@@ -325,14 +325,16 @@ pub(super) fn paint(
                         summary.slope.map_or_else(|| "∞".to_owned(), number),
                         number(summary.angle_deg)
                     );
-                    label_block(
-                        scene,
-                        measure,
-                        midpoint(a, b) + vec2(8.0, -8.0),
-                        &[label],
-                        theme.warning,
-                        theme,
-                    );
+                    if state.measurement.show_labels {
+                        label_block(
+                            scene,
+                            measure,
+                            pos2((a.x + b.x) * 0.5, (a.y + b.y) * 0.5) + vec2(8.0, -8.0),
+                            &[label],
+                            theme.warning,
+                            theme,
+                        );
+                    }
                 }
             }
             PlotMeasurement::Area { bounds } => {
@@ -376,16 +378,18 @@ pub(super) fn paint(
                             .map_or_else(|| "—".to_owned(), |value| number(value.point[1])),
                         number(series.integral)
                     ));
-                    draw_extrema(scene, measure, transform, series, theme);
+                    draw_extrema(scene, measure, transform, series, theme, state.measurement.show_labels);
                 }
-                label_block(
-                    scene,
-                    measure,
-                    rect.left_top() + vec2(6.0, 6.0),
-                    &lines,
-                    theme.link,
-                    theme,
-                );
+                if state.measurement.show_labels {
+                    label_block(
+                        scene,
+                        measure,
+                        rect.left_top() + vec2(6.0, 6.0),
+                        &lines,
+                        theme.link,
+                        theme,
+                    );
+                }
             }
             PlotMeasurement::CurveArea { .. } => {
                 curve::paint(scene, measure, transform, plot, state, theme, measurement);
@@ -400,6 +404,7 @@ fn draw_extrema(
     transform: &Transform,
     series: &SeriesMeasurement,
     theme: &Theme,
+    show_labels: bool,
 ) {
     for (extremum, color, name) in [(series.min, theme.success, "min"), (series.max, theme.danger, "max")] {
         let Some(extremum) = extremum else {
@@ -418,9 +423,11 @@ fn draw_extrema(
         let slope = extremum.slope.map_or_else(|| "—".to_owned(), number);
         let text = format!("{name} {} · slope {slope}", number(extremum.point[1]));
         let (width, height, _) = measure.text(&text, 10.0);
-        scene
-            .over
-            .push(measure.label(position + vec2(4.0, -height), Align2::LEFT_BOTTOM, &text, 10.0, color));
+        if show_labels {
+            scene
+                .over
+                .push(measure.label(position + vec2(4.0, -height), Align2::LEFT_BOTTOM, &text, 10.0, color));
+        }
         let _ = width;
     }
 }
@@ -485,10 +492,6 @@ fn number(value: f64) -> String {
         text = text.trim_end_matches('0').trim_end_matches('.').to_owned();
     }
     text
-}
-
-fn midpoint(a: Pos2, b: Pos2) -> Pos2 {
-    pos2((a.x + b.x) * 0.5, (a.y + b.y) * 0.5)
 }
 
 #[cfg(test)]

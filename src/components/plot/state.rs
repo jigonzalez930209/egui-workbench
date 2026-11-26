@@ -5,7 +5,7 @@
 use super::PlotAnnotation;
 use super::axis::{Bounds, Scale};
 use super::filter::FilterKind;
-use super::measure::PlotMeasurement;
+use super::measure::{MeasurementConfig, PlotMeasurement};
 use super::pipeline::Pipeline;
 use super::series::Series;
 use super::transforms::TransformKind;
@@ -48,6 +48,21 @@ pub struct PlotState {
     /// Filters and transforms applied to the visible series.
     #[cfg_attr(feature = "serde", serde(default))]
     pub pipeline: Pipeline,
+    /// Live measurement settings. The chart config seeds them until the user edits them.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub measurement: MeasurementConfig,
+    /// Whether the user changed the measurement settings from the panel.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub(super) measurement_customized: bool,
+    /// Whether the settings panel is pinned open.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub settings_pinned: bool,
+    /// Transient hover state for the settings panel.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) settings_hovered: bool,
+    /// Dragged offset of the settings panel.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub settings_offset: [f32; 2],
 }
 
 impl PlotState {
@@ -165,6 +180,28 @@ impl PlotState {
     /// Disable every filter and transform.
     pub fn clear_analysis(&mut self) {
         self.pipeline.clear();
+    }
+
+    /// Replace the live measurement settings and mark them user-edited.
+    pub fn set_measurement(&mut self, measurement: MeasurementConfig) {
+        self.measurement = measurement;
+        self.measurement_customized = true;
+    }
+
+    /// Clear every painted overlay: measurements, selection, annotations, and analysis.
+    pub fn clear_overlays(&mut self) {
+        self.measurements.clear();
+        self.selection = None;
+        self.annotations.clear();
+        self.pipeline.clear();
+    }
+
+    /// Whether a clear action would remove anything.
+    pub fn has_overlays(&self) -> bool {
+        !self.measurements.is_empty()
+            || !self.annotations.is_empty()
+            || self.pipeline.is_active()
+            || self.selection.is_some()
     }
 
     /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)

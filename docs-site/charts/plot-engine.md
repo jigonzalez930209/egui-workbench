@@ -163,6 +163,12 @@ The state API is `PlotState::toggle_filter`, `set_filter`, `set_transform`,
 domain changed. `FilterSettings` and `TransformSettings` expose the parameters, and a
 custom settings dialog can edit them directly.
 
+The toolbar also has a clear (eraser) icon that appears only when the chart has
+measurements, annotations, selection, or analysis; it calls `PlotState::clear_overlays`.
+A pin icon opens a draggable chart-settings panel on hover, and clicking the pin keeps it
+open. The panel edits the measurement mode/style/snap/labels, the filter toggles and
+parameters, and the transform.
+
 ## Axes
 
 | Scale | Use |
