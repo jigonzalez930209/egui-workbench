@@ -161,7 +161,17 @@ impl Molecule {
     pub fn remove_atom(&mut self, id: AtomId) -> Option<Atom> {
         let position = self.atoms.iter().position(|atom| atom.id == id)?;
         let atom = self.atoms.remove(position);
+        // Release the bond slots too; they stayed allocated and leaked on every removal.
+        let removed: Vec<BondId> = self
+            .bonds
+            .iter()
+            .filter(|bond| bond.a == id || bond.b == id)
+            .map(|bond| bond.id)
+            .collect();
         self.bonds.retain(|bond| bond.a != id && bond.b != id);
+        for bond in removed {
+            self.bond_ids.release(bond.slot());
+        }
         self.atom_ids.release(id.slot());
         Some(atom)
     }
@@ -404,5 +414,26 @@ mod tests {
         assert!((cell.volume() - 1000.0).abs() < 1e-9);
         assert_eq!(cell.fractional_to_cartesian([1.0, 0.0, 0.0]), [10.0, 0.0, 0.0]);
         assert!(UnitCell::new(0.0, 1.0, 1.0, 90.0, 90.0, 90.0).is_err());
+    }
+}
+
+#[cfg(test)]
+mod bond_slot_tests {
+    use super::*;
+
+    #[test]
+    fn removing_an_atom_frees_its_bond_slots() {
+        let mut molecule = Molecule::new();
+        let a = molecule.add_atom(Element::UNKNOWN, [0.0; 3]);
+        let b = molecule.add_atom(Element::UNKNOWN, [1.0, 0.0, 0.0]);
+        let first = molecule.add_bond(a, b, BondOrder::Single).expect("bond");
+        molecule.remove_atom(a).expect("atom");
+        let c = molecule.add_atom(Element::UNKNOWN, [2.0, 0.0, 0.0]);
+        let second = molecule.add_bond(b, c, BondOrder::Single).expect("bond");
+        // The freed slot is reused with a new generation, so the stale id never resolves.
+        assert_eq!(first.slot(), second.slot());
+        assert_ne!(first, second);
+        assert!(molecule.bond(first).is_none());
+        molecule.validate().expect("valid");
     }
 }
