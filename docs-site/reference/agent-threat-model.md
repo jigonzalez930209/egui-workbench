@@ -34,12 +34,16 @@ own; the process that starts it is the trust anchor. The remote WebSocket server
 1. **Read-only by default.** `apply_patch` and `run_command` fail with `read-only` unless
    the embedding application calls `Permissions::read_write()` or passes `--read-write`.
 2. **Command allow-list.** When set, a command id outside the list is denied before the
-   host sees it. An empty allow-list denies every command.
+   host sees it. An empty allow-list denies every command. Without an allow-list, only
+   commands the spec declares (`commands`, menu rows, button ids) can run; an invented id
+   is denied.
 3. **Confirmation for sensitive commands.** Commands marked `destructive` can require a
    value that the client must supply in `arguments.confirmation`. The value is compared
-   to the configured token; it is not logged.
+   to the configured token in constant time and is not logged. An empty token never
+   matches.
 4. **Audit log.** Every tool call, allowed or denied, is appended with a sequence number,
-   the tool name, and a short detail. `list_activity` returns it.
+   the tool name, and a detail of at most 240 characters. The log keeps the last 10,000
+   entries. `list_activity` returns it.
 5. **Local-only transport.** stdio; no listening socket, no network discovery.
 6. **Accessible names, not pixels.** The automation and MCP surfaces use the spec's roles
    and names. A model cannot click arbitrary screen coordinates through this interface.
@@ -55,6 +59,8 @@ own; the process that starts it is the trust anchor. The remote WebSocket server
   when the user's intent changes.
 - **No data-loss prevention.** A command that writes a file can still write it if it is on
   the allow-list. The host does not inspect command side effects.
+- **Reads are side-effect free.** `get_state` returns pending events without draining
+  them.
 - **The spec is visible.** `get_spec` and `get_state` return everything in the spec,
   including metadata. Do not put secrets in `metadata` or widget text.
 - **Prompt injection.** Text from a dataset, a file name, or a tool result can contain
