@@ -21,6 +21,7 @@ fn benzene_can_be_inserted_measured_and_exported() {
     editor.clean_layout().expect("clean");
     let svg = editor.export_svg(ExportOptions::default());
     assert!(svg.contains("<svg"));
+    assert!(svg.contains("<line"));
     assert!(svg.contains("<circle"));
     let png = to_png(&editor.document, ExportOptions::default(), 300).expect("png");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");

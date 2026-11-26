@@ -101,6 +101,124 @@ impl RingTemplate {
     }
 }
 
+/// Attach a ring to `anchor` with a new single bond.
+///
+/// The clicked atom is kept; the ring is placed outward, 120 degrees from the existing
+/// bonds when possible, with its first atom one bond length away. This is the ChemDraw
+/// and MolView ring-tool behaviour when the pointer is over an atom.
+pub fn attach_ring(molecule: &mut Molecule2D, template: RingTemplate, anchor: AtomId) -> Vec<AtomId> {
+    let Some(entry) = molecule.atom(anchor) else {
+        return Vec::new();
+    };
+    let origin = [entry.position[0], entry.position[1]];
+    let radius = template
+        .atoms()
+        .iter()
+        .map(|(_, [x, y])| x.hypot(*y))
+        .fold(0.0, f64::max);
+    let angle = sprout_angle(molecule, anchor, 1.5 + radius).unwrap_or(0.0);
+    let Some((_, [x, y])) = template.atoms().into_iter().next() else {
+        return Vec::new();
+    };
+    let local_angle = y.atan2(x);
+    let rotation = angle + std::f64::consts::PI - local_angle;
+    let center = [
+        origin[0] + (1.5 + radius) * angle.cos(),
+        origin[1] + (1.5 + radius) * angle.sin(),
+    ];
+    let ids = add_ring(molecule, template, center, rotation);
+    if let Some(first) = ids.first() {
+        let _ = molecule.add_bond(anchor, *first, BondOrder::Single);
+    }
+    ids
+}
+
+/// The direction in which a new bond or fragment sprouts from `atom`.
+///
+/// `reach` is how far the new group extends from the atom (a bond is 1.5 Å; a ring is a
+/// bond plus its radius). Candidates keep the 120° bond angle and are then scored by the
+/// clear space at that reach, so a new ring or fragment never grows back across the
+/// molecule that is already drawn.
+pub(crate) fn sprout_angle(molecule: &Molecule2D, atom: AtomId, reach: f64) -> Option<f64> {
+    let entry = molecule.atom(atom)?;
+    let origin = [entry.position[0], entry.position[1]];
+    let directions = molecule
+        .neighbors(atom)
+        .into_iter()
+        .filter_map(|neighbor| molecule.atom(neighbor))
+        .map(|neighbor| (neighbor.position[1] - origin[1]).atan2(neighbor.position[0] - origin[0]))
+        .collect::<Vec<_>>();
+    if directions.is_empty() {
+        let others = molecule
+            .atoms
+            .iter()
+            .filter(|other| other.id != atom)
+            .map(|other| [other.position[0], other.position[1]])
+            .collect::<Vec<_>>();
+        if others.is_empty() {
+            return Some(0.0);
+        }
+        let mut sum = [0.0; 2];
+        for other in &others {
+            sum[0] += other[0];
+            sum[1] += other[1];
+        }
+        let center = [sum[0] / others.len() as f64, sum[1] / others.len() as f64];
+        let away = [origin[0] - center[0], origin[1] - center[1]];
+        return Some(if away[0].hypot(away[1]) <= f64::EPSILON {
+            0.0
+        } else {
+            away[1].atan2(away[0])
+        });
+    }
+
+    let mut candidates = Vec::<(f64, f64)>::new();
+    for direction in &directions {
+        for offset in [-2.0 * std::f64::consts::FRAC_PI_3, 2.0 * std::f64::consts::FRAC_PI_3] {
+            let candidate = normalize_angle(direction + offset);
+            let separation = directions
+                .iter()
+                .map(|existing| angle_distance(candidate, *existing))
+                .fold(f64::INFINITY, f64::min);
+            candidates.push((separation, candidate));
+        }
+    }
+    let best_separation = candidates
+        .iter()
+        .map(|(separation, _)| *separation)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let mut best: Option<(f64, f64)> = None;
+    for (separation, candidate) in candidates {
+        if separation + 1.0e-9 < best_separation {
+            continue;
+        }
+        let probe = [origin[0] + reach * candidate.cos(), origin[1] + reach * candidate.sin()];
+        let clearance = molecule
+            .atoms
+            .iter()
+            .filter(|other| other.id != atom)
+            .map(|other| (other.position[0] - probe[0]).hypot(other.position[1] - probe[1]))
+            .fold(f64::INFINITY, f64::min);
+        let better = best.is_none_or(|(best_clearance, best_candidate)| {
+            clearance > best_clearance + 1.0e-9
+                || ((clearance - best_clearance).abs() <= 1.0e-9 && candidate < best_candidate)
+        });
+        if better {
+            best = Some((clearance, candidate));
+        }
+    }
+    best.map(|(_, candidate)| candidate)
+}
+
+fn normalize_angle(angle: f64) -> f64 {
+    angle.rem_euclid(std::f64::consts::TAU)
+}
+
+fn angle_distance(a: f64, b: f64) -> f64 {
+    let distance = (a - b).rem_euclid(std::f64::consts::TAU);
+    distance.min(std::f64::consts::TAU - distance)
+}
+
 /// Add a template at `center`, rotated by `rotation` radians.
 pub fn add_ring(molecule: &mut Molecule2D, template: RingTemplate, center: [f64; 2], rotation: f64) -> Vec<AtomId> {
     let (sine, cosine) = rotation.sin_cos();
@@ -204,6 +322,21 @@ mod tests {
             assert_eq!(ids.len(), template.atoms().len(), "{template:?}");
             assert_eq!(molecule.rings().len(), 1, "{template:?}");
         }
+    }
+
+    #[test]
+    fn a_ring_attaches_to_an_atom_with_one_bond() {
+        let mut molecule = Molecule2D::new();
+        let anchor = molecule.add_atom(Element::from_symbol("C").expect("C"), [0.0, 0.0, 0.0]);
+        let ids = attach_ring(&mut molecule, RingTemplate::Benzene, anchor);
+        assert_eq!(ids.len(), 6);
+        assert_eq!(molecule.atom_count(), 7);
+        assert_eq!(molecule.bond_count(), 7);
+        assert_eq!(molecule.rings().len(), 1);
+        let first = molecule.atom(ids[0]).expect("first");
+        let length = (first.position[0] - 0.0).hypot(first.position[1] - 0.0);
+        assert!((length - 1.5).abs() < 1.0e-9, "{length}");
+        assert!(molecule.bond_between(anchor, ids[0]).is_some());
     }
 
     #[test]

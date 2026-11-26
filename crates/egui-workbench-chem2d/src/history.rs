@@ -30,10 +30,19 @@ pub enum Command {
     },
     /// Remove every selected atom and bond.
     DeleteSelection,
+    /// Remove every atom, bond, superatom, and annotation from the document.
+    ClearDocument,
     /// Change a bond order.
     SetBondOrder {
         /// Bond to edit.
         bond: BondId,
+        /// New order.
+        order: BondOrder,
+    },
+    /// Change several bond orders in one undo step.
+    SetBondOrders {
+        /// Bonds to edit.
+        bonds: Vec<BondId>,
         /// New order.
         order: BondOrder,
     },
@@ -43,6 +52,65 @@ pub enum Command {
         bond: BondId,
         /// New stereo.
         stereo: BondStereo,
+    },
+    /// Change several bond stereochemistries in one undo step.
+    SetBondStereos {
+        /// Bonds to edit.
+        bonds: Vec<BondId>,
+        /// New stereo.
+        stereo: BondStereo,
+    },
+    /// Draw a bond between two atoms, creating either endpoint when it is not supplied.
+    ///
+    /// This is the drag-to-draw command: one gesture creates the atoms it needs and the
+    /// bond between them as a single undo step.
+    DrawBond {
+        /// Existing atom at the start, when the gesture began on one.
+        from: Option<AtomId>,
+        /// Start position when `from` is `None`.
+        from_position: [f64; 2],
+        /// Existing atom at the end, when the gesture ended on one.
+        to: Option<AtomId>,
+        /// End position when `to` is `None`.
+        to_position: [f64; 2],
+        /// Bond order.
+        order: BondOrder,
+        /// Element for a newly created endpoint.
+        element: Element,
+        /// Bond stereochemistry.
+        stereo: BondStereo,
+    },
+    /// Change the element of atoms and clear their custom labels.
+    SetAtomElements {
+        /// Atoms to edit.
+        atoms: Vec<AtomId>,
+        /// New element.
+        element: Element,
+    },
+    /// Add `delta` to the formal charge of atoms.
+    AdjustAtomCharges {
+        /// Atoms to edit.
+        atoms: Vec<AtomId>,
+        /// Change in formal charge.
+        delta: i8,
+    },
+    /// Set an atom's element, formal charge, and display label in one undo step.
+    SetAtomProperties {
+        /// Atom to edit.
+        atom: AtomId,
+        /// New element.
+        element: Element,
+        /// New formal charge.
+        charge: i8,
+        /// New display label; `None` clears it.
+        label: Option<String>,
+    },
+    /// Set or clear a custom display label on atoms.
+    SetAtomLabels {
+        /// Atoms to edit.
+        atoms: Vec<AtomId>,
+        /// New display label; `None` clears it.
+        label: Option<String>,
     },
     /// Move a fragment.
     TranslateFragment {
@@ -59,6 +127,13 @@ pub enum Command {
         center: [f64; 2],
         /// Rotation in radians.
         rotation: f64,
+    },
+    /// Attach a ring template to an existing atom with one new single bond.
+    AttachRing {
+        /// Template to add.
+        template: RingTemplate,
+        /// Atom the ring grows from.
+        atom: AtomId,
     },
     /// Add a zig-zag carbon chain.
     AddChain {
@@ -104,7 +179,14 @@ pub enum Command {
         /// Center position.
         center: [f64; 2],
     },
-    /// Normalize bond lengths and overlaps.
+    /// Insert a parsed SMILES graph and connect its first atom to an existing atom.
+    AttachSmiles {
+        /// SMILES string.
+        text: String,
+        /// Atom the fragment grows from.
+        anchor: AtomId,
+    },
+    /// Optimize bond lengths, bond angles, ring shapes, and steric overlap.
     CleanLayout,
 }
 
@@ -135,17 +217,144 @@ impl Command {
                 document.prune_superatoms();
                 selection.clear();
             }
+            Self::ClearDocument => {
+                document.molecule = crate::document::Molecule2D::new();
+                document.superatoms.clear();
+                document.annotations.clear();
+                selection.clear();
+            }
             Self::SetBondOrder { bond, order } => {
                 let Some(entry) = document.molecule.bonds.iter_mut().find(|entry| entry.id == *bond) else {
                     return Err(Chem2dError::UnknownBond(*bond));
                 };
                 entry.order = *order;
             }
+            Self::SetBondOrders { bonds, order } => {
+                for bond in bonds {
+                    if !document.molecule.bonds.iter().any(|entry| entry.id == *bond) {
+                        return Err(Chem2dError::UnknownBond(*bond));
+                    }
+                }
+                for bond in bonds {
+                    if let Some(entry) = document.molecule.bonds.iter_mut().find(|entry| entry.id == *bond) {
+                        entry.order = *order;
+                    }
+                }
+            }
             Self::SetStereo { bond, stereo } => {
                 let Some(entry) = document.molecule.bonds.iter_mut().find(|entry| entry.id == *bond) else {
                     return Err(Chem2dError::UnknownBond(*bond));
                 };
                 entry.stereo = *stereo;
+            }
+            Self::SetBondStereos { bonds, stereo } => {
+                for bond in bonds {
+                    if !document.molecule.bonds.iter().any(|entry| entry.id == *bond) {
+                        return Err(Chem2dError::UnknownBond(*bond));
+                    }
+                }
+                for bond in bonds {
+                    if let Some(entry) = document.molecule.bonds.iter_mut().find(|entry| entry.id == *bond) {
+                        entry.stereo = *stereo;
+                    }
+                }
+            }
+            Self::DrawBond {
+                from,
+                from_position,
+                to,
+                to_position,
+                order,
+                element,
+                stereo,
+            } => {
+                if let Some(atom) = from
+                    && document.molecule.atom(*atom).is_none()
+                {
+                    return Err(Chem2dError::UnknownAtom(*atom));
+                }
+                if let Some(atom) = to
+                    && document.molecule.atom(*atom).is_none()
+                {
+                    return Err(Chem2dError::UnknownAtom(*atom));
+                }
+                if from.is_some() && from == to {
+                    return Err(Chem2dError::Chemistry("a bond needs two different atoms".to_owned()));
+                }
+                let a = (*from).unwrap_or_else(|| {
+                    document
+                        .molecule
+                        .add_atom(*element, [from_position[0], from_position[1], 0.0])
+                });
+                let b = (*to).unwrap_or_else(|| {
+                    document
+                        .molecule
+                        .add_atom(*element, [to_position[0], to_position[1], 0.0])
+                });
+                if let Some(existing) = document.molecule.bond_between(a, b) {
+                    let id = existing.id;
+                    if let Some(entry) = document.molecule.bonds.iter_mut().find(|entry| entry.id == id) {
+                        entry.order = *order;
+                        entry.stereo = *stereo;
+                    }
+                    selection.select_bond(id, egui_workbench_chem_core::SelectionMode::Replace);
+                } else {
+                    let id = document.molecule.add_bond(a, b, *order)?;
+                    if let Some(entry) = document.molecule.bonds.iter_mut().find(|entry| entry.id == id) {
+                        entry.stereo = *stereo;
+                    }
+                    selection.select_bond(id, egui_workbench_chem_core::SelectionMode::Replace);
+                }
+            }
+            Self::SetAtomElements { atoms, element } => {
+                for atom in atoms {
+                    if document.molecule.atom(*atom).is_none() {
+                        return Err(Chem2dError::UnknownAtom(*atom));
+                    }
+                }
+                for atom in atoms {
+                    if let Some(entry) = document.molecule.atom_mut(*atom) {
+                        entry.element = *element;
+                        entry.label = None;
+                    }
+                }
+            }
+            Self::AdjustAtomCharges { atoms, delta } => {
+                for atom in atoms {
+                    if document.molecule.atom(*atom).is_none() {
+                        return Err(Chem2dError::UnknownAtom(*atom));
+                    }
+                }
+                for atom in atoms {
+                    if let Some(entry) = document.molecule.atom_mut(*atom) {
+                        entry.charge = entry.charge.saturating_add(*delta);
+                    }
+                }
+            }
+            Self::SetAtomProperties {
+                atom,
+                element,
+                charge,
+                label,
+            } => {
+                let Some(entry) = document.molecule.atom_mut(*atom) else {
+                    return Err(Chem2dError::UnknownAtom(*atom));
+                };
+                entry.element = *element;
+                entry.charge = *charge;
+                entry.label.clone_from(label);
+            }
+            Self::SetAtomLabels { atoms, label } => {
+                for atom in atoms {
+                    if document.molecule.atom(*atom).is_none() {
+                        return Err(Chem2dError::UnknownAtom(*atom));
+                    }
+                }
+                for atom in atoms {
+                    if let Some(entry) = document.molecule.atom_mut(*atom) {
+                        entry.label.clone_from(label);
+                    }
+                }
             }
             Self::TranslateFragment { atoms, delta } => {
                 for atom in atoms {
@@ -161,6 +370,19 @@ impl Command {
                 rotation,
             } => {
                 let ids = crate::templates::add_ring(&mut document.molecule, *template, *center, *rotation);
+                selection.clear();
+                for id in ids {
+                    selection.select_atom(id, egui_workbench_chem_core::SelectionMode::Add);
+                }
+            }
+            Self::AttachRing { template, atom } => {
+                if document.molecule.atom(*atom).is_none() {
+                    return Err(Chem2dError::UnknownAtom(*atom));
+                }
+                let ids = crate::templates::attach_ring(&mut document.molecule, *template, *atom);
+                if ids.is_empty() {
+                    return Err(Chem2dError::Chemistry("the ring could not be attached".to_owned()));
+                }
                 selection.clear();
                 for id in ids {
                     selection.select_atom(id, egui_workbench_chem_core::SelectionMode::Add);
@@ -233,8 +455,62 @@ impl Command {
                     selection.select_atom(atom, egui_workbench_chem_core::SelectionMode::Add);
                 }
             }
+            Self::AttachSmiles { text, anchor } => {
+                let Some(anchor_atom) = document.molecule.atom(*anchor) else {
+                    return Err(Chem2dError::UnknownAtom(*anchor));
+                };
+                let anchor_position = [anchor_atom.position[0], anchor_atom.position[1]];
+                let graph =
+                    crate::smiles::parse_smiles(text).map_err(|error| Chem2dError::Chemistry(error.to_string()))?;
+                let mut layout = graph.to_molecule();
+                let Some(first_position) = layout.atoms.first().map(|atom| atom.position) else {
+                    return Err(Chem2dError::Chemistry("the SMILES is empty".to_owned()));
+                };
+                let mut sum = [0.0; 2];
+                for atom in &layout.atoms {
+                    sum[0] += atom.position[0];
+                    sum[1] += atom.position[1];
+                }
+                let count = layout.atoms.len() as f64;
+                let centroid = [sum[0] / count, sum[1] / count];
+                let to_centroid = [centroid[0] - first_position[0], centroid[1] - first_position[1]];
+                let radius = layout
+                    .atoms
+                    .iter()
+                    .map(|atom| (atom.position[0] - first_position[0]).hypot(atom.position[1] - first_position[1]))
+                    .fold(0.0, f64::max);
+                let angle = crate::templates::sprout_angle(&document.molecule, *anchor, 1.5 + radius)
+                    .ok_or(Chem2dError::UnknownAtom(*anchor))?;
+                let rotation = if to_centroid[0].hypot(to_centroid[1]) <= f64::EPSILON {
+                    0.0
+                } else {
+                    angle - to_centroid[1].atan2(to_centroid[0])
+                };
+                let (sine, cosine) = rotation.sin_cos();
+                for atom in &mut layout.atoms {
+                    let x = atom.position[0] - first_position[0];
+                    let y = atom.position[1] - first_position[1];
+                    atom.position[0] = first_position[0] + x * cosine - y * sine;
+                    atom.position[1] = first_position[1] + x * sine + y * cosine;
+                }
+                let attach = [
+                    anchor_position[0] + 1.5 * angle.cos(),
+                    anchor_position[1] + 1.5 * angle.sin(),
+                ];
+                let offset = [attach[0] - first_position[0], attach[1] - first_position[1]];
+                let ids = crate::smiles::insert_molecule(document, &layout, offset);
+                let Some(first_id) = ids.first().copied() else {
+                    return Err(Chem2dError::Chemistry("the SMILES is empty".to_owned()));
+                };
+                let bond = document.molecule.add_bond(*anchor, first_id, BondOrder::Single)?;
+                selection.clear();
+                for atom in ids {
+                    selection.select_atom(atom, egui_workbench_chem_core::SelectionMode::Add);
+                }
+                selection.select_bond(bond, egui_workbench_chem_core::SelectionMode::Add);
+            }
             Self::CleanLayout => {
-                crate::layout::relax(&mut document.molecule);
+                crate::layout::optimize_layout(&mut document.molecule);
             }
         }
         Ok(())
@@ -404,6 +680,188 @@ mod tests {
         );
         assert!(result.is_err());
         assert!(!history.can_undo());
+    }
+
+    #[test]
+    fn clearing_the_document_is_one_undo_step() {
+        let mut document = document();
+        let a = document.molecule.add_atom(Element::UNKNOWN, [0.0, 0.0, 0.0]);
+        let b = document.molecule.add_atom(Element::UNKNOWN, [1.5, 0.0, 0.0]);
+        document.molecule.add_bond(a, b, BondOrder::Single).expect("bond");
+        document
+            .annotations
+            .push(Annotation::Conditions(crate::annotations::ConditionBox::line(
+                [0.0, 0.0],
+                "x",
+            )));
+        let mut selection = ChemSelection::new();
+        selection.select_atom(a, egui_workbench_chem_core::SelectionMode::Replace);
+        let mut history = History::new();
+        history
+            .execute(&mut document, &mut selection, &Command::ClearDocument)
+            .expect("clear");
+        assert_eq!(document.molecule.atom_count(), 0);
+        assert!(document.annotations.is_empty());
+        assert!(selection.is_empty());
+        assert!(history.undo(&mut document, &mut selection));
+        assert_eq!(document.molecule.atom_count(), 2);
+        assert_eq!(document.annotations.len(), 1);
+    }
+
+    #[test]
+    fn draw_bond_creates_its_endpoints_as_one_undo_step() {
+        let mut document = document();
+        let mut selection = ChemSelection::new();
+        let mut history = History::new();
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::DrawBond {
+                    from: None,
+                    from_position: [0.0, 0.0],
+                    to: None,
+                    to_position: [1.5, 0.0],
+                    order: BondOrder::Double,
+                    element: Element::from_symbol("N").expect("N"),
+                    stereo: BondStereo::Wedge,
+                },
+            )
+            .expect("draw");
+        assert_eq!(document.molecule.atom_count(), 2);
+        assert_eq!(document.molecule.bond_count(), 1);
+        assert!(
+            document
+                .molecule
+                .atoms
+                .iter()
+                .all(|atom| atom.element.atomic_number() == 7)
+        );
+        let bond = &document.molecule.bonds[0];
+        assert_eq!(bond.order, BondOrder::Double);
+        assert_eq!(bond.stereo, BondStereo::Wedge);
+        assert!(selection.bonds().contains(&bond.id));
+        assert!(history.undo(&mut document, &mut selection));
+        assert_eq!(document.molecule.atom_count(), 0);
+    }
+
+    #[test]
+    fn drawing_over_an_existing_bond_updates_it_instead_of_duplicating() {
+        let mut document = document();
+        let a = document.molecule.add_atom(Element::UNKNOWN, [0.0, 0.0, 0.0]);
+        let b = document.molecule.add_atom(Element::UNKNOWN, [1.5, 0.0, 0.0]);
+        document.molecule.add_bond(a, b, BondOrder::Single).expect("bond");
+        let mut selection = ChemSelection::new();
+        let mut history = History::new();
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::DrawBond {
+                    from: Some(a),
+                    from_position: [0.0, 0.0],
+                    to: Some(b),
+                    to_position: [1.5, 0.0],
+                    order: BondOrder::Triple,
+                    element: Element::UNKNOWN,
+                    stereo: BondStereo::None,
+                },
+            )
+            .expect("draw");
+        assert_eq!(document.molecule.bond_count(), 1);
+        assert_eq!(document.molecule.bonds[0].order, BondOrder::Triple);
+    }
+
+    #[test]
+    fn a_ring_and_a_smiles_fragment_attach_to_an_existing_atom() {
+        let mut document = document();
+        let anchor = document
+            .molecule
+            .add_atom(Element::from_symbol("C").expect("C"), [0.0, 0.0, 0.0]);
+        let mut selection = ChemSelection::new();
+        let mut history = History::new();
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::AttachRing {
+                    template: RingTemplate::Benzene,
+                    atom: anchor,
+                },
+            )
+            .expect("ring");
+        assert_eq!(document.molecule.atom_count(), 7);
+        assert_eq!(document.molecule.rings().len(), 1);
+        assert!(history.undo(&mut document, &mut selection));
+        assert_eq!(document.molecule.atom_count(), 1);
+
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::AttachSmiles {
+                    text: "c1ccncc1".to_owned(),
+                    anchor,
+                },
+            )
+            .expect("smiles");
+        assert_eq!(document.molecule.atom_count(), 7);
+        assert_eq!(document.molecule.bond_count(), 7);
+        let attached = document
+            .molecule
+            .neighbors(anchor)
+            .into_iter()
+            .find_map(|id| document.molecule.position_2d(id));
+        let attached = attached.expect("attachment bond");
+        assert!((attached[0].hypot(attached[1]) - 1.5).abs() < 1.0e-9);
+        assert!(history.undo(&mut document, &mut selection));
+        assert_eq!(document.molecule.atom_count(), 1);
+    }
+
+    #[test]
+    fn bulk_atom_and_bond_edits_are_validated_and_undone_together() {
+        let mut document = document();
+        let a = document.molecule.add_atom(Element::UNKNOWN, [0.0, 0.0, 0.0]);
+        let b = document.molecule.add_atom(Element::UNKNOWN, [1.5, 0.0, 0.0]);
+        let bond = document.molecule.add_bond(a, b, BondOrder::Single).expect("bond");
+        let mut selection = ChemSelection::new();
+        let mut history = History::new();
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::SetAtomElements {
+                    atoms: vec![a, b],
+                    element: Element::from_symbol("O").expect("O"),
+                },
+            )
+            .expect("elements");
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::AdjustAtomCharges {
+                    atoms: vec![a, b],
+                    delta: -1,
+                },
+            )
+            .expect("charges");
+        history
+            .execute(
+                &mut document,
+                &mut selection,
+                &Command::SetBondOrders {
+                    bonds: vec![bond],
+                    order: BondOrder::Aromatic,
+                },
+            )
+            .expect("orders");
+        assert!(document.molecule.atoms.iter().all(|atom| atom.charge == -1));
+        assert_eq!(document.molecule.bonds[0].order, BondOrder::Aromatic);
+        assert!(history.undo(&mut document, &mut selection));
+        assert_eq!(document.molecule.bonds[0].order, BondOrder::Single);
+        assert!(history.undo(&mut document, &mut selection));
+        assert!(document.molecule.atoms.iter().all(|atom| atom.charge == 0));
     }
 
     #[test]

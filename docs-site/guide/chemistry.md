@@ -81,6 +81,70 @@ history.execute(
 history.undo(&mut document, &mut selection);
 ```
 
+### Drawing and editing
+
+The bond tool follows the ChemDraw and MolView workflow. Click empty space to draw the
+first bond, then click either end to sprout the next bond at 120°, which keeps a chain
+zig-zagging. Dragging from an atom or empty space chooses the direction explicitly; the
+endpoint snaps to 30° and 1.5 Å, a ghost atom previews it, and the gesture is one undo
+step. Drag atom-to-atom to connect two existing atoms. An ending atom uses
+`Chem2dEditor::draw_element`; the bond uses `bond_order` and `bond_stereo`. Clicking an
+existing bond applies the current style, and the single tool on a single bond makes it
+double (clicking again makes it single). A double bond is two separated lines; in a ring
+the second line goes inside the ring. The atom tool changes an existing atom when it is
+clicked. `EditorTool::Charge` is the MolView `e+`/`e−` tool.
+
+Ring tools attach a ring to a clicked atom with one bond, or stamp it freely on empty
+canvas. To attach a whole complex fragment, put its SMILES in
+`Chem2dEditor::fragment_smiles` and select `EditorTool::AttachFragment`; clicking an atom
+attaches and orients it outward. `Ctrl+V` over an atom does the same. The helper methods
+`attach_ring` and `attach_smiles` expose it directly.
+
+The canvas is skeletal: carbon vertices are unlabelled, heteroatoms and custom labels are
+drawn in their CPK colour, and bonds stop at the label instead of running underneath it.
+Labels, bond widths, and wedges scale with the camera zoom; the grid has minor, major, and
+origin lines. An aromatic ring draws one circle and its ring bonds are single lines, so a
+Kekulé structure never shows circles and double bonds at the same time. The SVG/PNG export
+follows the same convention.
+
+`layout::optimize_layout` (the `Clean` tool, `Ctrl+Shift+K`, also reachable as
+`Command::CleanLayout`) is the 2D geometry optimizer. It builds a deterministic canonical
+layout with 1.5 Å bonds, 120° chain angles, ring-specific interior angles (108° for a
+five-membered ring, 120° for a six-membered one), fused-ring placement, and clearance for
+terminal branches. It keeps the drawing centred, and optimizing the same graph twice is a
+no-op.
+
+A selection draws a dashed bounding box. Drag inside it to translate the whole selected
+part; drag the round handle above the box to rotate around its centroid. A simple click
+inside the box keeps the selection. Both gestures are one undo step.
+
+For keyboard editing, the canvas takes focus after a click. Typing an element symbol over
+a selection or a hovered atom changes it (`Cl` works as a two-letter symbol), `+` and `-`
+adjust the formal charge, `1`–`4` set the bond order of the selected or hovered bond, `W`
+and `H` set a wedge or hash, the arrow keys nudge by 0.1 Å (1 Å with Shift), and `Ctrl+A`
+selects everything. Double-clicking an atom opens fields for its element, charge, and
+custom label. `Ctrl+V` attaches clipboard SMILES to the hovered atom, or inserts it at the
+pointer when no atom is hovered.
+
+The same operations are available to a custom toolbar through `Chem2dEditor::execute` and
+the `set_selected_*` helpers; every one goes through the history. `clear_document` is the
+trash tool. The `editor` example arranges them as a MolView-style utility bar, bond palette
+on the left, and atom palette with a periodic table on the right. Every tool is an icon
+drawn with `egui::Painter`, including the bond, stereo, ring, chain, charge, amino-acid,
+sugar, and functional-group icons; no icon font or asset registration is required.
+
+### Chemistry libraries
+
+`LIBRARY` is a compendium grouped by chemical type: amino acids and their side chains,
+sugars, nucleobases, rings and heterocycles, functional groups, solvents, ligands and
+chelators, and lipids. Every `LibraryEntry` carries a name, a SMILES string, and whether
+it is a free molecule or a substituent. A test parses every entry and checks representative formulas, so a typo is
+a test failure rather than an empty menu.
+
+Clicking an entry in the example arms `EditorTool::AttachFragment`; the next click on an
+atom attaches the structure there, and a click on empty canvas places it at the pointer.
+The same path works for a custom SMILES string.
+
 ### Reading and writing
 
 | Format | Read | Write |
@@ -138,8 +202,9 @@ A `DocumentDelta` (from an agent or a remote client) must carry finite coordinat
 10⁶ of the origin, and a document accepts at most 100,000 atoms through deltas. A chain
 command adds at most 1,000 atoms. A SMILES bracket atom allows at most eight explicit
 hydrogens. A PNG export is capped at 100 million pixels and 1,200 dpi. Layout cleanup
-(`relax`) runs the pairwise repulsion pass up to 3,000 atoms and only the bond springs
-beyond that.
+(`optimize_layout`, with `relax` kept as an alias) is a single canonical-placement pass
+plus a fixed leaf-clearance pass, so a large molecule does not freeze the UI; the optimizer
+is deterministic, keeps the document centred, and is idempotent.
 
 ## The 3D viewer (`mol3d`)
 
