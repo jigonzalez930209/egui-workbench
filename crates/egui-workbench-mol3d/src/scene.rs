@@ -255,25 +255,69 @@ impl Mol3dScene {
             .iter()
             .map(|bond| (bond.a.min(bond.b), bond.a.max(bond.b)))
             .collect::<std::collections::BTreeSet<_>>();
-        for left in 0..self.atoms.len() {
-            for right in (left + 1)..self.atoms.len() {
-                let (a, b) = (&self.atoms[left], &self.atoms[right]);
-                let pair = (a.id.min(b.id), a.id.max(b.id));
-                if existing.contains(&pair) {
-                    continue;
-                }
-                let max = (a.element.covalent_radius() + b.element.covalent_radius()) * 1.25;
-                if (a.position - b.position).length() <= max {
-                    let id = BondId::new(self.bonds.len() as u32 + 1, 1);
-                    self.bonds.push(Bond3D {
-                        id,
-                        a: a.id,
-                        b: b.id,
-                        order: BondOrder::Single,
-                    });
-                    existing.insert(pair);
+        // Bucket atoms in cells as wide as the longest possible bond, so each atom only
+        // meets its 27 neighbouring cells. The all-pairs loop made a 100k-atom PDB take
+        // minutes.
+        let longest = self
+            .atoms
+            .iter()
+            .map(|atom| atom.element.covalent_radius())
+            .fold(0.0_f64, f64::max)
+            * 2.0
+            * 1.25;
+        let cell = longest.max(0.5);
+        let key = |position: Vec3| {
+            let axis = |value: f64| (value / cell).floor() as i64;
+            (axis(position.x), axis(position.y), axis(position.z))
+        };
+        let mut cells = std::collections::HashMap::<(i64, i64, i64), Vec<usize>>::new();
+        for (index, atom) in self.atoms.iter().enumerate() {
+            if atom.position.x.is_finite() && atom.position.y.is_finite() && atom.position.z.is_finite() {
+                cells.entry(key(atom.position)).or_default().push(index);
+            }
+        }
+        let mut found = Vec::new();
+        for (left, a) in self.atoms.iter().enumerate() {
+            if !(a.position.x.is_finite() && a.position.y.is_finite() && a.position.z.is_finite()) {
+                continue;
+            }
+            let (cx, cy, cz) = key(a.position);
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    for dz in -1..=1 {
+                        let Some(bucket) = cells.get(&(cx + dx, cy + dy, cz + dz)) else {
+                            continue;
+                        };
+                        for &right in bucket {
+                            if right <= left {
+                                continue;
+                            }
+                            let b = &self.atoms[right];
+                            let max = (a.element.covalent_radius() + b.element.covalent_radius()) * 1.25;
+                            if (a.position - b.position).length() <= max {
+                                found.push((left, right));
+                            }
+                        }
+                    }
                 }
             }
+        }
+        // Keep the original order: by left atom, then right atom.
+        found.sort_unstable();
+        for (left, right) in found {
+            let (a, b) = (&self.atoms[left], &self.atoms[right]);
+            let pair = (a.id.min(b.id), a.id.max(b.id));
+            if existing.contains(&pair) {
+                continue;
+            }
+            let id = BondId::new(self.bonds.len() as u32 + 1, 1);
+            self.bonds.push(Bond3D {
+                id,
+                a: a.id,
+                b: b.id,
+                order: BondOrder::Single,
+            });
+            existing.insert(pair);
         }
     }
 }
