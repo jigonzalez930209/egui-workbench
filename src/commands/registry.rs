@@ -152,6 +152,9 @@ impl CommandRegistry {
         if !self.commands.contains_key(id) {
             return Err(BindingError::UnknownCommand(id.clone()));
         }
+        if sequence.is_empty() {
+            return Err(BindingError::InvalidSequence(String::new()));
+        }
         if let Some(existing) = self.owner_of(&sequence, Some(id)) {
             return Err(BindingError::Conflict { sequence, existing });
         }
