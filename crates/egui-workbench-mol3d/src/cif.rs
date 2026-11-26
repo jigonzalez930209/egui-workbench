@@ -40,7 +40,7 @@ pub fn parse_cif(text: &str) -> Result<Mol3dScene, FormatError> {
                 continue;
             }
             let id = scene.push_atom(row.element, cartesian);
-            if let Some(atom) = scene.atoms.iter_mut().find(|atom| atom.id == id) {
+            if let Some(atom) = scene.atoms.iter_mut().rev().find(|atom| atom.id == id) {
                 atom.label = Some(row.label.clone());
                 atom.occupancy = row.occupancy;
             }
@@ -137,6 +137,9 @@ fn parse_number(text: &str) -> Result<f64, FormatError> {
     if let Some((numerator, denominator)) = text.split_once('/') {
         let numerator = numerator.parse::<f64>().map_err(|_| error("bad fraction"))?;
         let denominator = denominator.parse::<f64>().map_err(|_| error("bad fraction"))?;
+        if denominator == 0.0 || !numerator.is_finite() || !denominator.is_finite() {
+            return Err(error("bad fraction"));
+        }
         Ok(numerator / denominator)
     } else {
         text.parse::<f64>().map_err(|_| error("bad symmetry number"))
@@ -249,7 +252,11 @@ fn atom_rows(text: &str) -> Result<Vec<AtomRow>, FormatError> {
             index("_atom_site.Cartn_y"),
             index("_atom_site.Cartn_z"),
         );
-        if fract.0.is_none() && cartn.0.is_none() {
+        // All three axes of one coordinate system, not just the first: a loop with only
+        // `_fract_x` used to reach an `expect` below.
+        let has_fract = matches!(fract, (Some(_), Some(_), Some(_)));
+        let has_cartn = matches!(cartn, (Some(_), Some(_), Some(_)));
+        if !has_fract && !has_cartn {
             continue;
         }
         let element_column = index("_atom_site_type_symbol");
@@ -271,19 +278,28 @@ fn atom_rows(text: &str) -> Result<Vec<AtomRow>, FormatError> {
                 .or_else(|| Element::from_symbol(&label.chars().take(2).collect::<String>()))
                 .or_else(|| label.chars().next().and_then(|c| Element::from_symbol(&c.to_string())))
                 .ok_or_else(|| error("unknown CIF element"))?;
+            // Coordinates carry a standard uncertainty, as in `0.1234(5)`.
+            let coordinate = |column: usize, name: &str| {
+                strip_uncertainty(fields[column])
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|value| value.is_finite())
+                    .ok_or_else(|| error(name))
+            };
             let position = if let (Some(x), Some(y), Some(z)) = fract {
                 [
-                    fields[x].parse().map_err(|_| error("bad CIF fract x"))?,
-                    fields[y].parse().map_err(|_| error("bad CIF fract y"))?,
-                    fields[z].parse().map_err(|_| error("bad CIF fract z"))?,
+                    coordinate(x, "bad CIF fract x")?,
+                    coordinate(y, "bad CIF fract y")?,
+                    coordinate(z, "bad CIF fract z")?,
+                ]
+            } else if let (Some(x), Some(y), Some(z)) = cartn {
+                [
+                    coordinate(x, "bad CIF x")?,
+                    coordinate(y, "bad CIF y")?,
+                    coordinate(z, "bad CIF z")?,
                 ]
             } else {
-                let (x, y, z) = cartn;
-                [
-                    fields[x.expect("x")].parse().map_err(|_| error("bad CIF x"))?,
-                    fields[y.expect("y")].parse().map_err(|_| error("bad CIF y"))?,
-                    fields[z.expect("z")].parse().map_err(|_| error("bad CIF z"))?,
-                ]
+                continue;
             };
             let occupancy = occupancy_column
                 .and_then(|column| fields.get(column))
