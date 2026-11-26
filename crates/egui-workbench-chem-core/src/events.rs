@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use serde::{Deserialize, Serialize};
 
 use crate::id::{AtomId, DocumentId};
+use crate::jobs::RepaintWaker;
 use crate::model::UnitCell;
 use crate::selection::ChemSelection;
 
@@ -48,16 +49,28 @@ pub enum ChemEvent {
     },
 }
 
-/// A bounded FIFO of chemistry events.
-#[derive(Clone, Debug)]
+/// A bounded FIFO of chemistry events that can wake the UI on push.
+#[derive(Clone)]
 pub struct EventQueue {
     events: VecDeque<ChemEvent>,
     capacity: usize,
+    waker: Option<RepaintWaker>,
 }
 
 impl Default for EventQueue {
     fn default() -> Self {
         Self::with_capacity(1024)
+    }
+}
+
+impl std::fmt::Debug for EventQueue {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("EventQueue")
+            .field("events", &self.events)
+            .field("capacity", &self.capacity)
+            .field("waker", &self.waker.is_some())
+            .finish()
     }
 }
 
@@ -67,15 +80,31 @@ impl EventQueue {
         Self {
             events: VecDeque::with_capacity(capacity.min(1024)),
             capacity: capacity.max(1),
+            waker: None,
         }
     }
 
-    /// Push one event.
+    /// A queue that calls `waker` after each push, for `ctx.request_repaint()`.
+    pub fn with_waker(capacity: usize, waker: impl Fn() + Send + Sync + 'static) -> Self {
+        let mut queue = Self::with_capacity(capacity);
+        queue.set_waker(waker);
+        queue
+    }
+
+    /// Replace the repaint callback.
+    pub fn set_waker(&mut self, waker: impl Fn() + Send + Sync + 'static) {
+        self.waker = Some(std::sync::Arc::new(waker));
+    }
+
+    /// Push one event and wake the UI.
     pub fn push(&mut self, event: ChemEvent) {
         if self.events.len() == self.capacity {
             self.events.pop_front();
         }
         self.events.push_back(event);
+        if let Some(waker) = &self.waker {
+            waker();
+        }
     }
 
     /// Take every queued event.
@@ -107,6 +136,8 @@ impl EventQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn the_queue_is_fifo_and_bounded() {
@@ -120,5 +151,18 @@ mod tests {
         assert!(matches!(events[0], ChemEvent::Request3DConformers { .. }));
         assert!(matches!(events[1], ChemEvent::GeometryUpdated { .. }));
         assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn pushing_wakes_the_ui() {
+        let wakes = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&wakes);
+        let mut queue = EventQueue::with_waker(8, move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+        });
+        queue.push(ChemEvent::Request3DConformers {
+            document: DocumentId::new(1),
+        });
+        assert_eq!(wakes.load(Ordering::SeqCst), 1);
     }
 }

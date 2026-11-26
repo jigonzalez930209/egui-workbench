@@ -4,6 +4,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
 
+/// A callback that wakes the UI (an `egui::Context::request_repaint` closure).
+pub type RepaintWaker = Arc<dyn Fn() + Send + Sync>;
+
 /// A progress snapshot a job publishes for the UI.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Progress {
@@ -67,10 +70,11 @@ impl std::fmt::Display for JobError {
 impl std::error::Error for JobError {}
 
 /// The context a running job receives.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct JobContext {
     token: CancellationToken,
     progress: Arc<Mutex<Progress>>,
+    waker: Option<RepaintWaker>,
 }
 
 impl JobContext {
@@ -92,6 +96,15 @@ impl JobContext {
                 total,
                 message: message.into(),
             };
+        }
+        self.request_repaint();
+    }
+
+    /// Wake the UI when a callback was configured with
+    /// [`JobQueue::with_waker`].
+    pub fn request_repaint(&self) {
+        if let Some(waker) = &self.waker {
+            waker();
         }
     }
 
@@ -178,13 +191,39 @@ impl<T> JobHandle<T> {
 }
 
 /// Spawns jobs on detached threads.
-#[derive(Clone, Debug, Default)]
-pub struct JobQueue;
+#[derive(Clone, Default)]
+pub struct JobQueue {
+    waker: Option<RepaintWaker>,
+}
+
+impl std::fmt::Debug for JobQueue {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("JobQueue")
+            .field("waker", &self.waker.is_some())
+            .finish()
+    }
+}
 
 impl JobQueue {
     /// A queue that starts one detached thread per job.
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// A queue that calls `waker` after every progress update and when a job ends.
+    ///
+    /// Pass `move || ctx.request_repaint()` from the egui application so the progress
+    /// panel refreshes without polling.
+    pub fn with_waker(waker: impl Fn() + Send + Sync + 'static) -> Self {
+        Self {
+            waker: Some(Arc::new(waker)),
+        }
+    }
+
+    /// Replace the repaint callback.
+    pub fn set_waker(&mut self, waker: impl Fn() + Send + Sync + 'static) {
+        self.waker = Some(Arc::new(waker));
     }
 
     /// Spawn `job` and return its handle.
@@ -195,12 +234,14 @@ impl JobQueue {
         let context = JobContext {
             token: token.clone(),
             progress: Arc::clone(&progress),
+            waker: self.waker.clone(),
         };
         let result = std::thread::Builder::new()
             .name("egui-workbench-chem-job".to_owned())
             .spawn(move || {
                 let result = job.run(&context);
                 let _ = sender.send(result);
+                context.request_repaint();
             });
         if let Err(error) = result {
             eprintln!("chem job did not start: {error}");
@@ -216,6 +257,7 @@ impl JobQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicUsize;
     use std::time::Duration;
 
     struct Add(i32, i32);
@@ -265,5 +307,16 @@ mod tests {
         std::thread::sleep(Duration::from_millis(5));
         handle.cancel();
         assert_eq!(handle.wait(), Err(JobError::Cancelled));
+    }
+
+    #[test]
+    fn progress_and_completion_wake_the_ui() {
+        let wakes = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&wakes);
+        let queue = JobQueue::with_waker(move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+        });
+        assert_eq!(queue.spawn(Add(2, 2)).wait().expect("result"), 4);
+        assert!(wakes.load(Ordering::SeqCst) >= 2, "progress and completion wake");
     }
 }
