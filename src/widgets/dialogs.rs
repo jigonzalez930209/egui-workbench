@@ -216,7 +216,9 @@ pub fn show_choice_window(
     open: &mut bool,
 ) -> Option<usize> {
     let mut choice = None;
-    if ctx.input(|input| input.key_pressed(Key::Escape)) && !buttons.is_empty() {
+    // Esc cancels only while the window is open; a closed one used to report a choice
+    // whenever the key was pressed anywhere in the app.
+    if *open && ctx.input(|input| input.key_pressed(Key::Escape)) && !buttons.is_empty() {
         choice = Some(buttons.len() - 1);
     }
     if !*open {
