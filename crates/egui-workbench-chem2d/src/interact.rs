@@ -105,21 +105,8 @@ pub fn select_lasso(molecule: &Molecule2D, selection: &mut ChemSelection, polygo
 /// ammonium nitrogen with charge `+1` targets four bonds; a hydroxide oxygen with
 /// charge `-1` targets one). Metals and unknown elements have no implicit hydrogens.
 pub fn implicit_hydrogens(molecule: &Molecule2D, id: AtomId) -> u8 {
-    let Some(atom) = molecule.atom(id) else {
-        return 0;
-    };
-    let Some(base) = common_valence(atom.element) else {
-        return 0;
-    };
-    let target = (base + i16::from(atom.charge)).max(0);
-    let bonded = molecule
-        .bonds
-        .iter()
-        .filter(|bond| bond.a == id || bond.b == id)
-        .map(|bond| f64::from(bond.order.order()))
-        .sum::<f64>()
-        .round() as i16;
-    u8::try_from((target - bonded).max(0)).unwrap_or(0)
+    // One implementation for the label and the formula, so they never disagree.
+    u8::try_from(crate::properties::implicit_hydrogens(molecule, id)).unwrap_or(u8::MAX)
 }
 
 /// The display label for an atom, including implicit hydrogens and formal charge.
@@ -179,25 +166,6 @@ fn neighbour_centroid(molecule: &Molecule2D, ids: &[AtomId]) -> Option<[f64; 2]>
         }
     }
     (count > 0.0).then(|| [sum[0] / count, sum[1] / count])
-}
-
-fn common_valence(element: Element) -> Option<i16> {
-    Some(match element.atomic_number() {
-        1 => 1,
-        5 => 3,
-        6 => 4,
-        7 => 3,
-        8 => 2,
-        9 => 1,
-        14 => 4,
-        15 => 3,
-        16 => 2,
-        17 => 1,
-        34 => 2,
-        35 => 1,
-        53 => 1,
-        _ => return None,
-    })
 }
 
 fn batch_mode(selection: &mut ChemSelection, mode: SelectionMode) -> SelectionMode {
