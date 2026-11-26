@@ -69,6 +69,10 @@ labels share a scale (`1k`, `1M`, or full numbers) and decimals follow the step.
 | `tick_labels` | `true` | Draw the labels |
 | `grid_major` / `grid_minor` | `true` | Grid lines per axis |
 
+The first and last labels are kept inside the plot's rectangle. When a label is wider than
+the plot itself (a very narrow chart or a long label), it is centered on the plot instead
+of being pushed past an edge; before 1.2.0 that case panicked.
+
 ```rust
 use egui_workbench::components::plot::{AxisConfig, Minor};
 
