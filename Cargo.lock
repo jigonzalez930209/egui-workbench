@@ -1256,6 +1256,8 @@ dependencies = [
  "egui-wgpu",
  "egui-workbench-chem-core",
  "image",
+ "naga",
+ "pollster",
  "serde",
  "serde_json",
 ]

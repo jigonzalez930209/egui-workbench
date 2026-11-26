@@ -1,20 +1,34 @@
-//! GPU sphere impostors through an `egui_wgpu` paint callback.
+//! GPU impostors and ID-buffer picking through an `egui_wgpu` paint callback.
 //!
-//! Instances are sorted far-to-near and rendered as billboards with an analytic
-//! ray-sphere test in the fragment shader. The painter viewport remains the reference
-//! and the fallback.
+//! Atoms are analytic sphere impostors and bonds are analytic capsule/cylinder
+//! impostors. The ID pass renders the same instanced geometry into an `R32Uint`
+//! target with an exact fragment depth and reads back one pixel on click. The painter
+//! viewport remains the reference and the fallback.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
 
 use egui::epaint::PaintCallback;
-use egui::{Color32, Rect, Ui};
+use egui::{Color32, Context, Pos2, Rect, Ui};
 use egui_wgpu::wgpu;
+use egui_workbench_chem_core::SelectionMode;
 
 use crate::camera::{Camera3D, Projection3D};
 use crate::math::Vec3;
 use crate::scene::Mol3dScene;
+use egui_workbench_chem_core::{AtomId, BondId};
+
+mod instances;
+mod offscreen;
+mod pick;
+mod pipelines;
+mod shader;
+#[cfg(test)]
+mod tests;
+
+/// Mask that marks a bond id in the GPU ID buffer.
+const BOND_BIT: u32 = 0x8000_0000;
 
 static OUTPUT_FORMAT: AtomicU8 = AtomicU8::new(0);
 
@@ -40,12 +54,105 @@ fn output_format() -> wgpu::TextureFormat {
     }
 }
 
+/// What a GPU pick found under the pointer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PickTarget {
+    /// An atom.
+    Atom(AtomId),
+    /// A bond.
+    Bond(BondId),
+}
+
+/// One pending GPU pick.
+#[derive(Clone)]
+pub struct PickRequest {
+    /// Pointer position in points.
+    pub pointer: Pos2,
+    /// Result slot; `None` means the pass has not completed.
+    pub result: Arc<Mutex<Option<Option<PickTarget>>>>,
+}
+
+/// Deferred GPU picking state kept by the viewport across frames.
+#[derive(Default)]
+pub struct PickState {
+    pending: Option<PendingPick>,
+}
+
+struct PendingPick {
+    pointer: Pos2,
+    viewport: Rect,
+    mode: SelectionMode,
+    result: Arc<Mutex<Option<Option<PickTarget>>>>,
+    age: u8,
+}
+
+impl PickState {
+    /// Schedule a pick for the next paint callback.
+    pub fn schedule(&mut self, pointer: Pos2, viewport: Rect, mode: SelectionMode, context: &Context) {
+        self.pending = Some(PendingPick {
+            pointer,
+            viewport,
+            mode,
+            result: Arc::new(Mutex::new(None)),
+            age: 0,
+        });
+        context.request_repaint();
+    }
+
+    /// The request to hand to the paint callback, while one is pending.
+    pub fn request(&self) -> Option<PickRequest> {
+        self.pending.as_ref().map(|pending| PickRequest {
+            pointer: pending.pointer,
+            result: Arc::clone(&pending.result),
+        })
+    }
+
+    /// The completed pick, if the GPU has written its result.
+    pub fn take_result(&mut self) -> Option<(SelectionMode, Option<PickTarget>)> {
+        let pending = self.pending.as_ref()?;
+        let result = pending.result.lock().ok()?.take()?;
+        let mode = pending.mode;
+        self.pending = None;
+        Some((mode, result))
+    }
+
+    /// Give up on a pick that never completed, returning the pointer for a CPU pick.
+    pub fn take_fallback(&mut self) -> Option<(SelectionMode, Pos2, Rect)> {
+        let pending = self.pending.as_mut()?;
+        pending.age = pending.age.saturating_add(1);
+        if pending.age < 3 || pending.result.lock().ok()?.is_some() {
+            return None;
+        }
+        let pending = self.pending.take()?;
+        Some((pending.mode, pending.pointer, pending.viewport))
+    }
+}
+
+/// Whether synchronous GPU readback is available on this target.
+pub const fn supports_gpu_picking() -> bool {
+    !cfg!(target_arch = "wasm32")
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Instance {
     center: [f32; 3],
     radius: f32,
     color: [f32; 4],
+    pick: u32,
+    _pad: [u32; 3],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct BondInstance {
+    a: [f32; 3],
+    _pad0: f32,
+    b: [f32; 3],
+    radius: f32,
+    color: [f32; 4],
+    pick: u32,
+    _pad1: [u32; 3],
 }
 
 #[repr(C)]
@@ -59,29 +166,43 @@ struct Uniform {
 }
 
 struct Buffers {
-    vertices: wgpu::Buffer,
+    spheres: wgpu::Buffer,
+    bonds: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
-    instances: u32,
+    quad_bind_group: Option<wgpu::BindGroup>,
+    sphere_count: u32,
+    bond_count: u32,
 }
 
-struct Resources {
-    pipeline: wgpu::RenderPipeline,
+pub(crate) struct Resources {
+    sphere_pipeline: wgpu::RenderPipeline,
+    bond_pipeline: wgpu::RenderPipeline,
+    sphere_pick_pipeline: wgpu::RenderPipeline,
+    bond_pick_pipeline: wgpu::RenderPipeline,
+    quad_pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
+    quad_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
     buffers: HashMap<u64, Buffers>,
 }
 
-struct AtomCallback {
+struct SceneCallback {
     id: u64,
-    instances: Vec<Instance>,
+    rect: Rect,
+    spheres: Vec<Instance>,
+    bonds: Vec<BondInstance>,
+    atom_ids: Vec<AtomId>,
+    bond_ids: Vec<BondId>,
     uniform: Uniform,
+    pick: Option<PickRequest>,
 }
 
-impl egui_wgpu::CallbackTrait for AtomCallback {
+impl egui_wgpu::CallbackTrait for SceneCallback {
     fn prepare(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        _screen_descriptor: &egui_wgpu::ScreenDescriptor,
+        screen_descriptor: &egui_wgpu::ScreenDescriptor,
         _encoder: &mut wgpu::CommandEncoder,
         resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
@@ -91,42 +212,31 @@ impl egui_wgpu::CallbackTrait for AtomCallback {
         let Some(resources) = resources.get_mut::<Resources>() else {
             return Vec::new();
         };
-        let instance_bytes: &[u8] = bytemuck::cast_slice(&self.instances);
-        let vertex = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("workbench_mol3d_instances"),
-            size: instance_bytes.len().max(4) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        queue.write_buffer(&vertex, 0, instance_bytes);
-        let uniform = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("workbench_mol3d_uniform"),
-            size: std::mem::size_of::<Uniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        queue.write_buffer(&uniform, 0, bytemuck::bytes_of(&self.uniform));
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("workbench_mol3d_bind_group"),
-            layout: &resources.layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &uniform,
-                    offset: 0,
-                    size: None,
-                }),
-            }],
-        });
-        resources.buffers.insert(
-            self.id,
-            Buffers {
-                vertices: vertex,
-                bind_group,
-                instances: self.instances.len() as u32,
-            },
-        );
-        Vec::new()
+        resources.upload(device, queue, self.id, &self.spheres, &self.bonds, &self.uniform);
+        let width = ((self.rect.width().max(1.0) * screen_descriptor.pixels_per_point).ceil() as u32).clamp(1, 8192);
+        let height = ((self.rect.height().max(1.0) * screen_descriptor.pixels_per_point).ceil() as u32).clamp(1, 8192);
+        let scene = offscreen::render(device, resources, self.id, width, height);
+        if let Some(scene) = &scene
+            && let Some(buffers) = resources.buffers.get_mut(&self.id)
+        {
+            buffers.quad_bind_group = Some(scene.bind_group.clone());
+        }
+        if let Some(request) = &self.pick
+            && supports_gpu_picking()
+        {
+            pick::read_pick(
+                device,
+                queue,
+                resources,
+                request,
+                self.id,
+                self.rect,
+                screen_descriptor.pixels_per_point,
+                &self.atom_ids,
+                &self.bond_ids,
+            );
+        }
+        scene.map(|scene| scene.command).into_iter().collect()
     }
 
     fn paint(
@@ -141,97 +251,21 @@ impl egui_wgpu::CallbackTrait for AtomCallback {
         let Some(buffers) = resources.buffers.get(&self.id) else {
             return;
         };
-        render_pass.set_pipeline(&resources.pipeline);
-        render_pass.set_bind_group(0, &buffers.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, buffers.vertices.slice(..));
-        render_pass.draw(0..6, 0..buffers.instances);
+        let Some(bind_group) = &buffers.quad_bind_group else {
+            return;
+        };
+        render_pass.set_pipeline(&resources.quad_pipeline);
+        render_pass.set_bind_group(0, bind_group, &[]);
+        render_pass.draw(0..3, 0..1);
     }
 }
 
-impl Resources {
-    fn new(device: &wgpu::Device) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("workbench_mol3d_shader"),
-            source: wgpu::ShaderSource::Wgsl(WGSL.into()),
-        });
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("workbench_mol3d_layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                    ty: wgpu::BufferBindingType::Uniform,
-                },
-                count: None,
-            }],
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("workbench_mol3d_pipeline_layout"),
-            bind_group_layouts: &[Some(&layout)],
-            immediate_size: 0,
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("workbench_mol3d_pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                entry_point: Some("vs_main"),
-                module: &shader,
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Instance>() as u64,
-                    step_mode: wgpu::VertexStepMode::Instance,
-                    attributes: &[
-                        wgpu::VertexAttribute {
-                            offset: 0,
-                            shader_location: 0,
-                            format: wgpu::VertexFormat::Float32x3,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 12,
-                            shader_location: 1,
-                            format: wgpu::VertexFormat::Float32,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 16,
-                            shader_location: 2,
-                            format: wgpu::VertexFormat::Float32x4,
-                        },
-                    ],
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                entry_point: Some("fs_main"),
-                module: &shader,
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: output_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        Self {
-            pipeline,
-            layout,
-            buffers: HashMap::new(),
-        }
-    }
-}
-
-/// Paint the scene atoms through the GPU callback. Returns false when the camera is
-/// orthographic or the scene is empty, so the caller can use the painter fallback.
-pub fn paint_atoms(
+/// Paint atoms and bonds through the GPU callback and optionally run an ID pick.
+///
+/// Returns false when the camera is orthographic or the scene is empty, so the caller
+/// can use the painter fallback.
+#[allow(clippy::too_many_arguments)]
+pub fn paint_scene(
     ui: &Ui,
     viewport: Rect,
     camera: Camera3D,
@@ -239,34 +273,17 @@ pub fn paint_atoms(
     scale: f64,
     representations: &crate::representation::RepresentationSet,
     colors: crate::color::ColorScheme,
+    style: &crate::view::Mol3dStyle,
+    pick: Option<PickRequest>,
 ) -> bool {
     let Projection3D::Perspective { fov_degrees } = camera.projection else {
         return false;
     };
-    let mut instances = scene
-        .atoms
-        .iter()
-        .filter_map(|atom| {
-            let representation = representations.for_atom(atom.id);
-            if !representation.shows_atoms() {
-                return None;
-            }
-            let (_, depth) = camera.project(atom.position, viewport)?;
-            let [r, g, b] = colors.color(atom);
-            Some((
-                depth,
-                Instance {
-                    center: [atom.position.x as f32, atom.position.y as f32, atom.position.z as f32],
-                    radius: (representation.atom_radius(atom) * scale) as f32,
-                    color: [f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0, 1.0],
-                },
-            ))
-        })
-        .collect::<Vec<_>>();
-    if instances.is_empty() {
+    let (spheres, bonds, atom_ids, bond_ids) =
+        instances::build(scene, camera, viewport, scale, representations, colors, style);
+    if spheres.is_empty() && bonds.is_empty() {
         return false;
     }
-    instances.sort_by(|a, b| b.0.total_cmp(&a.0));
     let (right, up, back) = camera.rotation.basis();
     let uniform = Uniform {
         eye: vec4(camera.eye()),
@@ -283,10 +300,15 @@ pub fn paint_atoms(
     let id = ui.scope_id().with("mol3d_gpu");
     ui.painter().add(PaintCallback {
         rect: viewport,
-        callback: Arc::new(AtomCallback {
+        callback: Arc::new(SceneCallback {
             id: id.value(),
-            instances: instances.into_iter().map(|(_, instance)| instance).collect(),
+            rect: viewport,
+            spheres,
+            bonds,
+            atom_ids,
+            bond_ids,
             uniform,
+            pick,
         }),
     });
     true
@@ -298,65 +320,3 @@ fn vec4(value: Vec3) -> [f32; 4] {
 
 /// Keep the color type available for the API documentation.
 pub type AtomColor = Color32;
-
-const WGSL: &str = r#"
-struct Uniform {
-    eye: vec4<f32>,
-    right: vec4<f32>,
-    up: vec4<f32>,
-    forward: vec4<f32>,
-    params: vec4<f32>,
-};
-@group(0) @binding(0) var<uniform> camera: Uniform;
-struct Instance {
-    @location(0) center: vec3<f32>,
-    @location(1) radius: f32,
-    @location(2) color: vec4<f32>,
-};
-struct VertexOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) world: vec3<f32>,
-    @location(1) center: vec3<f32>,
-    @location(2) radius: f32,
-    @location(3) color: vec4<f32>,
-};
-const CORNERS = array<vec2<f32>, 6>(
-    vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0),
-    vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0),
-);
-@vertex
-fn vs_main(@builtin(vertex_index) vertex: u32, instance: Instance) -> VertexOut {
-    var out: VertexOut;
-    let corner = CORNERS[vertex] * instance.radius * 1.35;
-    let world = instance.center + camera.right.xyz * corner.x + camera.up.xyz * corner.y;
-    let relative = world - camera.eye.xyz;
-    let depth = dot(relative, camera.forward.xyz);
-    let tan_half = camera.params.x;
-    let aspect = camera.params.y;
-    let x = dot(relative, camera.right.xyz) / (depth * tan_half * aspect);
-    let y = dot(relative, camera.up.xyz) / (depth * tan_half);
-    out.position = vec4<f32>(x, y, 0.0, 1.0);
-    out.world = world;
-    out.center = instance.center;
-    out.radius = instance.radius;
-    out.color = instance.color;
-    return out;
-}
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    let ray = normalize(in.world - camera.eye.xyz);
-    let oc = camera.eye.xyz - in.center;
-    let b = dot(oc, ray);
-    let c = dot(oc, oc) - in.radius * in.radius;
-    let discriminant = b * b - c;
-    if discriminant < 0.0 { discard; }
-    let t = -b - sqrt(discriminant);
-    if t < 0.0 { discard; }
-    let hit = camera.eye.xyz + ray * t;
-    let normal = normalize(hit - in.center);
-    let light = normalize(vec3<f32>(0.35, 0.7, 0.9));
-    let diffuse = max(dot(normal, light), 0.18);
-    let color = in.color.rgb * (0.42 + 0.58 * diffuse);
-    return vec4<f32>(color, in.color.a);
-}
-"#;

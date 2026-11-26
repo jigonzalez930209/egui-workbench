@@ -105,6 +105,8 @@ pub struct Mol3dView {
     /// Spatial index for frustum culling on large scenes.
     spatial: Option<SpatialGrid>,
     spatial_atoms: usize,
+    #[cfg(feature = "gpu")]
+    gpu_pick: crate::gpu::PickState,
 }
 
 /// A translucent triangle surface with its own color.
@@ -135,6 +137,8 @@ impl Mol3dView {
             surfaces: Vec::new(),
             spatial: None,
             spatial_atoms: 0,
+            #[cfg(feature = "gpu")]
+            gpu_pick: crate::gpu::PickState::default(),
         };
         view.fit(Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(800.0, 600.0)));
         view
@@ -162,6 +166,31 @@ impl Mol3dView {
         let pointer = response.hover_pos();
         let hovered = pointer.and_then(|pointer| self.scene.pick(self.camera, viewport, pointer));
 
+        let mut selection_changed = false;
+        #[cfg(feature = "gpu")]
+        if let Some((mode, target)) = self.gpu_pick.take_result() {
+            let before = self.selection.clone();
+            match target {
+                Some(crate::gpu::PickTarget::Atom(atom)) => self.selection.select_atom(atom, mode),
+                Some(crate::gpu::PickTarget::Bond(bond)) => self.selection.select_bond(bond, mode),
+                None if mode == SelectionMode::Replace => self.selection.clear(),
+                None => {}
+            }
+            selection_changed = self.selection != before;
+        }
+        #[cfg(feature = "gpu")]
+        if let Some((mode, pointer, pick_viewport)) = self.gpu_pick.take_fallback() {
+            let before = self.selection.clone();
+            if let Some(atom) = self.scene.pick(self.camera, pick_viewport, pointer) {
+                self.selection.select_atom(atom, mode);
+            } else if let Some(bond) = self.scene.pick_bond(self.camera, pick_viewport, pointer, 7.0) {
+                self.selection.select_bond(bond, mode);
+            } else if mode == SelectionMode::Replace {
+                self.selection.clear();
+            }
+            selection_changed |= self.selection != before;
+        }
+
         if response.dragged() {
             let delta = response.drag_delta();
             let pan = response.dragged_by(PointerButton::Middle) || ui.input(|input| input.modifiers.shift);
@@ -182,7 +211,6 @@ impl Mol3dView {
             self.fit(viewport);
         }
 
-        let mut selection_changed = false;
         if response.clicked()
             && let Some(pointer) = pointer
         {
@@ -195,7 +223,14 @@ impl Mol3dView {
             } else {
                 SelectionMode::Replace
             };
-            if let Some(atom) = self.scene.pick(self.camera, viewport, pointer) {
+            #[cfg(feature = "gpu")]
+            let gpu_pick = self.style.renderer == Renderer3D::Gpu && crate::gpu::supports_gpu_picking();
+            #[cfg(not(feature = "gpu"))]
+            let gpu_pick = false;
+            if gpu_pick {
+                #[cfg(feature = "gpu")]
+                self.gpu_pick.schedule(pointer, viewport, mode, ui.ctx());
+            } else if let Some(atom) = self.scene.pick(self.camera, viewport, pointer) {
                 self.selection.select_atom(atom, mode);
             } else if let Some(bond) = self.scene.pick_bond(self.camera, viewport, pointer, 7.0) {
                 self.selection.select_bond(bond, mode);
@@ -361,5 +396,25 @@ mod tests {
             .expect("project");
         let atom = view.scene.pick(view.camera, viewport, screen);
         assert_eq!(atom, Some(view.scene.atoms[0].id));
+    }
+    #[cfg(feature = "gpu")]
+    #[test]
+    fn a_completed_gpu_pick_updates_the_selection() {
+        let mut view = Mol3dView::new(scene());
+        let atom = view.scene.atoms[0].id;
+        let context = Context::default();
+        view.gpu_pick.schedule(
+            egui::pos2(400.0, 300.0),
+            egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)),
+            SelectionMode::Replace,
+            &context,
+        );
+        let request = view.gpu_pick.request().expect("pick request");
+        *request.result.lock().expect("lock") = Some(Some(crate::gpu::PickTarget::Atom(atom)));
+        let mut output = context.run_ui(egui::RawInput::default(), |ui| {
+            view.show(ui);
+        });
+        output.textures_delta.clear();
+        assert!(view.selection.atoms().contains(&atom));
     }
 }
