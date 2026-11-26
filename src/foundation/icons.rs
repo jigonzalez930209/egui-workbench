@@ -195,7 +195,11 @@ pub(crate) fn rasterize(bytes: &[u8], pixels: u32) -> Option<egui::ColorImage> {
     }
     #[cfg(feature = "svg")]
     {
-        let tree = usvg::Tree::from_data(bytes, &usvg::Options::default()).ok()?;
+        // An SVG opened in the viewer is untrusted: never resolve `href`s that name files
+        // (`<image href="/etc/...">`). Inline `data:` images still work.
+        let mut options = usvg::Options::default();
+        options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+        let tree = usvg::Tree::from_data(bytes, &options).ok()?;
         let size = tree.size();
         let scale = (pixels as f32 / size.width().max(1.0)).min(pixels as f32 / size.height().max(1.0));
         let width = (size.width() * scale).round().max(1.0) as u32;
