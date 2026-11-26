@@ -53,7 +53,9 @@ impl Host {
         let title = self.spec.window.title.clone();
         let width = self.spec.window.width;
         let height = self.spec.window.height;
-        let native = egui_workbench::native_options_sized(&title, [width, height], [640.0, 420.0]);
+        let mut native = egui_workbench::native_options_sized(&title, [width, height], [640.0, 420.0]);
+        // The spec's `resizable` was never applied.
+        native.viewport = native.viewport.with_resizable(self.spec.window.resizable);
         let mut on_event = Some(Box::new(on_event) as crate::view::EventCallback);
         let mut on_frame = Some(Box::new(on_frame) as crate::view::FrameCallback);
         eframe::run_native(
