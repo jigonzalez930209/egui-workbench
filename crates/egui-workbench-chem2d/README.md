@@ -1,5 +1,14 @@
 # egui-workbench-chem2d
 
+> Part of the egui-workbench **chemistry plugins**, versioned with the library (`1.2.x`):
+> `egui-workbench-chem-core`, `egui-workbench-chem2d`, and `egui-workbench-mol3d`. Guide:
+> <https://jigonzalez930209.github.io/egui-workbench/guide/chemistry.html>
+
+```toml
+[dependencies]
+egui-workbench-chem2d = "1.2"
+```
+
 A vector 2D chemistry editor built on `egui::Painter` and the shared
 `egui-workbench-chem-core` model.
 
@@ -41,6 +50,13 @@ cargo run -p egui-workbench-chem2d --example editor
 
 The example exposes every tool, the live properties panel, SMILES insertion, superatom
 expansion, layout cleanup, and SVG/PNG export.
+
+## Limits for untrusted input
+
+Readers return an error for malformed input. Deltas accept finite coordinates within 10^6
+of the origin and at most 100,000 atoms; a chain command adds at most 1,000 atoms; a PNG
+export is capped at 100 million pixels and 1,200 dpi. See the guide for the chemistry
+caveats (aromatic heteroatoms, stereo labels).
 
 ## Basic use
 
