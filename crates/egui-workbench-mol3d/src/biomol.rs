@@ -224,52 +224,91 @@ fn catmull_rom(points: &[Vec3], subdivisions: usize) -> Vec<Vec3> {
 }
 
 /// Detect hydrogen bonds, π–π stacking, salt bridges, and short contacts.
+///
+/// Atoms within three bonds of each other are never paired: the ends of a bond angle
+/// (1-3) and of a torsion (1-4) sit closer than a van der Waals contact by construction,
+/// so counting them reported every angle of every residue as a clash.
 pub fn detect_interactions(scene: &Mol3dScene) -> Vec<Interaction> {
     let mut interactions = Vec::new();
-    let bonded = scene
-        .bonds
-        .iter()
-        .map(|bond| (bond.a.min(bond.b), bond.a.max(bond.b)))
-        .collect::<BTreeSet<_>>();
+    let mut adjacency = BTreeMap::<AtomId, Vec<AtomId>>::new();
+    for bond in &scene.bonds {
+        adjacency.entry(bond.a).or_default().push(bond.b);
+        adjacency.entry(bond.b).or_default().push(bond.a);
+    }
     let is_acceptor = |atom: &Atom3D| matches!(atom.element.symbol(), "N" | "O" | "F");
     let is_donor = |atom: &Atom3D| matches!(atom.element.symbol(), "N" | "O" | "F");
-    for (left_index, left) in scene.atoms.iter().enumerate() {
-        for right in &scene.atoms[left_index + 1..] {
-            if left.element.symbol() == "H" || right.element.symbol() == "H" {
-                continue;
+    // The longest interaction reaches 4.6 A (a salt bridge is 4.0, a contact under the sum
+    // of two van der Waals radii), so cells of 5 A put every candidate in a neighbouring
+    // cell. The all-pairs loop was quadratic and froze on a protein.
+    const CELL: f64 = 5.0;
+    let cell_of = |position: Vec3| {
+        (
+            (position.x / CELL).floor() as i64,
+            (position.y / CELL).floor() as i64,
+            (position.z / CELL).floor() as i64,
+        )
+    };
+    let mut cells = std::collections::HashMap::<(i64, i64, i64), Vec<usize>>::new();
+    for (index, atom) in scene.atoms.iter().enumerate() {
+        let finite = atom.position.x.is_finite() && atom.position.y.is_finite() && atom.position.z.is_finite();
+        if finite && atom.element.symbol() != "H" {
+            cells.entry(cell_of(atom.position)).or_default().push(index);
+        }
+    }
+    let mut pairs = Vec::<(usize, usize)>::new();
+    for (index, left) in scene.atoms.iter().enumerate() {
+        if left.element.symbol() == "H" || !left.position.x.is_finite() {
+            continue;
+        }
+        let (cx, cy, cz) = cell_of(left.position);
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for dz in -1..=1 {
+                    if let Some(bucket) = cells.get(&(cx + dx, cy + dy, cz + dz)) {
+                        pairs.extend(
+                            bucket
+                                .iter()
+                                .filter(|other| **other > index)
+                                .map(|other| (index, *other)),
+                        );
+                    }
+                }
             }
-            let pair = (left.id.min(right.id), left.id.max(right.id));
-            if bonded.contains(&pair) {
-                continue;
-            }
-            let distance = (left.position - right.position).length();
-            if is_donor(left) && is_acceptor(right) && (2.4..=3.5).contains(&distance) {
-                interactions.push(Interaction {
-                    kind: InteractionKind::HydrogenBond,
-                    a: left.id,
-                    b: right.id,
-                    distance,
-                });
-                continue;
-            }
-            if is_salt_bridge(left, right) && distance <= 4.0 {
-                interactions.push(Interaction {
-                    kind: InteractionKind::SaltBridge,
-                    a: left.id,
-                    b: right.id,
-                    distance,
-                });
-                continue;
-            }
-            let contact = vdw_radius(left.element) + vdw_radius(right.element) - 0.55;
-            if distance < contact && left.element != egui_workbench_chem_core::Element::UNKNOWN {
-                interactions.push(Interaction {
-                    kind: InteractionKind::ShortContact,
-                    a: left.id,
-                    b: right.id,
-                    distance,
-                });
-            }
+        }
+    }
+    pairs.sort_unstable();
+    for (left_index, right_index) in pairs {
+        let (left, right) = (&scene.atoms[left_index], &scene.atoms[right_index]);
+        let distance = (left.position - right.position).length();
+        if distance > 4.6 || within_bonds(&adjacency, left.id, right.id, 3) {
+            continue;
+        }
+        if is_donor(left) && is_acceptor(right) && (2.4..=3.5).contains(&distance) {
+            interactions.push(Interaction {
+                kind: InteractionKind::HydrogenBond,
+                a: left.id,
+                b: right.id,
+                distance,
+            });
+            continue;
+        }
+        if is_salt_bridge(left, right) && distance <= 4.0 {
+            interactions.push(Interaction {
+                kind: InteractionKind::SaltBridge,
+                a: left.id,
+                b: right.id,
+                distance,
+            });
+            continue;
+        }
+        let contact = vdw_radius(left.element) + vdw_radius(right.element) - 0.55;
+        if distance < contact && left.element != egui_workbench_chem_core::Element::UNKNOWN {
+            interactions.push(Interaction {
+                kind: InteractionKind::ShortContact,
+                a: left.id,
+                b: right.id,
+                distance,
+            });
         }
     }
     for (first, second) in aromatic_pairs(scene) {
@@ -281,6 +320,30 @@ pub fn detect_interactions(scene: &Mol3dScene) -> Vec<Interaction> {
         });
     }
     interactions
+}
+
+/// Whether `from` reaches `to` through at most `depth` bonds.
+fn within_bonds(adjacency: &BTreeMap<AtomId, Vec<AtomId>>, from: AtomId, to: AtomId, depth: usize) -> bool {
+    let mut frontier = vec![from];
+    let mut seen = BTreeSet::from([from]);
+    for _ in 0..depth {
+        let mut next = Vec::new();
+        for atom in &frontier {
+            for neighbor in adjacency.get(atom).into_iter().flatten() {
+                if *neighbor == to {
+                    return true;
+                }
+                if seen.insert(*neighbor) {
+                    next.push(*neighbor);
+                }
+            }
+        }
+        if next.is_empty() {
+            return false;
+        }
+        frontier = next;
+    }
+    false
 }
 
 fn is_salt_bridge(left: &Atom3D, right: &Atom3D) -> bool {
@@ -324,31 +387,37 @@ fn aromatic_rings(scene: &Mol3dScene) -> Vec<(AtomId, Vec3, Vec3)> {
         adjacency.entry(bond.a).or_default().push(bond.b);
         adjacency.entry(bond.b).or_default().push(bond.a);
     }
-    let mut paths = Vec::<Vec<AtomId>>::new();
+    // Look atoms up once. `scene.atom(id)` scans the whole list, and the ring search asked
+    // for it at every step from every atom: cubic on a protein.
+    let positions: BTreeMap<AtomId, Vec3> = scene.atoms.iter().map(|atom| (atom.id, atom.position)).collect();
+    let eligible: BTreeSet<AtomId> = scene
+        .atoms
+        .iter()
+        .filter(|atom| matches!(atom.element.symbol(), "C" | "N" | "O" | "S"))
+        .map(|atom| atom.id)
+        .collect();
+    let mut rings = Vec::<Vec<AtomId>>::new();
     let mut seen = BTreeSet::<Vec<AtomId>>::new();
-    for start in adjacency.keys() {
+    for start in adjacency.keys().filter(|id| eligible.contains(id)) {
         let mut path = vec![*start];
         let mut visited = BTreeSet::from([*start]);
         collect_rings(
-            scene,
+            &eligible,
             &adjacency,
             *start,
             &mut path,
             &mut visited,
             &mut seen,
-            &mut paths,
+            &mut rings,
         );
     }
     let mut result = Vec::new();
-    for ring in paths {
-        let mut key = ring.clone();
-        key.sort();
-        if !seen.insert(key) {
-            continue;
-        }
+    // `collect_rings` already keeps one entry per atom set; checking `seen` again here
+    // discarded every ring, so π-stacking was never reported.
+    for ring in rings {
         let points = ring
             .iter()
-            .filter_map(|id| scene.atom(*id).map(|atom| atom.position))
+            .filter_map(|id| positions.get(id).copied())
             .collect::<Vec<_>>();
         if points.len() != ring.len() || points.len() < 5 {
             continue;
@@ -373,7 +442,7 @@ fn aromatic_rings(scene: &Mol3dScene) -> Vec<(AtomId, Vec3, Vec3)> {
 }
 
 fn collect_rings(
-    scene: &Mol3dScene,
+    eligible: &BTreeSet<AtomId>,
     adjacency: &BTreeMap<AtomId, Vec<AtomId>>,
     start: AtomId,
     path: &mut Vec<AtomId>,
@@ -384,7 +453,7 @@ fn collect_rings(
     if path.len() > 6 {
         return;
     }
-    let Some(neighbors) = adjacency.get(path.last().expect("path")) else {
+    let Some(neighbors) = path.last().and_then(|last| adjacency.get(last)) else {
         return;
     };
     for next in neighbors {
@@ -396,69 +465,16 @@ fn collect_rings(
             }
             continue;
         }
-        if visited.contains(next) {
-            continue;
-        }
-        if scene
-            .atom(*next)
-            .is_none_or(|atom| !matches!(atom.element.symbol(), "C" | "N" | "O" | "S"))
-        {
+        if visited.contains(next) || !eligible.contains(next) {
             continue;
         }
         visited.insert(*next);
         path.push(*next);
-        collect_rings(scene, adjacency, start, path, visited, seen, rings);
+        collect_rings(eligible, adjacency, start, path, visited, seen, rings);
         path.pop();
         visited.remove(next);
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use egui_workbench_chem_core::Element;
-
-    fn atom(scene: &mut Mol3dScene, element: &str, position: [f64; 3]) -> AtomId {
-        scene.push_atom(Element::from_symbol(element).expect("element"), position)
-    }
-
-    #[test]
-    fn a_helix_trace_smooths_into_a_ribbon() {
-        let mut scene = Mol3dScene::default();
-        for index in 0..12 {
-            let angle = index as f64 * 1.75;
-            let atom = atom(
-                &mut scene,
-                "C",
-                [2.3 * angle.cos(), 2.3 * angle.sin(), index as f64 * 1.5],
-            );
-            if let Some(entry) = scene.atoms.iter_mut().find(|entry| entry.id == atom) {
-                entry.label = Some("CA".to_owned());
-                entry.residue = Some(crate::scene::Residue3D {
-                    name: "ALA".to_owned(),
-                    chain: "A".to_owned(),
-                    number: index,
-                });
-            }
-        }
-        let traces = backbone_traces(&scene);
-        assert_eq!(traces.len(), 1);
-        assert!(traces[0].secondary.contains(&SecondaryStructure::Helix));
-        let mesh = ribbon_mesh(&traces[0]);
-        assert!(mesh.vertices.len() > traces[0].points.len());
-        assert!(!mesh.triangles.is_empty());
-    }
-
-    #[test]
-    fn hydrogen_bonds_and_short_contacts_are_detected() {
-        let mut scene = Mol3dScene::default();
-        let oxygen = atom(&mut scene, "O", [0.0, 0.0, 0.0]);
-        let nitrogen = atom(&mut scene, "N", [2.9, 0.0, 0.0]);
-        let interactions = detect_interactions(&scene);
-        assert!(interactions.iter().any(|interaction| {
-            interaction.kind == InteractionKind::HydrogenBond
-                && [interaction.a, interaction.b].contains(&oxygen)
-                && [interaction.a, interaction.b].contains(&nitrogen)
-        }));
-    }
-}
+mod tests;
