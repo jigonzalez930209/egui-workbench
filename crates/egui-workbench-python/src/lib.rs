@@ -294,6 +294,19 @@ fn encoded_column(name: &str, dtype: &str, bytes: &[u8]) -> PyResult<Column> {
             "big-endian dtype `>{dtype}` is not supported; call `astype` with a native dtype first"
         )));
     }
+    let width = match dtype {
+        "f8" | "i8" | "u8" => 8,
+        "f4" | "i4" | "u4" => 4,
+        "i2" | "u2" => 2,
+        _ => 1,
+    };
+    // `chunks_exact` would silently drop a trailing partial value.
+    if !bytes.len().is_multiple_of(width) {
+        return Err(PyValueError::new_err(format!(
+            "column `{name}` has {} bytes, which is not a multiple of the {width}-byte `{dtype}` width",
+            bytes.len()
+        )));
+    }
     let column = match dtype {
         "f8" => Column::floats(name, chunks::<8>(bytes).map(f64::from_le_bytes).collect::<Vec<_>>()),
         "f4" => Column::floats(
