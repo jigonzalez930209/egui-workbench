@@ -9,10 +9,15 @@ use super::column::{Column, DataValue};
 use super::dataset::Dataset;
 use super::source::{ColumnSchema, DataError, DataSource};
 
+/// Most cells one sheet may hold.
+const MAX_CELLS: usize = 50_000_000;
+
 /// One workbook with a dataset per sheet.
 pub struct WorkbookSource {
     path: PathBuf,
     sheets: BTreeMap<String, Dataset>,
+    /// Sheet names in workbook order; the map sorts them alphabetically.
+    order: Vec<String>,
     schema: Vec<ColumnSchema>,
 }
 
@@ -23,22 +28,40 @@ impl WorkbookSource {
     /// When the workbook cannot be read.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, DataError> {
         let path = path.as_ref().to_path_buf();
+        // The size check happens before calamine reads anything.
+        if std::fs::metadata(&path).is_ok_and(|metadata| metadata.len() > super::source::MAX_FILE_BYTES) {
+            return Err(DataError::Connector("the workbook is larger than 512 MiB".to_owned()));
+        }
         let mut workbook =
             calamine::open_workbook_auto(&path).map_err(|error| DataError::Connector(error.to_string()))?;
         let names = workbook.sheet_names().to_vec();
+        let order = names.clone();
         let mut sheets = BTreeMap::new();
         for name in names {
             let range = workbook
                 .worksheet_range(&name)
                 .map_err(|error| DataError::Connector(error.to_string()))?;
+            // A sheet is dense: one stray cell far from the origin makes millions of
+            // empty ones, and each becomes a column value below.
+            let (rows, columns) = range.get_size();
+            if rows.saturating_mul(columns) > MAX_CELLS {
+                return Err(DataError::Connector(format!(
+                    "sheet `{name}` has more than {MAX_CELLS} cells"
+                )));
+            }
             sheets.insert(name, dataset_from_range(&range));
         }
-        let schema = sheets
-            .values()
-            .next()
+        let schema = order
+            .first()
+            .and_then(|name| sheets.get(name))
             .map(|data| data.columns().iter().map(ColumnSchema::from_column).collect())
             .unwrap_or_default();
-        Ok(Self { path, sheets, schema })
+        Ok(Self {
+            path,
+            sheets,
+            order,
+            schema,
+        })
     }
 
     /// The workbook path.
@@ -48,7 +71,7 @@ impl WorkbookSource {
 
     /// The sheet names.
     pub fn sheet_names(&self) -> impl Iterator<Item = &str> {
-        self.sheets.keys().map(String::as_str)
+        self.order.iter().map(String::as_str)
     }
 
     /// A sheet dataset.
@@ -58,7 +81,7 @@ impl WorkbookSource {
 
     /// The first sheet.
     pub fn first(&self) -> Option<&Dataset> {
-        self.sheets.values().next()
+        self.order.first().and_then(|name| self.sheets.get(name))
     }
 }
 
@@ -162,11 +185,8 @@ fn column_from_values(name: &str, values: &[DataValue]) -> Column {
             name,
             values
                 .iter()
-                .map(|value| match value {
-                    DataValue::Null => String::new(),
-                    DataValue::Text(value) => value.clone(),
-                    other => format!("{other:?}"),
-                })
+                // `{other:?}` printed `Int(5)` in a mixed column.
+                .map(DataValue::display_text)
                 .collect::<Vec<_>>(),
         )
     };
