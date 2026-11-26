@@ -2,13 +2,12 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use egui_workbench::Icons;
 use egui_workbench::components::{DataGridState, Toasts};
 use egui_workbench::data::Dataset;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::custom::CustomWidgetRegistry;
@@ -17,98 +16,10 @@ use crate::patch::Patch;
 use crate::protocol::{Message, Request, Response};
 use crate::spec::{HostSpec, SPEC_VERSION, ToastSpec};
 
+mod events;
 mod native;
 
-/// Something the host reports to the embedding application.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "event", rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum HostEvent {
-    /// A button or command ran.
-    Command {
-        /// Command id.
-        id: String,
-    },
-    /// A value changed.
-    ValueChanged {
-        /// Widget id.
-        id: String,
-        /// New value.
-        value: Value,
-    },
-    /// A tab strip changed.
-    TabChanged {
-        /// Strip id.
-        id: String,
-        /// Active index.
-        index: usize,
-    },
-    /// A tree selection changed.
-    TreeSelected {
-        /// Tree id.
-        id: String,
-        /// Node key.
-        key: String,
-    },
-    /// A custom widget emitted an event.
-    Custom {
-        /// Widget kind.
-        kind: String,
-        /// Opaque payload.
-        payload: Value,
-    },
-    /// The host window was closed.
-    Closed,
-}
-
-/// An action queued by an event handler and applied on the next frame.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub enum HostAction {
-    /// Apply a patch to the spec.
-    Patch(Patch),
-    /// Show a toast.
-    Toast(ToastSpec),
-    /// Change the window title.
-    SetTitle(String),
-    /// Request another frame.
-    Repaint,
-    /// Close the window.
-    Close,
-}
-
-/// A cloneable handle to the action queue, safe from any thread.
-///
-/// The queue also holds the current egui context, so a push from a worker thread wakes
-/// the window instead of waiting for the next input event.
-#[derive(Clone, Default)]
-pub struct ActionQueue {
-    actions: Arc<Mutex<VecDeque<HostAction>>>,
-    waker: Arc<Mutex<Option<egui::Context>>>,
-}
-
-impl ActionQueue {
-    /// Queue an action and wake the window, when it is running.
-    pub fn push(&self, action: HostAction) {
-        {
-            let mut actions = self.actions.lock().unwrap_or_else(|error| error.into_inner());
-            actions.push_back(action);
-        }
-        if let Some(ctx) = self.waker.lock().unwrap_or_else(|error| error.into_inner()).as_ref() {
-            ctx.request_repaint();
-        }
-    }
-
-    /// Remember the context used to wake the window.
-    pub fn set_waker(&self, ctx: &egui::Context) {
-        *self.waker.lock().unwrap_or_else(|error| error.into_inner()) = Some(ctx.clone());
-    }
-
-    fn drain(&self) -> Vec<HostAction> {
-        let mut actions = self.actions.lock().unwrap_or_else(|error| error.into_inner());
-        actions.drain(..).collect()
-    }
-}
+pub use events::{ActionQueue, HostAction, HostEvent};
 
 /// Why a host operation failed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -136,6 +47,28 @@ impl std::fmt::Display for HostError {
 }
 
 impl std::error::Error for HostError {}
+
+/// Deepest JSON nesting a patched spec may reach.
+const MAX_SPEC_DEPTH: usize = 128;
+
+/// Most unpolled events kept. An embedding that never polls would otherwise grow the
+/// queue without bound.
+const MAX_PENDING_EVENTS: usize = 10_000;
+
+/// The nesting depth of a JSON value, counted without recursion.
+fn json_depth(root: &Value) -> usize {
+    let mut deepest = 0;
+    let mut stack = vec![(root, 1usize)];
+    while let Some((value, depth)) = stack.pop() {
+        deepest = deepest.max(depth);
+        match value {
+            Value::Array(items) => stack.extend(items.iter().map(|item| (item, depth + 1))),
+            Value::Object(map) => stack.extend(map.values().map(|item| (item, depth + 1))),
+            _ => {}
+        }
+    }
+    deepest
+}
 
 /// A running host.
 pub struct Host {
@@ -245,7 +178,7 @@ impl Host {
             match action {
                 HostAction::Patch(patch) => {
                     if let Err(error) = self.apply(&patch) {
-                        self.events.push_back(HostEvent::Custom {
+                        self.push_event(HostEvent::Custom {
                             kind: "host.error".to_owned(),
                             payload: Value::String(error.to_string()),
                         });
@@ -282,16 +215,39 @@ impl Host {
         patch
             .apply(&mut candidate)
             .map_err(|error| HostError::Patch(error.to_string()))?;
+        // `serde_json` bounds the depth of text it parses, but successive patches can nest
+        // a value one level deeper each time; rendering and dropping recurse on it.
+        if json_depth(&candidate) > MAX_SPEC_DEPTH {
+            return Err(HostError::Patch(format!(
+                "the spec is nested deeper than {MAX_SPEC_DEPTH} levels"
+            )));
+        }
         let spec: HostSpec =
             serde_json::from_value(candidate.clone()).map_err(|error| HostError::Spec(error.to_string()))?;
         if spec.version > SPEC_VERSION {
             return Err(HostError::UnsupportedVersion(spec.version));
         }
+        // Widgets the patch did not touch keep what the user typed or picked; a widget
+        // whose seeded value changed takes the new one.
+        let (mut old_values, mut old_tabs) = (BTreeMap::new(), BTreeMap::new());
+        native::seed_widgets(&self.spec.widgets, &mut old_values, &mut old_tabs);
+        let (user_values, user_tabs) = (std::mem::take(&mut self.values), std::mem::take(&mut self.tabs));
         self.json = candidate;
         self.spec = spec;
-        self.values.clear();
-        self.tabs.clear();
         self.seed_values();
+        for (id, value) in user_values {
+            if old_values.get(&id) == Some(&value) {
+                continue;
+            }
+            if old_values.contains_key(&id) && old_values.get(&id) == self.values.get(&id) {
+                self.values.insert(id, value);
+            }
+        }
+        for (id, index) in user_tabs {
+            if old_tabs.get(&id) == self.tabs.get(&id) && self.tabs.contains_key(&id) {
+                self.tabs.insert(id, index);
+            }
+        }
         self.revision = self.revision.wrapping_add(1);
         Ok(())
     }
@@ -316,30 +272,49 @@ impl Host {
     /// Reload the source file when its modification time changed. Returns whether it
     /// reloaded.
     pub fn reload_if_changed(&mut self) -> bool {
-        let Some(path) = &self.source else {
+        let Some(path) = self.source.clone() else {
             return false;
         };
-        let current = native::modified(path);
+        let current = native::modified(&path);
         if current == self.modified {
             return false;
         }
         self.modified = current;
-        match Self::load(path) {
+        match Self::load(&path) {
             Ok(mut fresh) => {
                 fresh.source = self.source.clone();
                 fresh.modified = self.modified;
                 fresh.datasets = std::mem::take(&mut self.datasets);
+                // The queue handle was shared with other threads, the custom widgets were
+                // registered by the embedding application, and events are not yet polled:
+                // a reload replaces the spec, not those.
+                fresh.actions = self.actions.clone();
+                fresh.custom = std::mem::take(&mut self.custom);
+                fresh.events = std::mem::take(&mut self.events);
+                fresh.revision = self.revision.wrapping_add(1);
                 *self = fresh;
                 true
             }
             Err(error) => {
-                self.events.push_back(HostEvent::Custom {
+                self.push_event(HostEvent::Custom {
                     kind: "host.error".to_owned(),
                     payload: Value::String(error.to_string()),
                 });
                 false
             }
         }
+    }
+
+    pub(crate) fn push_event(&mut self, event: HostEvent) {
+        if self.events.len() >= MAX_PENDING_EVENTS {
+            self.events.pop_front();
+        }
+        self.events.push_back(event);
+    }
+
+    /// The events produced since the last poll, without draining them.
+    pub fn peek_events(&self) -> Vec<HostEvent> {
+        self.events.iter().cloned().collect()
     }
 
     /// Take the events produced since the last poll.
@@ -390,7 +365,7 @@ impl Host {
                         spec: self.json.clone(),
                     },
                     Request::RunCommand { id } => {
-                        self.events.push_back(HostEvent::Command { id });
+                        self.push_event(HostEvent::Command { id });
                         Response::Ok
                     }
                     Request::SetData { name, columns } => {
@@ -482,5 +457,26 @@ impl Host {
 
     fn seed_values(&mut self) {
         native::seed_widgets(&self.spec.widgets, &mut self.values, &mut self.tabs);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_patch_keeps_what_the_user_typed_in_untouched_widgets() {
+        let spec = r#"{"widgets":[{"kind":"text_field","id":"a","label":"A","hint":"","value":"x"},{"kind":"text_field","id":"b","label":"B","hint":"","value":"y"}]}"#;
+        let mut host = Host::new(HostSpec::from_json(spec).expect("spec")).expect("host");
+        host.values.insert("a".to_owned(), json!("typed"));
+        host.values.insert("b".to_owned(), json!("typed"));
+        host.apply(&Patch::Set {
+            path: "/widgets/1/value".to_owned(),
+            value: json!("patched"),
+        })
+        .expect("patch");
+        assert_eq!(host.values["a"], json!("typed"));
+        assert_eq!(host.values["b"], json!("patched"));
     }
 }
