@@ -196,6 +196,34 @@ fn component_count(molecule: &Molecule) -> usize {
         .len()
 }
 
+/// Furan, pyrrole, and thiophene in Kekulé form: two non-adjacent double bonds, and the
+/// ring atom they leave out is N, O, S, or Se, whose lone pair completes the six pi
+/// electrons. Cyclopentadiene leaves out a carbon and is not aromatic.
+fn is_kekule_heteroaromatic(molecule: &Molecule, ring: &Ring, orders: &[BondOrder]) -> bool {
+    let doubles = orders.iter().filter(|order| **order == BondOrder::Double).count();
+    if doubles != 2
+        || orders
+            .iter()
+            .any(|order| !matches!(order, BondOrder::Double | BondOrder::Single))
+    {
+        return false;
+    }
+    let touched = |atom: AtomId| {
+        ring.bonds.iter().any(|id| {
+            molecule
+                .bond(*id)
+                .is_some_and(|bond| bond.order == BondOrder::Double && (bond.a == atom || bond.b == atom))
+        })
+    };
+    let mut left_out = ring.atoms.iter().filter(|atom| !touched(**atom));
+    match (left_out.next(), left_out.next()) {
+        (Some(atom), None) => molecule
+            .atom(*atom)
+            .is_some_and(|atom| matches!(atom.element.atomic_number(), 7 | 8 | 16 | 34)),
+        _ => false,
+    }
+}
+
 fn is_aromatic(molecule: &Molecule, ring: &Ring) -> bool {
     let orders = ring
         .bonds
@@ -208,7 +236,13 @@ fn is_aromatic(molecule: &Molecule, ring: &Ring) -> bool {
     if orders.iter().all(|order| *order == BondOrder::Aromatic) {
         return true;
     }
-    if !orders.len().is_multiple_of(2) {
+    if orders.len() == 5 && is_kekule_heteroaromatic(molecule, ring, &orders) {
+        return true;
+    }
+    // A Kekulé ring (alternating single and double bonds) is aromatic only when its pi
+    // electron count obeys Hückel's rule: 4n + 2, so 6, 10, 14... Four- and eight-membered
+    // alternating rings (cyclobutadiene, cyclooctatetraene) are not aromatic.
+    if orders.len() % 4 != 2 {
         return false;
     }
     orders.iter().enumerate().all(|(index, order)| {
@@ -291,5 +325,30 @@ mod tests {
         let rings = aromatic_rings(&molecule);
         assert_eq!(rings.len(), 1);
         assert!(rings[0].aromatic);
+    }
+
+    #[test]
+    fn only_huckel_sized_kekule_rings_are_aromatic() {
+        for (size, expected) in [(4, false), (6, true), (8, false), (10, true)] {
+            let (mut molecule, ids) = ring(size);
+            for index in 0..size {
+                let bond = molecule
+                    .bond_between(ids[index], ids[(index + 1) % size])
+                    .map(|bond| bond.id)
+                    .expect("ring bond");
+                if let Some(entry) = molecule.bonds.iter_mut().find(|entry| entry.id == bond) {
+                    entry.order = if index % 2 == 0 {
+                        BondOrder::Double
+                    } else {
+                        BondOrder::Single
+                    };
+                }
+            }
+            assert_eq!(
+                molecule.aromatic_rings().len() == 1,
+                expected,
+                "a Kekulé ring of {size} atoms"
+            );
+        }
     }
 }
