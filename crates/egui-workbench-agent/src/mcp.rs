@@ -12,6 +12,7 @@ use egui_workbench_host::{Host, HostEvent, Message, Patch, Request, Response};
 
 use crate::access::{AccessNode, accessibility_tree, to_json};
 use crate::automation::Automation;
+pub use crate::permissions::Permissions;
 
 fn queue_command(host: &mut Host, id: &str) {
     let _ = host.handle(Message::Request {
@@ -22,75 +23,6 @@ fn queue_command(host: &mut Host, id: &str) {
 
 /// The MCP protocol version this server implements.
 pub const MCP_VERSION: &str = "2024-11-05";
-
-/// Read/write permissions for one MCP session.
-#[derive(Clone, Debug)]
-pub struct Permissions {
-    /// When true (the default), every mutating tool is denied.
-    pub read_only: bool,
-    /// When set, commands outside this set are denied.
-    pub allowed_commands: Option<HashSet<String>>,
-    /// Commands that need `arguments.confirmation` to match `confirmation_token`.
-    pub sensitive_commands: HashSet<String>,
-    /// The confirmation value for sensitive commands.
-    pub confirmation_token: Option<String>,
-}
-
-impl Default for Permissions {
-    fn default() -> Self {
-        Self {
-            read_only: true,
-            allowed_commands: None,
-            sensitive_commands: HashSet::new(),
-            confirmation_token: None,
-        }
-    }
-}
-
-impl Permissions {
-    /// Allow reads and writes.
-    pub fn read_write() -> Self {
-        Self {
-            read_only: false,
-            ..Self::default()
-        }
-    }
-
-    /// Allow only these commands.
-    pub fn allow_commands<I, S>(mut self, commands: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.allowed_commands = Some(commands.into_iter().map(Into::into).collect());
-        self
-    }
-
-    /// Require a confirmation value for these commands.
-    pub fn confirm<I, S>(mut self, commands: I, token: impl Into<String>) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.sensitive_commands = commands.into_iter().map(Into::into).collect();
-        self.confirmation_token = Some(token.into());
-        self
-    }
-
-    /// Require confirmation for these commands without configuring a value.
-    ///
-    /// Every call is refused with [`ToolError::ConfirmationRequired`] until a token is
-    /// configured, which is the safe default for `--read-write` without a secret.
-    pub fn require_confirmation<I, S>(mut self, commands: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.sensitive_commands = commands.into_iter().map(Into::into).collect();
-        self.confirmation_token = None;
-        self
-    }
-}
 
 /// One audited tool decision.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -208,21 +140,23 @@ impl McpServer {
         id.as_ref()?;
         let id = id.unwrap_or(Value::Null);
         let result = match method {
-            "initialize" => Ok(json!({
+            "initialize" => Ok::<_, (i32, String)>(json!({
                 "protocolVersion": MCP_VERSION,
                 "capabilities": { "tools": {} },
                 "serverInfo": { "name": "egui-workbench", "version": env!("CARGO_PKG_VERSION") }
             })),
             "tools/list" => Ok(json!({ "tools": tools() })),
-            "tools/call" => self.call_tool(request.get("params").cloned().unwrap_or(Value::Null)),
-            other => Err(format!("unknown method `{other}`")),
+            "tools/call" => self
+                .call_tool(request.get("params").cloned().unwrap_or(Value::Null))
+                .map_err(|error| (-32602, error)),
+            other => Err((-32601, format!("unknown method `{other}`"))),
         };
         Some(match result {
             Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-            Err(error) => json!({
+            Err((code, error)) => json!({
                 "jsonrpc": "2.0",
                 "id": id,
-                "error": { "code": -32602, "message": error }
+                "error": { "code": code, "message": error }
             }),
         })
     }
@@ -282,7 +216,7 @@ impl McpServer {
             "get_spec" => Ok(serde_json::to_string(self.host.json()).unwrap_or_default()),
             "get_state" => Ok(serde_json::to_string(&json!({
                 "spec": self.host.json(),
-                "events": self.host.poll_events(),
+                "events": self.host.peek_events(),
                 "revision": self.host.revision()
             }))
             .unwrap_or_default()),
@@ -330,8 +264,15 @@ impl McpServer {
                 self.require_command(id)?;
                 if self.permissions.sensitive_commands.contains(id) {
                     let provided = arguments.get("confirmation").and_then(Value::as_str);
-                    match (provided, self.permissions.confirmation_token.as_deref()) {
-                        (Some(provided), Some(expected)) if provided == expected => {}
+                    // An empty token would be matched by an empty `confirmation`.
+                    match (
+                        provided,
+                        self.permissions
+                            .confirmation_token
+                            .as_deref()
+                            .filter(|token| !token.is_empty()),
+                    ) {
+                        (Some(provided), Some(expected)) if constant_time_eq(provided, expected) => {}
                         _ => return Err(ToolError::ConfirmationRequired(id.to_owned())),
                     }
                 }
@@ -352,6 +293,29 @@ impl McpServer {
         }
     }
 
+    /// Command ids the spec declares: commands, menu rows, and button widgets.
+    fn declared_commands(&self) -> HashSet<String> {
+        let spec = self.host.spec();
+        let mut ids: HashSet<String> = spec.commands.iter().map(|command| command.id.clone()).collect();
+        ids.extend(
+            spec.menus
+                .iter()
+                .flat_map(|menu| menu.items.iter().filter_map(|item| item.command.clone())),
+        );
+        let mut nodes = vec![accessibility_tree(spec)];
+        while let Some(level) = nodes.pop() {
+            for node in level {
+                if node.role == "button"
+                    && let Some(id) = node.id
+                {
+                    ids.insert(id);
+                }
+                nodes.push(node.children);
+            }
+        }
+        ids
+    }
+
     fn require_write(&self) -> Result<(), ToolError> {
         if self.permissions.read_only {
             Err(ToolError::ReadOnly)
@@ -361,15 +325,33 @@ impl McpServer {
     }
 
     fn require_command(&self, id: &str) -> Result<(), ToolError> {
-        if let Some(allowed) = &self.permissions.allowed_commands
-            && !allowed.contains(id)
-        {
-            return Err(ToolError::CommandDenied(id.to_owned()));
+        if let Some(allowed) = &self.permissions.allowed_commands {
+            if !allowed.contains(id) {
+                return Err(ToolError::CommandDenied(id.to_owned()));
+            }
+            return Ok(());
         }
-        Ok(())
+        // With no allow-list, only commands the spec declares may run; an agent must not
+        // invent ids for the embedding application's handler.
+        if self.declared_commands().contains(id) {
+            Ok(())
+        } else {
+            Err(ToolError::CommandDenied(id.to_owned()))
+        }
     }
 
-    fn audit(&mut self, tool: &str, allowed: bool, detail: String) {
+    fn audit(&mut self, tool: &str, allowed: bool, mut detail: String) {
+        if detail.len() > MAX_AUDIT_DETAIL {
+            let mut end = MAX_AUDIT_DETAIL;
+            while !detail.is_char_boundary(end) {
+                end -= 1;
+            }
+            detail.truncate(end);
+            detail.push('…');
+        }
+        if self.activity.len() >= MAX_AUDIT_ENTRIES {
+            self.activity.remove(0);
+        }
         self.sequence = self.sequence.wrapping_add(1);
         self.activity.push(Activity {
             sequence: self.sequence,
@@ -379,6 +361,23 @@ impl McpServer {
         });
     }
 }
+
+/// Compare secrets without an early exit on the first differing byte.
+fn constant_time_eq(left: &str, right: &str) -> bool {
+    let (left, right) = (left.as_bytes(), right.as_bytes());
+    let mut difference = left.len() ^ right.len();
+    for index in 0..left.len().max(right.len()) {
+        difference |= usize::from(left.get(index).copied().unwrap_or(0) ^ right.get(index).copied().unwrap_or(0));
+    }
+    difference == 0
+}
+
+/// Longest audit detail kept per call. A successful call's detail used to be its whole
+/// result, which stored every screenshot and spec dump in the log.
+const MAX_AUDIT_DETAIL: usize = 240;
+
+/// Most audit entries kept in memory.
+const MAX_AUDIT_ENTRIES: usize = 10_000;
 
 /// The tool list, including JSON Schemas for the arguments.
 pub fn tools() -> Vec<Value> {
