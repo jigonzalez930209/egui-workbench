@@ -6,6 +6,17 @@ use egui_workbench_chem_core::{AtomId, BondId, BondOrder, Element, Molecule, Uni
 use crate::camera::{Camera3D, Ray};
 use crate::math::Vec3;
 
+/// Residue metadata read from a biomolecular file.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Residue3D {
+    /// Residue name, such as `ALA` or `HOH`.
+    pub name: String,
+    /// Chain identifier.
+    pub chain: String,
+    /// Residue sequence number.
+    pub number: i32,
+}
+
 /// One atom in the 3D scene.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Atom3D {
@@ -17,6 +28,33 @@ pub struct Atom3D {
     pub position: Vec3,
     /// Display and picking radius in Angstrom.
     pub radius: f64,
+    /// Optional atom label, such as `CA` or `O1`.
+    pub label: Option<String>,
+    /// Optional residue metadata.
+    pub residue: Option<Residue3D>,
+    /// Partial charge in elementary charge units.
+    pub charge: f64,
+    /// Temperature factor in square Angstrom.
+    pub b_factor: f64,
+    /// Occupancy in `[0, 1]`.
+    pub occupancy: f64,
+}
+
+impl Atom3D {
+    /// An atom with default metadata.
+    pub fn new(id: AtomId, element: Element, position: Vec3, radius: f64) -> Self {
+        Self {
+            id,
+            element,
+            position,
+            radius,
+            label: None,
+            residue: None,
+            charge: 0.0,
+            b_factor: 0.0,
+            occupancy: 1.0,
+        }
+    }
 }
 
 /// One bond in the 3D scene.
@@ -33,7 +71,7 @@ pub struct Bond3D {
 }
 
 /// A renderable molecular scene.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mol3dScene {
     /// Atoms in molecule order.
     pub atoms: Vec<Atom3D>,
@@ -49,11 +87,13 @@ impl Mol3dScene {
         let atoms = molecule
             .atoms
             .iter()
-            .map(|atom| Atom3D {
-                id: atom.id,
-                element: atom.element,
-                position: Vec3::new(atom.position[0], atom.position[1], atom.position[2]),
-                radius: (atom.element.covalent_radius() * 1.2).max(0.4),
+            .map(|atom| {
+                Atom3D::new(
+                    atom.id,
+                    atom.element,
+                    Vec3::new(atom.position[0], atom.position[1], atom.position[2]),
+                    (atom.element.covalent_radius() * 1.2).max(0.4),
+                )
             })
             .collect();
         let bonds = molecule
@@ -159,6 +199,83 @@ impl Mol3dScene {
         }
         best.map(|(_, id)| id)
     }
+
+    /// The bond nearest to `pointer` within `tolerance` points, using the projected
+    /// endpoints and the nearer depth for ties.
+    pub fn pick_bond(&self, camera: Camera3D, viewport: Rect, pointer: Pos2, tolerance: f32) -> Option<BondId> {
+        let mut best: Option<(f32, f64, BondId)> = None;
+        for bond in &self.bonds {
+            let (Some(a), Some(b)) = (self.atom(bond.a), self.atom(bond.b)) else {
+                continue;
+            };
+            let (Some((start, depth_a)), Some((end, depth_b))) = (
+                camera.project(a.position, viewport),
+                camera.project(b.position, viewport),
+            ) else {
+                continue;
+            };
+            let segment = end - start;
+            let length_squared = segment.length_sq();
+            let t = if length_squared <= f32::EPSILON {
+                0.0
+            } else {
+                ((pointer - start).dot(segment) / length_squared).clamp(0.0, 1.0)
+            };
+            let closest = start + segment * t;
+            let distance = (pointer - closest).length();
+            let depth = depth_a + (depth_b - depth_a) * f64::from(t);
+            if distance <= tolerance
+                && best.is_none_or(|(current, current_depth, _)| {
+                    distance < current || (distance == current && depth < current_depth)
+                })
+            {
+                best = Some((distance, depth, bond.id));
+            }
+        }
+        best.map(|(_, _, id)| id)
+    }
+
+    /// Add one atom and return its id.
+    pub fn push_atom(&mut self, element: Element, position: [f64; 3]) -> AtomId {
+        let slot = self.atoms.len() as u32 + 1;
+        let id = AtomId::new(slot, 1);
+        self.atoms.push(Atom3D::new(
+            id,
+            element,
+            Vec3::new(position[0], position[1], position[2]),
+            (element.covalent_radius() * 0.42).max(0.25),
+        ));
+        id
+    }
+
+    /// Infer single bonds from covalent radii when the file has no bond table.
+    pub fn infer_bonds(&mut self) {
+        let mut existing = self
+            .bonds
+            .iter()
+            .map(|bond| (bond.a.min(bond.b), bond.a.max(bond.b)))
+            .collect::<std::collections::BTreeSet<_>>();
+        for left in 0..self.atoms.len() {
+            for right in (left + 1)..self.atoms.len() {
+                let (a, b) = (&self.atoms[left], &self.atoms[right]);
+                let pair = (a.id.min(b.id), a.id.max(b.id));
+                if existing.contains(&pair) {
+                    continue;
+                }
+                let max = (a.element.covalent_radius() + b.element.covalent_radius()) * 1.25;
+                if (a.position - b.position).length() <= max {
+                    let id = BondId::new(self.bonds.len() as u32 + 1, 1);
+                    self.bonds.push(Bond3D {
+                        id,
+                        a: a.id,
+                        b: b.id,
+                        order: BondOrder::Single,
+                    });
+                    existing.insert(pair);
+                }
+            }
+        }
+    }
 }
 
 fn ray_sphere(ray: Ray, center: Vec3, radius: f64) -> Option<f64> {
@@ -228,5 +345,19 @@ mod tests {
         let cell = UnitCell::new(10.0, 10.0, 10.0, 90.0, 90.0, 90.0).expect("cell");
         let scene = Mol3dScene::from_molecule(&water()).with_cell(cell);
         assert_eq!(scene.cell_edges().len(), 12);
+    }
+    #[test]
+    fn a_bond_can_be_picked_between_its_endpoints() {
+        let mut molecule = Molecule::default();
+        let a = molecule.add_atom(Element::from_symbol("C").expect("C"), [0.0, 0.0, 0.0]);
+        let b = molecule.add_atom(Element::from_symbol("C").expect("C"), [2.0, 0.0, 0.0]);
+        let bond = molecule.add_bond(a, b, BondOrder::Single).expect("bond");
+        let scene = Mol3dScene::from_molecule(&molecule);
+        let camera = Camera3D::default();
+        let viewport = Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let (start, _) = camera.project(Vec3::ZERO, viewport).expect("start");
+        let (end, _) = camera.project(Vec3::new(2.0, 0.0, 0.0), viewport).expect("end");
+        let middle = Pos2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5);
+        assert_eq!(scene.pick_bond(camera, viewport, middle, 6.0), Some(bond));
     }
 }
