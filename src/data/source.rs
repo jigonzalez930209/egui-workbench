@@ -143,6 +143,40 @@ impl DataSource for MemorySource {
     }
 }
 
+/// Largest file a connector or the viewer reads into memory.
+pub const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
+
+/// Read a file, refusing one larger than [`MAX_FILE_BYTES`].
+///
+/// The limit applies to what is read, not to the size the file system reports, so a file
+/// that grows (or a special file that reports zero) cannot exhaust memory.
+///
+/// # Errors
+/// When the file cannot be read or is too large.
+pub fn read_limited(path: impl AsRef<std::path::Path>) -> Result<Vec<u8>, DataError> {
+    use std::io::Read;
+    let file = std::fs::File::open(path).map_err(|error| DataError::Connector(error.to_string()))?;
+    // Refuse early when the file system already reports too much; the `take` below still
+    // bounds files that grow or report a zero size.
+    if file.metadata().is_ok_and(|metadata| metadata.len() > MAX_FILE_BYTES) {
+        return Err(DataError::Connector(format!(
+            "the file is larger than {} MiB",
+            MAX_FILE_BYTES / (1024 * 1024)
+        )));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| DataError::Connector(error.to_string()))?;
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err(DataError::Connector(format!(
+            "the file is larger than {} MiB",
+            MAX_FILE_BYTES / (1024 * 1024)
+        )));
+    }
+    Ok(bytes)
+}
+
 pub(crate) fn check_range(range: &Range<usize>, rows: usize) -> Result<(), DataError> {
     if range.start > range.end || range.end > rows {
         Err(DataError::OutOfRange {
