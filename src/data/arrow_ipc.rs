@@ -239,15 +239,60 @@ pub(crate) fn column_from_array(name: &str, array: &ArrayRef) -> Result<Column, 
                 values,
             ))
         }
-        DataType::Timestamp(_, _) => {
-            let values = array
-                .as_any()
-                .downcast_ref::<TimestampNanosecondArray>()
-                .ok_or_else(|| DataError::Unsupported(format!("column `{name}` is not a nanosecond timestamp")))?;
-            Some(with_validity(
-                Column::times(name, values.values().iter().copied().collect::<Vec<_>>()),
-                values,
-            ))
+        DataType::Timestamp(unit, _) => {
+            use arrow::array::{TimestampMicrosecondArray, TimestampMillisecondArray, TimestampSecondArray};
+            use arrow::datatypes::TimeUnit;
+            let unsupported = || DataError::Unsupported(format!("column `{name}` is not a timestamp"));
+            // Datasets store nanoseconds; scale the other units, saturating on overflow.
+            let (raw, factor): (Vec<i64>, i64) = match unit {
+                TimeUnit::Second => (
+                    array
+                        .as_any()
+                        .downcast_ref::<TimestampSecondArray>()
+                        .ok_or_else(unsupported)?
+                        .values()
+                        .to_vec(),
+                    1_000_000_000,
+                ),
+                TimeUnit::Millisecond => (
+                    array
+                        .as_any()
+                        .downcast_ref::<TimestampMillisecondArray>()
+                        .ok_or_else(unsupported)?
+                        .values()
+                        .to_vec(),
+                    1_000_000,
+                ),
+                TimeUnit::Microsecond => (
+                    array
+                        .as_any()
+                        .downcast_ref::<TimestampMicrosecondArray>()
+                        .ok_or_else(unsupported)?
+                        .values()
+                        .to_vec(),
+                    1_000,
+                ),
+                TimeUnit::Nanosecond => (
+                    array
+                        .as_any()
+                        .downcast_ref::<TimestampNanosecondArray>()
+                        .ok_or_else(unsupported)?
+                        .values()
+                        .to_vec(),
+                    1,
+                ),
+            };
+            let nanoseconds = raw
+                .into_iter()
+                .map(|value| value.saturating_mul(factor))
+                .collect::<Vec<_>>();
+            let validity: Vec<bool> = (0..array.len()).map(|row| !array.is_null(row)).collect();
+            let column = Column::times(name, nanoseconds);
+            Some(if validity.iter().all(|valid| *valid) {
+                column
+            } else {
+                column.with_validity(validity)
+            })
         }
         other => return Err(DataError::Unsupported(format!("unsupported Arrow type {other:?}"))),
     };
@@ -277,7 +322,7 @@ impl ArrowSource {
     /// When the file cannot be read or parsed.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, DataError> {
         let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| DataError::Connector(error.to_string()))?;
+        let bytes = super::source::read_limited(path)?;
         Self::from_bytes(
             path.file_name().and_then(|name| name.to_str()).unwrap_or("data.arrow"),
             &bytes,
