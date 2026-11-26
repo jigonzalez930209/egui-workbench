@@ -23,7 +23,8 @@ thread_local! {
 }
 
 fn set_error(message: impl Into<String>) {
-    let text = message.into();
+    // An interior NUL would make `CString::new` fail and drop the whole message.
+    let text = message.into().replace('\0', "\u{FFFD}");
     LAST_ERROR.with(|slot| {
         *slot.borrow_mut() = CString::new(text).unwrap_or_default();
     });
