@@ -98,11 +98,41 @@ impl RenderOptions {
     }
 }
 
+/// Largest edge of a rendered image, in pixels.
+const MAX_EDGE: u32 = 8_192;
+
+/// Most pixels (before supersampling) of a rendered image.
+const MAX_PIXELS: u64 = 36_000_000;
+
+/// Most samples per pixel edge.
+const MAX_SUPERSAMPLE: u32 = 4;
+
+/// The output size and supersampling factor that fit the limits, keeping the aspect ratio.
+fn bounded_size(options: &RenderOptions) -> (u32, u32, u32) {
+    let mut width = options.width.clamp(1, MAX_EDGE);
+    let mut height = options.height.clamp(1, MAX_EDGE);
+    let mut scale = options.supersample.clamp(1, MAX_SUPERSAMPLE);
+    // Supersampling multiplies both edges; shed it first, then shrink the image.
+    while scale > 1 && u64::from(width * scale) * u64::from(height * scale) > MAX_PIXELS {
+        scale -= 1;
+    }
+    while u64::from(width) * u64::from(height) * u64::from(scale * scale) > MAX_PIXELS {
+        width = (width * 9 / 10).max(1);
+        height = (height * 9 / 10).max(1);
+    }
+    (width, height, scale)
+}
+
 /// Render the scene to an RGBA image.
+///
+/// The image is at most 8192 pixels on a side and 36 million pixels in all; a larger
+/// request is rendered at the largest size that fits.
 pub fn render_rgba(scene: &Mol3dScene, camera: crate::camera::Camera3D, options: &RenderOptions) -> RgbaImage {
-    let scale = options.supersample.max(1);
-    let width = options.width * scale;
-    let height = options.height * scale;
+    // `width * scale` overflowed u32 and the pixel buffer was sized from it unchecked. A
+    // request beyond the limits is rendered smaller rather than allocated.
+    let (out_width, out_height, scale) = bounded_size(options);
+    let width = out_width * scale;
+    let height = out_height * scale;
     let viewport = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(width as f32, height as f32));
     let mut pixels = vec![0u8; (width * height * 4) as usize];
     let mut depth = vec![f64::INFINITY; (width * height) as usize];
@@ -181,7 +211,7 @@ pub fn render_rgba(scene: &Mol3dScene, camera: crate::camera::Camera3D, options:
     if scale > 1 {
         pixels = downsample(&pixels, width, height, scale);
     }
-    RgbaImage::from_raw(options.width, options.height, pixels).expect("image size")
+    RgbaImage::from_raw(out_width, out_height, pixels).expect("image size")
 }
 
 /// Render directly to PNG bytes.
@@ -392,63 +422,4 @@ pub fn figure_center(scene: &Mol3dScene) -> Option<Vec3> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use egui_workbench_chem_core::Element;
-
-    fn scene() -> Mol3dScene {
-        let mut scene = Mol3dScene::default();
-        scene.push_atom(Element::from_symbol("O").expect("O"), [0.0, 0.0, 0.0]);
-        scene.push_atom(Element::from_symbol("H").expect("H"), [0.96, 0.0, 0.0]);
-        scene
-    }
-
-    #[test]
-    fn a_small_render_has_the_requested_size_and_png_signature() {
-        let camera = crate::camera::Camera3D {
-            distance: 6.0,
-            ..crate::camera::Camera3D::default()
-        };
-        let options = RenderOptions {
-            width: 64,
-            height: 48,
-            ambient_occlusion: false,
-            ..RenderOptions::default()
-        };
-        let image = render_rgba(&scene(), camera, &options);
-        assert_eq!(image.dimensions(), (64, 48));
-        assert!(image.pixels().any(|pixel| pixel[3] == 255));
-        let png = render_png(&scene(), camera, &options).expect("png");
-        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
-    }
-
-    #[test]
-    fn transparent_renders_keep_an_alpha_zero_background() {
-        let options = RenderOptions {
-            width: 32,
-            height: 32,
-            transparent: true,
-            ambient_occlusion: false,
-            ..RenderOptions::default()
-        };
-        let image = render_rgba(&scene(), crate::camera::Camera3D::default(), &options);
-        assert!(image.pixels().any(|pixel| pixel[3] == 0));
-    }
-
-    #[test]
-    fn clipping_removes_every_hit() {
-        let options = RenderOptions {
-            width: 32,
-            height: 32,
-            ambient_occlusion: false,
-            clip_planes: vec![ClipPlane {
-                normal: Vec3::new(1.0, 0.0, 0.0),
-                offset: -100.0,
-            }],
-            ..RenderOptions::default()
-        };
-        let image = render_rgba(&scene(), crate::camera::Camera3D::default(), &options);
-        assert!(image.pixels().all(|pixel| pixel[3] == 0 || pixel[3] == 255));
-        assert!(image.pixels().all(|pixel| pixel[3] == 255));
-    }
-}
+mod tests;
