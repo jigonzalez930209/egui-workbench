@@ -6,11 +6,13 @@ description: SemVer for every crate and package, the egui and MSRV policies, and
 # Versioning and support
 
 Every published crate and package follows Semantic Versioning. `1.0.0` is the first
-stable promise; the 0.x series could break between minors.
+stable promise; the 0.x series could break between minors. The chemistry plugins
+(`egui-workbench-chem-core`, `egui-workbench-chem2d`, `egui-workbench-mol3d`) share the
+release version from 1.2.0.
 
 | Surface | Version | Compatibility |
 |---|---|---|
-| Crates and packages | `1.1.x` | Major/minor/patch per SemVer |
+| Crates and packages | `1.2.x` | Major/minor/patch per SemVer |
 | Host spec | `1` | Newer spec is rejected |
 | Host protocol | `1` | Newer protocol is rejected |
 | Extension ABI | `0.15` | Manifest declares the supported range |
