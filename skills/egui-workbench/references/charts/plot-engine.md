@@ -164,9 +164,10 @@ custom settings dialog can edit them directly.
 
 The toolbar also has a clear (eraser) icon that appears only when the chart has
 measurements, annotations, selection, or analysis; it calls `PlotState::clear_overlays`.
-A pin icon opens a draggable chart-settings panel on hover, and clicking the pin keeps it
-open. The panel edits the measurement mode/style/snap/labels, the filter toggles and
-parameters, and the transform.
+The pin at the right edge controls the ribbon: hover it to unroll the existing icons with
+an animation, click it to keep the ribbon open, and drag it to move the ribbon anywhere in
+the plot. The settings gear opens a draggable panel with the measurement mode, area
+style, snap radius, labels, filter toggles and parameters, and transforms.
 
 ## Axes
 

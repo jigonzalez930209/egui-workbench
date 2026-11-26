@@ -54,10 +54,9 @@ pub(super) fn panel(ui: &Ui, state: &mut PlotState, anchor: Rect) -> bool {
                     }
                     ui.label(RichText::new("Chart settings").strong());
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let label = if state.settings_pinned { "Unpin" } else { "Pin" };
-                        if ui.button(label).clicked() {
-                            state.settings_pinned = !state.settings_pinned;
-                            state.settings_hovered = true;
+                        if ui.button("Close").clicked() {
+                            state.settings_pinned = false;
+                            state.settings_hovered = false;
                         }
                     });
                 });
@@ -76,9 +75,12 @@ pub(super) fn panel(ui: &Ui, state: &mut PlotState, anchor: Rect) -> bool {
                     }
                 });
                 ui.label(
-                    RichText::new("Hover the pin icon to preview; click it or Pin to keep this panel open.")
-                        .small()
-                        .weak(),
+                    RichText::new(
+                        "Hover the settings icon to preview; click it to keep this panel open. \
+                         Drag the panel by the :: handle.",
+                    )
+                    .small()
+                    .weak(),
                 );
             });
         });

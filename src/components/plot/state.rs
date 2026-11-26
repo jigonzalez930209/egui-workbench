@@ -13,7 +13,7 @@ use super::types::{Drag, PlotTool};
 
 /// The interactive state of one plot. Keep it in the application model.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct PlotState {
     pub(super) view: Option<Bounds>,
     /// The tool the primary button uses.
@@ -63,6 +63,46 @@ pub struct PlotState {
     /// Dragged offset of the settings panel.
     #[cfg_attr(feature = "serde", serde(default))]
     pub settings_offset: [f32; 2],
+    /// Whether the tool ribbon stays unrolled.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub toolbar_pinned: bool,
+    /// Ribbon reveal fraction, animated.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) toolbar_reveal: f32,
+    /// Dragged ribbon position relative to the plot frame.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub toolbar_anchor: Option<[f32; 2]>,
+}
+
+impl Default for PlotState {
+    fn default() -> Self {
+        Self {
+            view: None,
+            tool: PlotTool::default(),
+            selection: None,
+            hidden: Vec::new(),
+            drag: None,
+            export_menu: false,
+            y2_view: None,
+            legend_pos: None,
+            extents: Vec::new(),
+            legend_hover: None,
+            legend_hover_start: 0.0,
+            annotations: Vec::new(),
+            measurements: Vec::new(),
+            pipeline: Pipeline::default(),
+            measurement: MeasurementConfig::default(),
+            measurement_customized: false,
+            settings_pinned: false,
+            settings_hovered: false,
+            settings_offset: [0.0; 2],
+            // Keep the tools visible by default; the pin collapses the ribbon and the
+            // hover animation reopens it.
+            toolbar_pinned: true,
+            toolbar_reveal: 1.0,
+            toolbar_anchor: None,
+        }
+    }
 }
 
 impl PlotState {
@@ -202,6 +242,20 @@ impl PlotState {
             || !self.annotations.is_empty()
             || self.pipeline.is_active()
             || self.selection.is_some()
+    }
+
+    /// Pin the tool ribbon open or let it unroll on hover.
+    pub fn pin_toolbar(&mut self, pinned: bool) {
+        self.toolbar_pinned = pinned;
+        if pinned {
+            self.toolbar_reveal = 1.0;
+        }
+    }
+
+    /// Collapse the ribbon and unpin it.
+    pub fn collapse_toolbar(&mut self) {
+        self.toolbar_pinned = false;
+        self.toolbar_reveal = 0.0;
     }
 
     /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)

@@ -42,10 +42,13 @@ release may change the API, and each entry says how to migrate.
     cross-correlation of two series, Hilbert envelope, and cepstrum.
 - A clear (eraser) icon appears only when the chart has measurements, annotations,
   selection, or analysis; clicking it removes every painted overlay.
-- A pin icon opens a draggable chart-settings panel on hover; clicking the pin keeps it
-  open. The panel hosts the measurement mode, area style, snap radius, labels, filter
-  toggles and parameters, and transform selection. The existing toolbar icons are
-  unchanged.
+- The tool ribbon is controlled by the pin at its right edge: hovering the pin unrolls
+  the existing icons with a tape-measure animation, clicking the pin keeps the ribbon
+  open, and dragging the pin moves the ribbon anywhere in the plot. `PlotState` exposes
+  `pin_toolbar` and `collapse_toolbar`.
+- The settings gear opens a draggable chart-settings panel. The panel hosts the
+  measurement mode, area style, snap radius, labels, filter toggles and parameters, and
+  transform selection. The existing toolbar icons are unchanged.
 - Measurements live in `PlotState` in data coordinates, so they survive zoom, pan, fit,
   and serde round-trips. `measurements`, `add_measurement`, `remove_measurement`,
   `pop_measurement`, and `clear_measurements` manage the list.
@@ -63,11 +66,12 @@ release may change the API, and each entry says how to migrate.
 
 ### Tests
 
-- 26 measurement tests across the plot unit and integration suites: distance components,
+- 29 measurement tests across the plot unit and integration suites: distance components,
   horizontal/vertical/negative directions, area bounds, extrema and slopes at extrema,
   integral, mean, endpoint slope, reference filtering, unsorted input, rectangle and
-  curve-vs-chord areas, snapping, toolbar tools, analysis icon, clear icon, pinned
-  settings panel, list helpers, zoom persistence, and serde round-trips.
+  curve-vs-chord areas, snapping, toolbar tools, analysis icon, clear icon, pin hover
+  unroll, pin drag, pinned settings panel, list helpers, zoom persistence, and serde
+  round-trips.
 - 16 analysis tests: five filters, seven transforms (including FFT/IFFT round-trip and
   spectral peaks), and four pipeline toggles.
 

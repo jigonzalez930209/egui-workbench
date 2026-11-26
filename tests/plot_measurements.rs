@@ -60,6 +60,7 @@ fn harness<'a>() -> Harness<'a, Board> {
                         .series(Series::line("line", &board.line))
                         .series(Series::scatter("dots", &board.dots))
                         .measurement_mode(board.measurement.mode)
+                        .settings_button(true)
                         .show(ui, &mut board.icons, &mut board.state);
                     board.view = Some(response.view);
                     if response.hovered.is_some() {
@@ -301,6 +302,29 @@ fn the_analysis_icon_toggles_filters_and_transforms() {
 }
 
 #[test]
+fn hovering_the_pin_unrolls_the_tool_ribbon() {
+    let mut harness = harness();
+    harness.state_mut().state.collapse_toolbar();
+    harness.run_steps(2);
+    let frame = harness.state().frame.expect("frame");
+    let pin = egui::pos2(frame.right() - 19.0, frame.top() + 13.0);
+    harness.event(Event::PointerMoved(pin));
+    harness.run_steps(20);
+    assert!(harness.query_by_label("Pan (drag) · wheel zooms").is_some());
+}
+
+#[test]
+fn dragging_the_pin_moves_the_tool_ribbon() {
+    let mut harness = harness();
+    harness.run_steps(3);
+    let frame = harness.state().frame.expect("frame");
+    let pin = egui::pos2(frame.right() - 19.0, frame.top() + 13.0);
+    drag(&mut harness, pin, pin + vec2(-40.0, 50.0));
+    let anchor = harness.state().state.toolbar_anchor.expect("moved toolbar");
+    assert!(anchor[1] > 10.0, "{anchor:?}");
+}
+
+#[test]
 fn the_clear_icon_appears_only_with_overlays_and_clears_them() {
     let mut harness = harness();
     harness.run_steps(3);
@@ -332,12 +356,25 @@ fn the_clear_icon_appears_only_with_overlays_and_clears_them() {
 }
 
 #[test]
-fn the_pin_opens_the_settings_panel_and_changes_the_measurement_mode() {
+fn the_pin_unrolls_the_tool_ribbon_and_keeps_it_open() {
+    let mut harness = harness();
+    harness.state_mut().state.collapse_toolbar();
+    harness.run_steps(20);
+    assert!(harness.query_by_label("Pan (drag) · wheel zooms").is_none());
+    harness
+        .get_by_label("Toolbar (hover to unroll) · click to pin · drag to move")
+        .click();
+    harness.run_steps(20);
+    assert!(harness.state().state.toolbar_pinned);
+    assert!(harness.query_by_label("Pan (drag) · wheel zooms").is_some());
+}
+
+#[test]
+fn the_gear_opens_the_settings_panel_and_changes_the_measurement_mode() {
     let mut harness = harness();
     harness.run_steps(3);
-    harness.get_by_label("Chart settings (hover) · click to pin").click();
+    harness.get_by_label("Chart settings").click();
     harness.run_steps(2);
-    assert!(harness.query_by_label("Chart settings").is_some());
     harness.get_by_label("Curve vs chord").click();
     harness.run_steps(2);
     assert_eq!(harness.state().state.measurement.mode, MeasurementMode::CurveSegment);

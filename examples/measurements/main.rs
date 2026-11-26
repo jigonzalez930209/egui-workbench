@@ -101,8 +101,10 @@ impl MeasurementsApp {
     fn charts_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Plot measurements");
         ui.label(
-            "Ruler: drag between two points (snaps within 14 pt). Area: drag a rectangle. \
-             The right panel shows the exact values returned to the application.",
+            "Ruler: drag between two points (snaps within 14 pt). Area: drag a rectangle \
+             or, in curve mode, between two points on one curve. Hover the pin at the \
+             right edge to unroll the tool ribbon; click it to keep it open and drag it \
+             to move the tools. The gear opens the chart settings.",
         );
         ui.add_space(6.0);
         let icons = &mut self.icons;
@@ -135,9 +137,10 @@ impl MeasurementsApp {
     fn sidebar(&mut self, ui: &mut egui::Ui) {
         ui.heading("Chart settings");
         ui.label(
-            "Hover the pin icon in a chart to preview its settings; click the pin to keep \
-             the panel open. It contains the measurement mode, labels, snap radius, filters, \
-             filter parameters, and transforms.",
+            "Hover the pin at the right edge of a chart to unroll the tool ribbon; click it \
+             to keep the ribbon open and drag it to move the tools. The gear inside opens \
+             the settings panel with the measurement mode, labels, snap radius, filters, \
+             parameters, and transforms.",
         );
         ui.separator();
         ui.heading("Measurements");
@@ -270,7 +273,8 @@ fn plot_for<'a>(kind: ChartKind, title: &str, primary: &'a [[f64; 2]], secondary
         .title(title.to_owned())
         .height(250.0)
         .x_label("x")
-        .y_label("y");
+        .y_label("y")
+        .settings_button(true);
     match kind {
         ChartKind::Damped => plot.series(Series::line("damped", primary)),
         ChartKind::Cubic => plot.series(Series::scatter("cubic", primary)),

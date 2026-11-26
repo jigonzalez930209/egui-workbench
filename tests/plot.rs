@@ -54,6 +54,7 @@ fn harness<'a>() -> Harness<'a, Board> {
                         .y_label("y")
                         .series(Series::line("line", &board.line))
                         .series(Series::scatter("dots", &board.dots))
+                        .settings_button(true)
                         .show(ui, &mut board.icons, &mut board.state);
                     board.view = Some(response.view);
                     if response.hovered.is_some() {
