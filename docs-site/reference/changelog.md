@@ -15,6 +15,67 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-25
+
+### Added
+
+- Plot measurement tools. The toolbar now exposes a ruler and an area tool:
+  - **Ruler** (`PlotTool::MeasureDistance`): drag between two points, snapping to the
+    nearest visible point within 14 pt. Reports Δx, Δy, Euclidean distance, slope, and
+    angle.
+  - **Area** (`PlotTool::MeasureArea`) has two modes, selected in the chart settings:
+    - **Rectangle**: drag a rectangle. Reports its area and, for every visible series,
+      the minimum and maximum (with the slope at each extremum), the mean, the
+      trapezoidal integral, and the endpoint slope.
+    - **Curve vs chord**: drag between two points on the same curve. Reports the signed
+      and absolute area between the curve and its chord, the arc length, the chord
+      distance/slope/angle, and the largest deviation.
+- `MeasurementConfig` in `PlotConfig` controls the mode, the signed/absolute label,
+  the snap radius, and whether labels draw. Builder methods are
+  `measurement_mode`, `measurement_area_style`, `measurement_snap_radius`, and
+  `measurement_labels`.
+- One analysis icon opens a menu with every filter and transform. Active items colour
+  the icon, and the same toggles are available in the chart settings:
+  - Filters: Savitzky–Golay, moving average, Gaussian, median, and exponential low-pass,
+    with configurable windows, order, sigma, and alpha.
+  - Transforms: FFT magnitude, inverse FFT, power spectral density, autocorrelation,
+    cross-correlation of two series, Hilbert envelope, and cepstrum.
+- A clear (eraser) icon appears only when the chart has measurements, annotations,
+  selection, or analysis; clicking it removes every painted overlay.
+- The tool ribbon is controlled by the pin at its right edge: hovering the pin unrolls
+  the existing icons with a tape-measure animation, clicking the pin keeps the ribbon
+  open, and dragging the pin moves the ribbon anywhere in the plot. `PlotState` exposes
+  `pin_toolbar` and `collapse_toolbar`.
+- The settings gear opens a chart-settings dialog (not a dropdown) with the measurement
+  mode, area style, snap radius, labels, filter toggles and parameters, and transform
+  selection. It still emits `settings_requested` for applications with their own dialog.
+  The existing toolbar icons are unchanged.
+- Measurements live in `PlotState` in data coordinates, so they survive zoom, pan, fit,
+  and serde round-trips. `measurements`, `add_measurement`, `remove_measurement`,
+  `pop_measurement`, and `clear_measurements` manage the list.
+- `PlotMeasurement`, `DistanceSummary`, `CurveAreaSummary`, `Extremum`,
+  `SeriesMeasurement`, `region_measurements`, and `curve_area_summary` expose the same
+  values the labels show.
+- `examples/measurements`: a QA workbench with a damped line, a cubic scatter, two
+  sensor traces, and a 50,000-point stream, plus a live panel with the computed
+  summaries and the chart settings.
+
+### Changed
+
+- Measurement drags start from the pointer press origin instead of the position where
+  egui first reports the drag, so snapping still sees the point the user pressed.
+
+### Tests
+
+- 29 measurement tests across the plot unit and integration suites: distance components,
+  horizontal/vertical/negative directions, area bounds, extrema and slopes at extrema,
+  integral, mean, endpoint slope, reference filtering, unsorted input, rectangle and
+  curve-vs-chord areas, snapping, toolbar tools, analysis icon, clear icon, pin hover
+  unroll, pin drag, pinned settings panel, list helpers, zoom persistence, and serde
+  round-trips.
+- 16 analysis tests: five filters, seven transforms (including FFT/IFFT round-trip and
+  spectral peaks), and four pipeline toggles.
+
 ## [1.0.4] - 2026-11-25
 
 ### Security

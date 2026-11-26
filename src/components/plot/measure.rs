@@ -12,9 +12,65 @@ use super::transform::Transform;
 use super::{Plot, PlotState};
 use crate::theme::Theme;
 
-/// A persistent measurement drawn over the data.
+mod curve;
+
+pub use curve::{CurveAreaSummary, curve_area_summary};
+
+/// How the area tool measures.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MeasurementMode {
+    /// Drag a rectangle and measure its area and the series inside it.
+    #[default]
+    Rectangle,
+    /// Drag between two points on the same series and measure the area between the
+    /// curve and the chord.
+    CurveSegment,
+}
+
+/// Which area a curve-segment label shows first.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MeasurementAreaStyle {
+    /// Show the signed area (positive above the chord, negative below).
+    Signed,
+    /// Show the absolute area between the curve and the chord.
+    #[default]
+    Absolute,
+}
+
+/// Measurement settings owned by the chart configuration.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MeasurementConfig {
+    /// Rectangle or curve-segment area mode.
+    pub mode: MeasurementMode,
+    /// Which area the label emphasizes.
+    pub area_style: MeasurementAreaStyle,
+    /// Snap radius in points.
+    pub snap_radius: f32,
+    /// Draw measurement labels over the data.
+    pub show_labels: bool,
+}
+
+impl Default for MeasurementConfig {
+    fn default() -> Self {
+        Self {
+            mode: MeasurementMode::Rectangle,
+            area_style: MeasurementAreaStyle::Absolute,
+            snap_radius: 14.0,
+            show_labels: true,
+        }
+    }
+}
+
+/// A persistent measurement drawn over the data.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum PlotMeasurement {
     /// A line between two data points.
@@ -29,6 +85,19 @@ pub enum PlotMeasurement {
         /// Region corners, in any order.
         bounds: Bounds,
     },
+    /// The area between one curve segment and its chord, from `start` to `end`.
+    CurveArea {
+        /// Series the segment belongs to.
+        series: String,
+        /// First point in data coordinates.
+        start: [f64; 2],
+        /// Second point in data coordinates.
+        end: [f64; 2],
+        /// Index of `start` in the series data.
+        start_index: usize,
+        /// Index of `end` in the series data.
+        end_index: usize,
+    },
 }
 
 impl PlotMeasurement {
@@ -42,11 +111,29 @@ impl PlotMeasurement {
         Self::Area { bounds }
     }
 
+    /// The area between a curve segment and its chord.
+    pub fn curve_area(
+        series: impl Into<String>,
+        start: [f64; 2],
+        end: [f64; 2],
+        start_index: usize,
+        end_index: usize,
+    ) -> Self {
+        Self::CurveArea {
+            series: series.into(),
+            start,
+            end,
+            start_index,
+            end_index,
+        }
+    }
+
     /// The region this measurement covers.
     pub fn bounds(&self) -> Bounds {
         match self {
             Self::Distance { start, end } => Bounds::from_corners(*start, *end),
             Self::Area { bounds } => *bounds,
+            Self::CurveArea { start, end, .. } => Bounds::from_corners(*start, *end),
         }
     }
 
@@ -238,14 +325,16 @@ pub(super) fn paint(
                         summary.slope.map_or_else(|| "∞".to_owned(), number),
                         number(summary.angle_deg)
                     );
-                    label_block(
-                        scene,
-                        measure,
-                        midpoint(a, b) + vec2(8.0, -8.0),
-                        &[label],
-                        theme.warning,
-                        theme,
-                    );
+                    if state.measurement.show_labels {
+                        label_block(
+                            scene,
+                            measure,
+                            pos2((a.x + b.x) * 0.5, (a.y + b.y) * 0.5) + vec2(8.0, -8.0),
+                            &[label],
+                            theme.warning,
+                            theme,
+                        );
+                    }
                 }
             }
             PlotMeasurement::Area { bounds } => {
@@ -289,16 +378,21 @@ pub(super) fn paint(
                             .map_or_else(|| "—".to_owned(), |value| number(value.point[1])),
                         number(series.integral)
                     ));
-                    draw_extrema(scene, measure, transform, series, theme);
+                    draw_extrema(scene, measure, transform, series, theme, state.measurement.show_labels);
                 }
-                label_block(
-                    scene,
-                    measure,
-                    rect.left_top() + vec2(6.0, 6.0),
-                    &lines,
-                    theme.link,
-                    theme,
-                );
+                if state.measurement.show_labels {
+                    label_block(
+                        scene,
+                        measure,
+                        rect.left_top() + vec2(6.0, 6.0),
+                        &lines,
+                        theme.link,
+                        theme,
+                    );
+                }
+            }
+            PlotMeasurement::CurveArea { .. } => {
+                curve::paint(scene, measure, transform, plot, state, theme, measurement);
             }
         }
     }
@@ -310,6 +404,7 @@ fn draw_extrema(
     transform: &Transform,
     series: &SeriesMeasurement,
     theme: &Theme,
+    show_labels: bool,
 ) {
     for (extremum, color, name) in [(series.min, theme.success, "min"), (series.max, theme.danger, "max")] {
         let Some(extremum) = extremum else {
@@ -328,9 +423,11 @@ fn draw_extrema(
         let slope = extremum.slope.map_or_else(|| "—".to_owned(), number);
         let text = format!("{name} {} · slope {slope}", number(extremum.point[1]));
         let (width, height, _) = measure.text(&text, 10.0);
-        scene
-            .over
-            .push(measure.label(position + vec2(4.0, -height), Align2::LEFT_BOTTOM, &text, 10.0, color));
+        if show_labels {
+            scene
+                .over
+                .push(measure.label(position + vec2(4.0, -height), Align2::LEFT_BOTTOM, &text, 10.0, color));
+        }
         let _ = width;
     }
 }
@@ -397,59 +494,5 @@ fn number(value: f64) -> String {
     text
 }
 
-fn midpoint(a: Pos2, b: Pos2) -> Pos2 {
-    pos2((a.x + b.x) * 0.5, (a.y + b.y) * 0.5)
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::components::plot::{Plot, Series};
-
-    #[test]
-    fn a_distance_reports_dx_dy_length_slope_and_angle() {
-        let summary = PlotMeasurement::distance([1.0, 2.0], [4.0, 6.0])
-            .distance_summary()
-            .expect("distance summary");
-        assert_eq!(summary.dx, 3.0);
-        assert_eq!(summary.dy, 4.0);
-        assert_eq!(summary.distance, 5.0);
-        assert_eq!(summary.slope, Some(4.0 / 3.0));
-        assert!((summary.angle_deg - 53.130_102).abs() < 1e-4);
-    }
-
-    #[test]
-    fn a_vertical_distance_has_no_slope() {
-        let summary = PlotMeasurement::distance([2.0, 0.0], [2.0, 5.0])
-            .distance_summary()
-            .expect("distance summary");
-        assert_eq!(summary.slope, None);
-        assert_eq!(summary.distance, 5.0);
-    }
-
-    #[test]
-    fn a_region_reports_extrema_integral_mean_and_slopes() {
-        let data = [[0.0, 0.0], [1.0, 1.0], [2.0, 0.0], [3.0, -1.0], [4.0, 0.0]];
-        let plot = Plot::new("measure").series(Series::line("line", &data));
-        let state = PlotState::default();
-        let stats = region_measurements(&plot, &state, Bounds::from_corners([0.0, -1.0], [4.0, 1.0]));
-        assert_eq!(stats.len(), 1);
-        let stats = &stats[0];
-        assert_eq!(stats.series, "line");
-        assert_eq!(stats.min.expect("min").point, [3.0, -1.0]);
-        assert_eq!(stats.max.expect("max").point, [1.0, 1.0]);
-        assert_eq!(stats.min.expect("min").slope, Some(0.0));
-        assert_eq!(stats.integral, 0.0);
-        assert_eq!(stats.mean, 0.0);
-        assert_eq!(stats.endpoint_slope, Some(0.0));
-    }
-
-    #[test]
-    fn a_region_without_points_is_omitted() {
-        let data = [[0.0, 0.0], [1.0, 1.0]];
-        let plot = Plot::new("measure").series(Series::line("line", &data));
-        let state = PlotState::default();
-        let stats = region_measurements(&plot, &state, Bounds::from_corners([10.0, 10.0], [20.0, 20.0]));
-        assert!(stats.is_empty());
-    }
-}
+mod tests;

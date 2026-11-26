@@ -84,14 +84,19 @@ Two toolbar tools draw persistent measurements in data coordinates, so they surv
 pan, and a saved `PlotState`:
 
 - **Ruler** (`PlotTool::MeasureDistance`): drag between two points. Snaps to the nearest
-  visible point within 14 pt and reports `Δx`, `Δy`, Euclidean distance, slope, and
-  angle.
-- **Area** (`PlotTool::MeasureArea`): drag a rectangle. Reports its area, and for every
-  visible series the minimum and maximum (with the slope at each extremum), the mean, the
-  trapezoidal integral, and the endpoint slope.
+  visible point and reports `Δx`, `Δy`, Euclidean distance, slope, and angle.
+- **Area** (`PlotTool::MeasureArea`) has two modes, selected in `PlotConfig.measurement`:
+  - **Rectangle**: drag a rectangle. Reports its area, and for every visible series the
+  minimum and maximum (with the slope at each extremum), the mean, the trapezoidal
+  integral, and the endpoint slope.
+  - **Curve vs chord**: drag between two points on the same curve. Reports the signed and
+  absolute area between the curve and its chord, the arc length, the chord
+  distance/slope/angle, and the maximum deviation.
 
 ```rust
-use egui_workbench::components::plot::{Bounds, PlotMeasurement, PlotState, region_measurements};
+use egui_workbench::components::plot::{
+    Bounds, MeasurementMode, PlotMeasurement, PlotState, curve_area_summary, region_measurements,
+};
 
 let mut state = PlotState::default();
 state.add_measurement(PlotMeasurement::distance([1.0, 2.0], [4.0, 6.0]));
@@ -105,11 +110,65 @@ let stats = region_measurements(&plot, &state, state.measurements()[1].bounds())
 for series in stats {
     let _ = (series.min, series.max, series.integral, series.mean);
 }
+
+// Curve vs chord, created by dragging in CurveSegment mode.
+let measurement = PlotMeasurement::curve_area("line", [0.0, 0.0], [2.0, 0.0], 0, 2);
+if let Some(summary) = curve_area_summary(&plot, &state, &measurement) {
+    let _ = (summary.area, summary.absolute_area, summary.arc_length);
+}
+```
+
+`MeasurementConfig` sets the mode, the signed/absolute label, the snap radius, and
+whether labels draw. The builder mirrors it:
+
+```rust
+let plot = plot
+    .measurement_mode(MeasurementMode::CurveSegment)
+    .measurement_snap_radius(18.0)
+    .measurement_labels(true);
 ```
 
 `PlotState::pop_measurement`, `remove_measurement`, `clear_measurements`, and
 `measurements` manage the list. Measurements are serialized with the rest of the state
 when the `serde` feature is enabled.
+
+## Filters and transforms
+
+One sliders icon in the chart toolbar opens a menu with every filter and transform. An
+active pipeline colours the icon; the same toggles are available in the chart settings.
+Filters apply to every visible series; transforms use the first series, and
+cross-correlation uses the first two.
+
+| Filter | Control |
+|---|---|
+| Savitzky–Golay | window, polynomial order |
+| Moving average | window |
+| Gaussian | sigma |
+| Median | window |
+| Low-pass | alpha |
+
+| Transform | Result |
+|---|---|
+| FFT magnitude | one-sided amplitude spectrum |
+| Inverse FFT | inverse DFT of the series as a complex spectrum |
+| Power spectral density | one-sided PSD |
+| Autocorrelation | normalized correlation by lag |
+| Cross-correlation | normalized correlation of two series |
+| Hilbert envelope | analytic-signal magnitude |
+| Cepstrum | real cepstrum |
+
+The state API is `PlotState::toggle_filter`, `set_filter`, `set_transform`,
+`clear_analysis`, and `pipeline`. A new transform clears measurements because the data
+domain changed. `FilterSettings` and `TransformSettings` expose the parameters, and a
+custom settings dialog can edit them directly.
+
+The toolbar also has a clear (eraser) icon that appears only when the chart has
+measurements, annotations, selection, or analysis; it calls `PlotState::clear_overlays`.
+The pin at the right edge controls the ribbon: hover it to unroll the existing icons with
+an animation, click it to keep the ribbon open, and drag it to move the ribbon anywhere in
+the plot. The settings gear opens a chart-settings dialog (not a dropdown) with the measurement
+mode, area style, snap radius, labels, filter toggles and parameters, and transforms. It
+also reports `settings_requested` so an application can open its own dialog instead.
 
 ## Axes
 

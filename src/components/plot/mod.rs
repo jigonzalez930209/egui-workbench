@@ -41,6 +41,7 @@ mod direction;
 mod export;
 mod extra;
 mod families;
+mod filter;
 mod fit;
 #[cfg(feature = "gpu")]
 mod gpu;
@@ -56,14 +57,17 @@ mod measure;
 mod overlay;
 mod paint;
 mod pdf;
+mod pipeline;
 mod scene;
 mod series;
 mod series_bounds;
 mod series_charts;
 mod smooth;
+mod snap;
 mod special;
 mod three;
 mod transform;
+mod transforms;
 mod types;
 mod widgets;
 use crate::Icons;
@@ -83,19 +87,25 @@ pub use dataset::{DatasetPlot, DatasetPlotKind};
 use egui::{Color32, Id, Pos2, Rect, Sense, Ui, vec2};
 pub use export::{ExportOptions, ExportPreset};
 pub use families::{box_plot, contour, hexbin, histogram, histogram_density, polar, show_colorbar, smith, violin};
+pub use filter::{FilterKind, FilterSettings};
 pub use fit::{Fit, FitKind};
 #[cfg(feature = "gpu")]
 pub use gpu::set_output_format;
 pub use grid::PlotGrid;
 pub use history::ViewHistory;
 pub use math_text::to_unicode_math;
-pub use measure::{DistanceSummary, Extremum, PlotMeasurement, SeriesMeasurement, region_measurements};
+pub use measure::{
+    CurveAreaSummary, DistanceSummary, Extremum, MeasurementAreaStyle, MeasurementConfig, MeasurementMode,
+    PlotMeasurement, SeriesMeasurement, curve_area_summary, region_measurements,
+};
+pub use pipeline::Pipeline;
 use scene::Measure;
 pub use series::{LineStyle, Marker, Series, Smoothing, YAxis, points_in};
 pub use three::{
     Bounds3D, Camera3D, Plot3D, Plot3DConfig, Plot3DHover, Plot3DResponse, Plot3DState, Plot3DTool, Projection,
     Series3D, Series3DStyle, Surface, Surface3DConfig,
 };
+pub use transforms::{TransformKind, TransformSettings};
 use types::Drag;
 pub use types::{ChartMode, ExportFormat, LegendPosition, PlotHover, PlotResponse, PlotTool};
 
@@ -218,6 +228,30 @@ impl<'a> Plot<'a> {
 impl Plot<'_> {
     /// Paint the plot and handle its interaction.
     pub fn show(self, ui: &mut Ui, icons: &mut Icons, state: &mut PlotState) -> PlotResponse {
+        if state.pipeline.is_active() {
+            let series = state.pipeline.process(&self.series);
+            if !series.is_empty() {
+                let processed = Plot {
+                    id: self.id,
+                    series,
+                    config: self.config,
+                    width: self.width,
+                    height: self.height,
+                    x_window: self.x_window,
+                    include: self.include,
+                    settings_button: self.settings_button,
+                    export_button: self.export_button,
+                };
+                return processed.show_inner(ui, icons, state);
+            }
+        }
+        self.show_inner(ui, icons, state)
+    }
+
+    fn show_inner(self, ui: &mut Ui, icons: &mut Icons, state: &mut PlotState) -> PlotResponse {
+        if !state.measurement_customized {
+            state.measurement = self.config.measurement;
+        }
         let available = ui.available_size();
         let width = self.width.unwrap_or(available.x).max(120.0);
         let height = self
@@ -322,7 +356,7 @@ impl Plot<'_> {
         if let (Some(Drag::Measure { start, distance }), Some(current)) = (state.drag, response.interact_pointer_pos())
         {
             let clipped = painter.with_clip_rect(layout.frame);
-            if distance {
+            if distance || state.measurement.mode == MeasurementMode::CurveSegment {
                 clipped.line_segment([start, current], egui::Stroke::new(1.0, colors.selection));
             } else {
                 clipped.rect(

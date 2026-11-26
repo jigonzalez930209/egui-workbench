@@ -7,7 +7,7 @@ stable promise; the 0.x series could break between minors.
 
 | Surface | Version | Compatibility |
 |---|---|---|
-| Crates and packages | `1.0.x` | Major/minor/patch per SemVer |
+| Crates and packages | `1.1.x` | Major/minor/patch per SemVer |
 | Host spec | `1` | Newer spec is rejected |
 | Host protocol | `1` | Newer protocol is rejected |
 | Extension ABI | `0.15` | Manifest declares the supported range |

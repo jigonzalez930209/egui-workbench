@@ -4,13 +4,16 @@
 
 use super::PlotAnnotation;
 use super::axis::{Bounds, Scale};
-use super::measure::PlotMeasurement;
+use super::filter::FilterKind;
+use super::measure::{MeasurementConfig, PlotMeasurement};
+use super::pipeline::Pipeline;
 use super::series::Series;
+use super::transforms::TransformKind;
 use super::types::{Drag, PlotTool};
 
 /// The interactive state of one plot. Keep it in the application model.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct PlotState {
     pub(super) view: Option<Bounds>,
     /// The tool the primary button uses.
@@ -42,6 +45,56 @@ pub struct PlotState {
     /// Distance and area measurements drawn over the data.
     #[cfg_attr(feature = "serde", serde(default))]
     pub measurements: Vec<PlotMeasurement>,
+    /// Filters and transforms applied to the visible series.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub pipeline: Pipeline,
+    /// Live measurement settings. The chart config seeds them until the user edits them.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub measurement: MeasurementConfig,
+    /// Whether the user changed the measurement settings from the panel.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub(super) measurement_customized: bool,
+    /// Whether the chart-settings dialog is open.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub settings_open: bool,
+    /// Whether the tool ribbon stays unrolled.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub toolbar_pinned: bool,
+    /// Ribbon reveal fraction, animated.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) toolbar_reveal: f32,
+    /// Dragged ribbon position relative to the plot frame.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub toolbar_anchor: Option<[f32; 2]>,
+}
+
+impl Default for PlotState {
+    fn default() -> Self {
+        Self {
+            view: None,
+            tool: PlotTool::default(),
+            selection: None,
+            hidden: Vec::new(),
+            drag: None,
+            export_menu: false,
+            y2_view: None,
+            legend_pos: None,
+            extents: Vec::new(),
+            legend_hover: None,
+            legend_hover_start: 0.0,
+            annotations: Vec::new(),
+            measurements: Vec::new(),
+            pipeline: Pipeline::default(),
+            measurement: MeasurementConfig::default(),
+            measurement_customized: false,
+            settings_open: false,
+            // Keep the tools visible by default; the pin collapses the ribbon and the
+            // hover animation reopens it.
+            toolbar_pinned: true,
+            toolbar_reveal: 1.0,
+            toolbar_anchor: None,
+        }
+    }
 }
 
 impl PlotState {
@@ -125,6 +178,76 @@ impl PlotState {
     /// Remove every measurement.
     pub fn clear_measurements(&mut self) {
         self.measurements.clear();
+    }
+
+    /// The filter/transform pipeline.
+    pub fn pipeline(&self) -> &Pipeline {
+        &self.pipeline
+    }
+
+    /// The filter/transform pipeline, mutably.
+    pub fn pipeline_mut(&mut self) -> &mut Pipeline {
+        &mut self.pipeline
+    }
+
+    /// Enable or disable one filter.
+    pub fn toggle_filter(&mut self, filter: FilterKind) {
+        self.pipeline.toggle_filter(filter);
+    }
+
+    /// Enable or disable one filter explicitly.
+    pub fn set_filter(&mut self, filter: FilterKind, enabled: bool) {
+        self.pipeline.set_filter(filter, enabled);
+    }
+
+    /// Replace the transform. A new transform clears measurements because the data
+    /// domain changed.
+    pub fn set_transform(&mut self, transform: Option<TransformKind>) {
+        if self.pipeline.transform != transform {
+            self.pipeline.set_transform(transform);
+            self.measurements.clear();
+        }
+    }
+
+    /// Disable every filter and transform.
+    pub fn clear_analysis(&mut self) {
+        self.pipeline.clear();
+    }
+
+    /// Replace the live measurement settings and mark them user-edited.
+    pub fn set_measurement(&mut self, measurement: MeasurementConfig) {
+        self.measurement = measurement;
+        self.measurement_customized = true;
+    }
+
+    /// Clear every painted overlay: measurements, selection, annotations, and analysis.
+    pub fn clear_overlays(&mut self) {
+        self.measurements.clear();
+        self.selection = None;
+        self.annotations.clear();
+        self.pipeline.clear();
+    }
+
+    /// Whether a clear action would remove anything.
+    pub fn has_overlays(&self) -> bool {
+        !self.measurements.is_empty()
+            || !self.annotations.is_empty()
+            || self.pipeline.is_active()
+            || self.selection.is_some()
+    }
+
+    /// Pin the tool ribbon open or let it unroll on hover.
+    pub fn pin_toolbar(&mut self, pinned: bool) {
+        self.toolbar_pinned = pinned;
+        if pinned {
+            self.toolbar_reveal = 1.0;
+        }
+    }
+
+    /// Collapse the ribbon and unpin it.
+    pub fn collapse_toolbar(&mut self) {
+        self.toolbar_pinned = false;
+        self.toolbar_reveal = 0.0;
     }
 
     /// Where the legend was dragged to, as fractions (0 = left/top, 1 = right/bottom)

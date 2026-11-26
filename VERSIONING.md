@@ -6,7 +6,7 @@ Every published crate and package follows Semantic Versioning:
 
 - `egui-workbench`, `egui-workbench-host`, `egui-workbench-agent`,
   `egui-workbench-remote`, `egui-workbench-extensions`, and the Python and npm packages
-  share the release version (`1.0.x`).
+  share the release version (`1.1.x`).
 - A major version changes when a public Rust API, the host spec, the protocol, or the
   extension ABI breaks incompatibly.
 - A minor version adds compatible API or features.

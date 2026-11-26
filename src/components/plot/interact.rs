@@ -4,7 +4,9 @@ use egui::{CursorIcon, Pos2, Rect, Response, Ui, Vec2};
 
 use super::axis::{Bounds, Scale, Transform};
 use super::series::{self, YAxis};
-use super::{Drag, Plot, PlotHover, PlotMeasurement, PlotState, PlotTool, overlay, paint, widgets};
+use super::{
+    Drag, MeasurementMode, Plot, PlotHover, PlotMeasurement, PlotState, PlotTool, overlay, paint, snap, widgets,
+};
 
 impl Plot<'_> {
     /// The extents of the visible series in scaled space, split by y axis: (left, right).
@@ -193,7 +195,10 @@ impl Plot<'_> {
         }
         let (shift, alt) = ui.input(|input| (input.modifiers.shift, input.modifiers.alt));
         if response.drag_started() && response.interact_pointer_pos().is_some_and(|pos| frame.contains(pos)) {
-            let start = response.interact_pointer_pos().unwrap_or(frame.center());
+            let start = ui
+                .input(|input| input.pointer.press_origin())
+                .or_else(|| response.interact_pointer_pos())
+                .unwrap_or(frame.center());
             let secondary = response.dragged_by(egui::PointerButton::Secondary);
             state.drag = Some(if state.tool == PlotTool::MeasureDistance {
                 Drag::Measure { start, distance: true }
@@ -241,11 +246,20 @@ impl Plot<'_> {
             }
             Some(Drag::Measure { start, distance }) if response.drag_stopped() => {
                 let end = response.interact_pointer_pos().unwrap_or(start);
+                let radius = state.measurement.snap_radius;
                 if distance {
-                    let from = snap_point(self, state, transform, start);
-                    let to = snap_point(self, state, transform, end);
+                    let from = snap::snap_point(self, state, transform, start, radius);
+                    let to = snap::snap_point(self, state, transform, end, radius);
                     if from != to && from.iter().chain(to.iter()).all(|value| value.is_finite()) {
                         state.add_measurement(PlotMeasurement::distance(from, to));
+                    }
+                } else if state.measurement.mode == MeasurementMode::CurveSegment {
+                    if let Some((series, start_index, from)) = snap::snap_hit(self, state, transform, start, radius)
+                        && let Some((end_index, to)) =
+                            snap::nearest_on_series(self, state, transform, &series, end, radius)
+                        && start_index != end_index
+                    {
+                        state.add_measurement(PlotMeasurement::curve_area(series, from, to, start_index, end_index));
                     }
                 } else {
                     let rect = Rect::from_two_pos(start, end).intersect(frame);
@@ -313,23 +327,6 @@ impl Plot<'_> {
             }
         }
     }
-}
-
-/// Snap to the nearest visible point within 14 pt, or return the data position.
-fn snap_point(plot: &Plot<'_>, state: &PlotState, transform: &Transform, pointer: Pos2) -> [f64; 2] {
-    let mut best: Option<(f32, [f64; 2])> = None;
-    for series in plot.visible(state) {
-        if series.is_reference() {
-            continue;
-        }
-        let axis = transform.for_axis(plot.axis_of(series));
-        if let Some((index, _, distance)) = paint::nearest(&axis, series, pointer, 14.0, series.sorted_x(), None)
-            && best.is_none_or(|(current, _)| distance < current)
-        {
-            best = Some((distance, series.data()[index]));
-        }
-    }
-    best.map_or_else(|| transform.to_data(pointer), |(_, point)| point)
 }
 
 /// The axis whose tick band is under `pos`: below the frame is x, left of it the left

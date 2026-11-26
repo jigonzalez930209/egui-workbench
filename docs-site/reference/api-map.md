@@ -188,7 +188,7 @@ surface_fn}`.
 | Item | Kind |
 |---|---|
 | `Plot`, `Plot3D` | builders |
-| `PlotState`, `PlotTool`, `PlotHover`, `PlotResponse`, `LegendPosition` | state/response |
+| `PlotState`, `PlotTool`, `PlotHover`, `PlotResponse`, `LegendPosition`, `PlotMeasurement`, `MeasurementConfig`, `FilterKind`, `TransformKind` | state/response |
 | `Plot3DState`, `Plot3DTool`, `Plot3DHover`, `Plot3DResponse`, `Camera3D`, `Projection`, `Bounds3D` | 3D state/camera |
 | `Series`, `Marker`, `LineStyle`, `points_in` | data |
 | `Series3D`, `Surface` | 3D data |

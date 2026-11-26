@@ -2,12 +2,17 @@
 //! highlight, and the hover popup.
 
 use egui::epaint::Shadow;
-use egui::{Align2, Color32, LayerId, Order, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Color32, LayerId, Order, Painter, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::axis::{Transform, format_readout};
 use super::legend::LegendLayout;
 use super::{ExportFormat, Plot, PlotState, PlotTool, YAxis};
 use crate::Icons;
+
+mod export;
+mod settings;
+
+pub(super) use export::export_menu_for;
 
 /// Toggle series from legend rows and move the legend by dragging it. Returns the
 /// legend rectangle (blocks hover).
@@ -68,30 +73,30 @@ const SEPARATOR: f32 = 7.0;
 
 /// Where the toolbar goes, or `None` when it is off or the frame is too narrow. The
 /// legend uses it to stay clear of the buttons.
-pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect) -> Option<Rect> {
+pub(super) fn toolbar_rect(plot: &Plot<'_>, frame: Rect, state: &PlotState) -> Option<Rect> {
     if !plot.config.toolbar {
         return None;
     }
     let tools = if plot.chart_mode() == super::ChartMode::Cartesian {
-        8
+        9
     } else {
         0
     };
-    let buttons = tools + usize::from(plot.settings_button) + usize::from(plot.export_button);
+    let has_clear = state.has_overlays();
+    let buttons =
+        tools + usize::from(plot.settings_button) + usize::from(plot.export_button) + usize::from(has_clear) + 1;
     if buttons == 0 {
         return None;
     }
-    let groups = if tools > 0 && (plot.settings_button || plot.export_button) {
-        2.0
-    } else {
-        1.0
-    };
+    let extras = plot.settings_button || plot.export_button || has_clear;
+    let groups = if tools > 0 && extras { 2.0 } else { 1.0 };
     let width = BUTTON * buttons as f32 + SEPARATOR * groups + 4.0;
-    let rect = Rect::from_min_size(
-        pos2(frame.right() - 6.0 - width, frame.top() + 6.0),
-        vec2(width, BUTTON + 4.0),
+    let origin = state.toolbar_anchor.map_or_else(
+        || pos2(frame.right() - 6.0 - width, frame.top() + 6.0),
+        |[x, y]| frame.min + vec2(x, y),
     );
-    (rect.left() >= frame.left() + 40.0).then_some(rect)
+    let rect = Rect::from_min_size(origin, vec2(width, BUTTON + 4.0));
+    (rect.left() >= frame.left() + 40.0 && rect.right() <= frame.right()).then_some(rect)
 }
 
 /// The tool buttons in the top-right corner of the frame.
@@ -128,9 +133,14 @@ pub(super) fn toolbar(
             ),
             (
                 "lucide-square-dashed",
-                "Measure area, extrema, and integrals (drag)",
+                if plot.config.measurement.mode == super::MeasurementMode::CurveSegment {
+                    "Measure curve area against its chord (drag)"
+                } else {
+                    "Measure area, extrema, and integrals (drag)"
+                },
                 Some(PlotTool::MeasureArea),
             ),
+            ("lucide-sliders-horizontal", "Filters and transforms (analysis)", None),
             ("lucide-zoom-in", "Zoom in", None),
             ("lucide-zoom-out", "Zoom out", None),
             ("lucide-maximize", "Fit data (double-click)", None),
@@ -142,37 +152,91 @@ pub(super) fn toolbar(
     if plot.export_button {
         buttons.push(("lucide-download", "Export as SVG or PNG", None));
     }
+    if state.has_overlays() {
+        buttons.push(("lucide-eraser", "Clear measurements, analysis, and annotations", None));
+    }
+    buttons.push((
+        "lucide-pin",
+        "Toolbar (hover to unroll) · click to pin · drag to move",
+        None,
+    ));
     let separator = SEPARATOR;
-    let Some(rect) = toolbar_rect(plot, frame) else {
+    let Some(full) = toolbar_rect(plot, frame, state) else {
         return output;
     };
+    let pin_rect = Rect::from_min_size(
+        pos2(full.right() - 2.0 - BUTTON, full.top() + 2.0),
+        vec2(BUTTON, BUTTON),
+    );
+    let pointer = ui.ctx().pointer_hover_pos();
+    let reveal_before = state.toolbar_reveal.clamp(0.0, 1.0);
+    let visible_left = full.right() - (BUTTON + 4.0).max(full.width() * reveal_before);
+    let over = pointer.is_some_and(|pointer| {
+        (pointer.x >= visible_left - 2.0
+            && pointer.x <= full.right()
+            && pointer.y >= full.top()
+            && pointer.y <= full.bottom())
+            || pin_rect.expand(2.0).contains(pointer)
+    });
+    let target = if state.toolbar_pinned || over { 1.0 } else { 0.0 };
+    let dt = ui.input(|input| input.stable_dt).min(0.1);
+    let speed = 1.0 - (-dt * 22.0).exp();
+    if (target - state.toolbar_reveal).abs() > 0.001 {
+        state.toolbar_reveal += (target - state.toolbar_reveal) * speed;
+        ui.ctx().request_repaint();
+    } else {
+        state.toolbar_reveal = target;
+    }
+    let reveal = state.toolbar_reveal.clamp(0.0, 1.0);
+    let visible = Rect::from_min_max(
+        pos2(full.right() - (BUTTON + 4.0).max(full.width() * reveal), full.top()),
+        full.max,
+    );
     let visuals = ui.visuals().clone();
     let painter = ui.painter_at(frame);
     painter.rect(
-        rect,
+        visible,
         crate::style::get(ui.ctx()).control(),
         visuals.window_fill.gamma_multiply(0.94),
         crate::style::get(ui.ctx()).border(visuals.window_stroke.color),
         StrokeKind::Inside,
     );
-    let mut x = rect.left() + 2.0;
+    let mut x = full.left() + 2.0;
     let mut export_button = None;
+    let mut analysis_button = None;
     for (index, (icon, tooltip, tool)) in buttons.iter().enumerate() {
-        if index == 5 || index == 8 {
-            let line_x = painter.round_to_pixel_center(x + separator * 0.5);
-            painter.vline(
-                line_x,
-                rect.top() + 5.0..=rect.bottom() - 5.0,
-                crate::style::get(ui.ctx()).border(visuals.window_stroke.color),
-            );
+        if index == 6 || index == 9 {
+            if x >= visible.left() {
+                let line_x = painter.round_to_pixel_center(x + separator * 0.5);
+                painter.vline(
+                    line_x,
+                    full.top() + 5.0..=full.bottom() - 5.0,
+                    crate::style::get(ui.ctx()).border(visuals.window_stroke.color),
+                );
+            }
             x += separator;
         }
-        let button = Rect::from_min_size(pos2(x, rect.top() + 2.0), vec2(BUTTON, BUTTON));
+        let button = Rect::from_min_size(pos2(x, full.top() + 2.0), vec2(BUTTON, BUTTON));
         x += BUTTON;
-        let response = ui.interact(button, plot.id.with(("tool", *icon)), Sense::click());
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, *tooltip));
         let is_export = *icon == "lucide-download";
-        let active = tool.is_some_and(|tool| tool == state.tool) || (is_export && state.export_menu);
+        let is_analysis = *icon == "lucide-sliders-horizontal";
+        let is_pin = *icon == "lucide-pin";
+        let is_settings = *icon == "lucide-settings-2";
+        if !is_pin && button.left() < visible.left() - 0.5 {
+            continue;
+        }
+        let sense = if is_pin {
+            Sense::click_and_drag()
+        } else {
+            Sense::click()
+        };
+        let response = ui.interact(button, plot.id.with(("tool", *icon)), sense);
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, *tooltip));
+        let active = tool.is_some_and(|tool| tool == state.tool)
+            || (is_export && state.export_menu)
+            || (is_analysis && state.pipeline.is_active())
+            || (is_pin && state.toolbar_pinned)
+            || (is_settings && state.settings_open);
         let fill = if active {
             visuals.selection.bg_fill
         } else if response.hovered() {
@@ -187,16 +251,38 @@ pub(super) fn toolbar(
             visuals.weak_text_color()
         };
         icons.paint(ui, icon, button.center(), 14.0, color);
+        if is_pin && response.dragged() {
+            let delta = response.drag_delta();
+            let max_x = (frame.width() - full.width()).max(0.0);
+            let max_y = (frame.height() - full.height()).max(0.0);
+            state.toolbar_anchor = Some([
+                (full.left() - frame.left() + delta.x).clamp(40.0_f32.min(max_x), max_x),
+                (full.top() - frame.top() + delta.y).clamp(0.0, max_y),
+            ]);
+            state.toolbar_reveal = 1.0;
+            ui.ctx().request_repaint();
+        }
         if response.clicked() {
             match (*icon, tool) {
                 (_, Some(tool)) => state.tool = *tool,
+                ("lucide-sliders-horizontal", _) => {}
+                ("lucide-pin", _) => {
+                    state.toolbar_pinned = !state.toolbar_pinned;
+                    if state.toolbar_pinned {
+                        state.toolbar_reveal = 1.0;
+                    }
+                }
+                ("lucide-settings-2", _) => {
+                    state.settings_open = !state.settings_open;
+                    output.settings = true;
+                }
+                ("lucide-eraser", _) => state.clear_overlays(),
                 ("lucide-zoom-in", _) => {
                     super::interact::zoom_at(state, transform, frame.center(), 1.25, super::interact::ZoomAxes::ALL);
                 }
                 ("lucide-zoom-out", _) => {
                     super::interact::zoom_at(state, transform, frame.center(), 0.8, super::interact::ZoomAxes::ALL);
                 }
-                ("lucide-settings-2", _) => output.settings = true,
                 ("lucide-download", _) => state.export_menu = !state.export_menu,
                 _ => state.reset_view(),
             }
@@ -205,108 +291,27 @@ pub(super) fn toolbar(
         if is_export {
             export_button = Some(button);
         }
+        if is_analysis {
+            analysis_button = Some(response.clone());
+        }
         response.on_hover_text(*tooltip);
     }
-    output.rect = Some(rect);
+    output.rect = Some(full);
+    if let Some(response) = analysis_button {
+        egui::Popup::menu(&response).show(|ui| settings::analysis_menu(ui, state));
+    }
+    if state.settings_open {
+        settings::dialog(ui.ctx(), plot.id, state);
+    }
     if state.export_menu
         && let Some(button) = export_button
     {
-        output.export = export_menu(ui, plot, button, state);
+        output.export = export::export_menu(ui, plot, button, state);
     }
     output
 }
 
 /// A two-row menu under the export button. Closes on a choice or a click elsewhere.
-fn export_menu(ui: &mut Ui, plot: &Plot<'_>, button: Rect, state: &mut PlotState) -> Option<ExportFormat> {
-    export_menu_for(ui, plot.id, button, &mut state.export_menu)
-}
-
-/// The export menu shared by the 2D and 3D toolbars. `open` is cleared when the menu
-/// chooses a format or the pointer clicks outside it.
-pub(super) fn export_menu_for(ui: &mut Ui, id: egui::Id, button: Rect, open: &mut bool) -> Option<ExportFormat> {
-    let width = 150.0;
-    let row = 26.0;
-    let rect = Rect::from_min_size(
-        pos2(button.right() - width + 4.0, button.bottom() + 6.0),
-        vec2(width, 2.0 * row + 8.0),
-    );
-    let layer = LayerId::new(Order::Foreground, id.with("export_menu"));
-    let visuals = ui.visuals().clone();
-    let painter = ui.ctx().layer_painter(layer);
-    painter.add(
-        Shadow {
-            offset: [0, 4],
-            blur: 12,
-            spread: 0,
-            color: Color32::from_black_alpha(40),
-        }
-        .as_shape(rect, crate::style::get(ui.ctx()).control()),
-    );
-    painter.rect(
-        rect,
-        crate::style::get(ui.ctx()).control(),
-        visuals.window_fill,
-        crate::style::get(ui.ctx()).border(visuals.window_stroke.color),
-        StrokeKind::Inside,
-    );
-    let mut chosen = None;
-    for (index, (label, detail, format)) in [
-        ("Export SVG", "vector", ExportFormat::Svg),
-        ("Export PDF", "file-text", ExportFormat::Pdf),
-        ("Export PNG", "image", ExportFormat::Png),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let item = Rect::from_min_size(
-            pos2(rect.left() + 4.0, rect.top() + 4.0 + index as f32 * row),
-            vec2(width - 8.0, row),
-        );
-        let response = egui::Area::new(id.with(("export_item", index)))
-            .order(Order::Foreground)
-            .fixed_pos(item.min)
-            .show(ui.ctx(), |ui| ui.allocate_exact_size(item.size(), Sense::click()).1)
-            .inner;
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::MenuItem, true, label));
-        if response.hovered() {
-            painter.rect_filled(
-                item,
-                crate::style::get(ui.ctx()).inner(),
-                visuals.widgets.hovered.weak_bg_fill,
-            );
-        }
-        let middle = painter.round_to_pixel_center(item.center().y);
-        painter.text(
-            pos2(item.left() + 10.0, middle),
-            Align2::LEFT_CENTER,
-            label,
-            crate::style::get(ui.ctx()).font(12.5),
-            visuals.text_color(),
-        );
-        painter.text(
-            pos2(item.right() - 8.0, middle),
-            Align2::RIGHT_CENTER,
-            detail,
-            crate::style::get(ui.ctx()).font(11.0),
-            visuals.weak_text_color(),
-        );
-        if response.clicked() {
-            chosen = Some(format);
-        }
-    }
-    let clicked_elsewhere = ui.input(|input| {
-        input.pointer.any_click()
-            && input
-                .pointer
-                .interact_pos()
-                .is_some_and(|pos| !rect.contains(pos) && !button.contains(pos))
-    });
-    if chosen.is_some() || clicked_elsewhere || ui.input(|input| input.key_pressed(egui::Key::Escape)) {
-        *open = false;
-    }
-    chosen
-}
-
 /// A ring around the hovered point and, optionally, dashed guides to both axes.
 pub(super) fn highlight(
     painter: &Painter,
