@@ -44,7 +44,7 @@ impl ParquetSource {
     /// When the file cannot be read or parsed.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, DataError> {
         let path = path.as_ref();
-        let bytes = std::fs::read(path).map_err(|error| DataError::Connector(error.to_string()))?;
+        let bytes = super::source::read_limited(path)?;
         let data = read_parquet_bytes(&bytes)?;
         let schema = data.columns().iter().map(ColumnSchema::from_column).collect();
         Ok(Self {
