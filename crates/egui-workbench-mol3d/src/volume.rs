@@ -56,6 +56,10 @@ impl VolumeGrid {
 
     /// Trilinear interpolation at a world position.
     pub fn sample(&self, point: Vec3) -> f64 {
+        // `count - 1` below underflows on an empty axis.
+        if self.dimensions.contains(&0) {
+            return 0.0;
+        }
         let coordinate = |value: f64, origin: f64, step: f64, count: usize| {
             let raw = (value - origin) / step;
             raw.clamp(0.0, (count - 1) as f64)
@@ -284,9 +288,15 @@ impl OrbitalKind {
     }
 }
 
+/// Largest edge of a sampled orbital grid.
+const MAX_ORBITAL_RESOLUTION: usize = 160;
+
 /// Sample a hydrogen-like orbital into a cubic grid.
 pub fn orbital_grid(kind: OrbitalKind, center: Vec3, extent: f64, resolution: usize) -> VolumeGrid {
-    let resolution = resolution.max(8);
+    // The grid holds `resolution` cubed doubles: an action asking for 10,000 would be
+    // 8 terabytes.
+    let resolution = resolution.clamp(8, MAX_ORBITAL_RESOLUTION);
+    let extent = if extent.is_finite() { extent.abs().max(0.5) } else { 8.0 };
     let step = 2.0 * extent / (resolution - 1) as f64;
     let origin = center - Vec3::new(extent, extent, extent);
     let mut grid = VolumeGrid::new(origin, Vec3::new(step, step, step), [resolution; 3]);
@@ -347,7 +357,11 @@ pub fn parse_cube(text: &str) -> Result<(VolumeGrid, Mol3dScene), String> {
             * bohr;
     }
     let mut scene = Mol3dScene::default();
-    for index in 0..atom_count.max(0) as usize {
+    // A negative count flags orbital data with an extra header line; the atom block is the
+    // absolute value either way.
+    let orbital_data = atom_count < 0;
+    let atom_count = atom_count.unsigned_abs() as usize;
+    for index in 0..atom_count {
         let line = lines.get(6 + index).ok_or_else(|| "truncated cube atoms".to_owned())?;
         let fields = line.split_whitespace().collect::<Vec<_>>();
         let atomic_number = fields.first().and_then(|value| value.parse::<u8>().ok()).unwrap_or(0);
@@ -361,6 +375,16 @@ pub fn parse_cube(text: &str) -> Result<(VolumeGrid, Mol3dScene), String> {
         };
         scene.push_atom(element, [coordinate(0), coordinate(1), coordinate(2)]);
     }
+    // The header is untrusted: `100000 x 100000 x 100000` would wrap or reserve exabytes.
+    // Every value needs at least two bytes of text, so the file bounds the grid.
+    let samples = dimensions
+        .iter()
+        .try_fold(1usize, |total, dimension| total.checked_mul(*dimension))
+        .filter(|samples| *samples <= text.len() / 2)
+        .ok_or_else(|| "the cube grid is larger than the file".to_owned())?;
+    if samples == 0 {
+        return Err("the cube grid is empty".to_owned());
+    }
     let mut grid = VolumeGrid::new(
         Vec3::new(origin.x * bohr, origin.y * bohr, origin.z * bohr),
         Vec3::new(step[0], step[1], step[2]),
@@ -368,7 +392,7 @@ pub fn parse_cube(text: &str) -> Result<(VolumeGrid, Mol3dScene), String> {
     );
     let mut values = lines
         .iter()
-        .skip(6 + atom_count.max(0) as usize)
+        .skip(6 + atom_count + usize::from(orbital_data))
         .flat_map(|line| line.split_whitespace())
         .filter_map(|value| value.parse::<f64>().ok());
     for value in &mut grid.values {
@@ -422,5 +446,14 @@ mod tests {
         assert_eq!(scene.atoms.len(), 1);
         assert_eq!(grid.dimensions, [2, 2, 2]);
         assert!(grid.values.iter().all(|value| *value == 1.0));
+    }
+
+    #[test]
+    fn an_orbital_grid_has_a_bounded_size() {
+        let grid = orbital_grid(OrbitalKind::OneS, Vec3::ZERO, 6.0, usize::MAX);
+        assert!(grid.dimensions.iter().all(|edge| *edge <= 160));
+        let tiny = orbital_grid(OrbitalKind::OneS, Vec3::ZERO, f64::NAN, 0);
+        assert_eq!(tiny.dimensions, [8; 3]);
+        assert!(tiny.step.x.is_finite() && tiny.step.x > 0.0);
     }
 }
