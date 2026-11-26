@@ -4,7 +4,10 @@
 
 use wasmi::{Caller, Extern, Linker, Memory};
 
-use super::{CommandContribution, ExtensionError, HostState, PanelContribution, PluginLog, ViewerContribution};
+use super::{
+    CommandContribution, ExtensionError, HostState, MAX_CONTRIBUTIONS, MAX_LOGS, PanelContribution, PluginLog,
+    ViewerContribution,
+};
 use crate::manifest::Capability;
 
 /// Register every `workbench.*` import on `linker`.
@@ -24,6 +27,9 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                     return -3;
                 };
                 let state = caller.data_mut();
+                if state.commands.len() + state.panels.len() + state.viewers.len() >= MAX_CONTRIBUTIONS {
+                    return -6;
+                }
                 let capability = match kind {
                     0 => Capability::Commands,
                     1 => Capability::Panels,
@@ -31,7 +37,7 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                     _ => return -4,
                 };
                 if !state.granted.contains(&capability) {
-                    state.denied.push(format!("{capability:?}"));
+                    state.deny(format!("{capability:?}"));
                     return -5;
                 }
                 let id = value
@@ -39,6 +45,9 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                     .and_then(|value| value.as_str())
                     .unwrap_or_default()
                     .to_owned();
+                if id.is_empty() {
+                    return -7;
+                }
                 let title = value
                     .get("title")
                     .and_then(|value| value.as_str())
@@ -78,7 +87,10 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                     return;
                 };
                 let extension = caller.data().extension.clone();
-                caller.data_mut().logs.push(PluginLog { extension, message });
+                let logs = &mut caller.data_mut().logs;
+                if logs.len() < MAX_LOGS {
+                    logs.push(PluginLog { extension, message });
+                }
             },
         )
         .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
@@ -111,19 +123,30 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                         .unwrap_or(false)
                 });
                 if !allowed {
-                    caller.data_mut().denied.push(format!("read {}", path.display()));
+                    caller.data_mut().deny(format!("read {}", path.display()));
                     return -3;
                 }
                 let Ok(metadata) = std::fs::metadata(&path) else {
                     return -4;
                 };
-                if metadata.len() > out_cap.max(0) as u64 {
+                // A FIFO or a device node reports a zero length and never ends.
+                if !metadata.is_file() {
+                    return -4;
+                }
+                let capacity = out_cap.max(0) as u64;
+                if metadata.len() > capacity {
                     return -5;
                 }
-                let Ok(bytes) = std::fs::read(&path) else {
+                // Read at most one byte past the capacity: the file may have grown since
+                // `metadata`, and the cap must hold for what is read, not what was seen.
+                let mut bytes = Vec::new();
+                let Ok(file) = std::fs::File::open(&path) else {
                     return -4;
                 };
-                if bytes.len() > out_cap.max(0) as usize {
+                if std::io::Read::read_to_end(&mut std::io::Read::take(file, capacity + 1), &mut bytes).is_err() {
+                    return -4;
+                }
+                if bytes.len() as u64 > capacity {
                     return -5;
                 }
                 if memory.write(&mut caller, out_ptr as usize, &bytes).is_err() {
@@ -147,7 +170,12 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                 if !caller.data().granted.contains(&Capability::Data) {
                     return -3;
                 }
-                caller.data().datasets.get(&name).map(|rows| *rows as i32).unwrap_or(-4)
+                caller
+                    .data()
+                    .datasets
+                    .get(&name)
+                    .map(|rows| i32::try_from(*rows).unwrap_or(i32::MAX))
+                    .unwrap_or(-4)
             },
         )
         .map_err(|error| ExtensionError::Runtime(error.to_string()))?;
@@ -165,7 +193,7 @@ pub(super) fn link(linker: &mut Linker<HostState>) -> Result<(), ExtensionError>
                 if caller.data().granted.contains(&Capability::Selection) {
                     caller.data_mut().selection = value;
                 } else {
-                    caller.data_mut().denied.push("selection".to_owned());
+                    caller.data_mut().deny("selection".to_owned());
                 }
             },
         )
@@ -184,7 +212,12 @@ fn read_string(memory: &Memory, caller: &Caller<'_, HostState>, ptr: i32, len: i
     if ptr < 0 || len < 0 {
         return None;
     }
-    let mut buffer = vec![0u8; len as usize];
-    memory.read(caller, ptr as usize, &mut buffer).ok()?;
+    let (start, length) = (ptr as usize, len as usize);
+    // Check the range before allocating: `len` comes from the module and can be 2 GiB.
+    if start.checked_add(length)? > memory.data_size(caller) {
+        return None;
+    }
+    let mut buffer = vec![0u8; length];
+    memory.read(caller, start, &mut buffer).ok()?;
     String::from_utf8(buffer).ok()
 }
