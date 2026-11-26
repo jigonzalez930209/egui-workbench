@@ -1,5 +1,14 @@
 # egui-workbench-chem-core
 
+> Part of the egui-workbench **chemistry plugins**, versioned with the library (`1.2.x`):
+> `egui-workbench-chem-core`, `egui-workbench-chem2d`, and `egui-workbench-mol3d`. Guide:
+> <https://jigonzalez930209.github.io/egui-workbench/guide/chemistry.html>
+
+```toml
+[dependencies]
+egui-workbench-chem-core = "1.2"
+```
+
 The shared foundation for the chemistry crates: an egui-free molecular document model,
 generational IDs, a selection bus, typed events, bridge traits for `sci-form` and
 `xtalforge-core`, and cooperative background jobs.
@@ -24,15 +33,20 @@ bonds, selection, and document identity.
 ## Example
 
 ```rust
-use egui_workbench_chem_core::{ChemDocument, DocumentId, Element};
-use egui_workbench_chem_core::model::BondOrder;
+use egui_workbench_chem_core::{BondOrder, ChemDocument, DocumentId, Element};
 
 let mut document = ChemDocument::new(DocumentId::new(1), "water");
-let oxygen = document.molecule.add_atom(Element::O, [0.0, 0.0, 0.0]);
-let hydrogen = document.molecule.add_atom(Element::H, [0.96, 0.0, 0.0]);
+let oxygen = document
+    .molecule
+    .add_atom(Element::from_symbol("O").expect("oxygen"), [0.0, 0.0, 0.0]);
+let hydrogen = document
+    .molecule
+    .add_atom(Element::from_symbol("H").expect("hydrogen"), [0.96, 0.0, 0.0]);
 document
     .molecule
     .add_bond(oxygen, hydrogen, BondOrder::Single)
     .expect("bond");
 assert_eq!(document.molecule.atoms.len(), 2);
 ```
+
+The snippet runs as `tests/docs.rs`.
