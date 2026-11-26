@@ -39,7 +39,7 @@ pub struct Ray {
 }
 
 /// An arcball orbit camera.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Camera3D {
     /// Orbits around this point.
     pub target: Vec3,
@@ -156,6 +156,45 @@ impl Camera3D {
         Ray { origin, direction }
     }
 
+    /// Rotate the camera so it looks along `direction`.
+    pub fn align_to(&mut self, direction: Vec3) {
+        let target = direction.normalized();
+        if target.length() <= 1.0e-9 {
+            return;
+        }
+        let current = self.forward();
+        let dot = current.dot(target).clamp(-1.0, 1.0);
+        let axis = current.cross(target);
+        if axis.length() <= 1.0e-9 {
+            if dot < 0.0 {
+                self.rotation = Quat::from_axis_angle(self.up(), std::f64::consts::PI)
+                    .mul(self.rotation)
+                    .normalized();
+            }
+            return;
+        }
+        let rotation = Quat::from_axis_angle(axis.normalized(), dot.acos());
+        self.rotation = rotation.mul(self.rotation).normalized();
+    }
+
+    /// Look down a direct crystallographic axis (`0` = a, `1` = b, `2` = c).
+    pub fn align_direct(&mut self, cell: egui_workbench_chem_core::UnitCell, axis: usize) {
+        let axes = crate::crystal::CellAxes::new(cell);
+        let vector = match axis {
+            0 => axes.a,
+            1 => axes.b,
+            _ => axes.c,
+        };
+        self.align_to(vector);
+    }
+
+    /// Look down a reciprocal axis (`0` = a*, `1` = b*, `2` = c*).
+    pub fn align_reciprocal(&mut self, cell: egui_workbench_chem_core::UnitCell, axis: usize) {
+        let axes = crate::crystal::CellAxes::new(cell);
+        let vector = axes.reciprocal[axis.min(2)];
+        self.align_to(vector);
+    }
+
     /// Orbit by a pointer delta in points. The arcball has no pitch clamp, so a drag
     /// can cross the poles without gimbal lock.
     pub fn orbit(&mut self, delta: Vec2) {
@@ -226,6 +265,14 @@ impl Camera3D {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aligning_to_a_direction_turns_the_camera_forward() {
+        let mut camera = Camera3D::default();
+        camera.align_to(Vec3::new(1.0, 0.0, 0.0));
+        assert!(camera.forward().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
+    }
+
     use egui::{Rect, pos2, vec2};
 
     fn viewport() -> Rect {

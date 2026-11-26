@@ -1,7 +1,7 @@
 //! A small vector and quaternion layer for the camera.
 
 /// A 3D vector.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Vec3 {
     /// x.
     pub x: f64,
@@ -93,7 +93,7 @@ impl std::ops::Neg for Vec3 {
 }
 
 /// A unit quaternion.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Quat {
     /// x.
     pub x: f64,

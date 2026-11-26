@@ -1,14 +1,35 @@
 //! The interactive 3D viewport widget.
 
-use egui::{Align2, Color32, FontId, Key, PointerButton, Rect, Response, Sense, Stroke, Ui, Vec2, vec2};
+use egui::{Color32, Key, PointerButton, Rect, Response, Sense, Ui, Vec2, vec2};
 use egui_workbench_chem_core::{AtomId, ChemSelection, SelectionMode};
 
+use crate::biomol::{Interaction, RibbonMesh};
 use crate::camera::{Camera3D, Projection3D};
+use crate::color::ColorScheme;
+use crate::crystal::Polyhedron;
 use crate::math::Vec3;
+use crate::measure::Measurement;
+use crate::representation::RepresentationSet;
 use crate::scene::Mol3dScene;
+use crate::spatial::{CULLING_THRESHOLD, SpatialGrid};
+use crate::volume::SurfaceMesh;
+
+mod paint;
+
+/// Which renderer draws the atoms.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Renderer3D {
+    /// The CPU painter: the reference and the fallback.
+    #[default]
+    Cpu,
+    /// GPU sphere impostors through `egui_wgpu`; requires the `gpu` feature.
+    Gpu,
+}
 
 /// Appearance options for the 3D viewport.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Mol3dStyle {
     /// Background color; `None` uses the egui canvas color.
     pub background: Option<Color32>,
@@ -20,6 +41,12 @@ pub struct Mol3dStyle {
     pub depth_cue: bool,
     /// Draw the crystal cell edges.
     pub show_cell: bool,
+    /// Draw the crystallographic `a`, `b`, and `c` axes.
+    pub show_axes: bool,
+    /// Polyhedron fill opacity in `[0, 1]`.
+    pub polyhedron_opacity: f32,
+    /// Atom renderer.
+    pub renderer: Renderer3D,
 }
 
 impl Default for Mol3dStyle {
@@ -30,6 +57,9 @@ impl Default for Mol3dStyle {
             atom_scale: 1.0,
             depth_cue: true,
             show_cell: true,
+            show_axes: true,
+            polyhedron_opacity: 0.22,
+            renderer: Renderer3D::Cpu,
         }
     }
 }
@@ -54,6 +84,36 @@ pub struct Mol3dView {
     pub selection: ChemSelection,
     /// Appearance.
     pub style: Mol3dStyle,
+    /// Default representation and per-selection overrides.
+    pub representations: RepresentationSet,
+    /// Atom color scheme.
+    pub color_scheme: ColorScheme,
+    /// Measurements drawn over the scene.
+    pub measurements: Vec<Measurement>,
+    /// Coordination polyhedra drawn over the scene.
+    pub polyhedra: Vec<Polyhedron>,
+    /// Miller planes `(h, k, l)` drawn through the cell.
+    pub miller_planes: Vec<(i32, i32, i32)>,
+    /// Accessible probe points highlighting pores.
+    pub pore_points: Vec<Vec3>,
+    /// Cartoon ribbons for protein backbones.
+    pub ribbons: Vec<RibbonMesh>,
+    /// Non-covalent interactions drawn as dashed lines.
+    pub interactions: Vec<Interaction>,
+    /// Isosurfaces and other translucent triangle meshes.
+    pub surfaces: Vec<SurfaceLayer>,
+    /// Spatial index for frustum culling on large scenes.
+    spatial: Option<SpatialGrid>,
+    spatial_atoms: usize,
+}
+
+/// A translucent triangle surface with its own color.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurfaceLayer {
+    /// Geometry.
+    pub mesh: SurfaceMesh,
+    /// RGBA fill color.
+    pub color: [u8; 4],
 }
 
 impl Mol3dView {
@@ -64,6 +124,17 @@ impl Mol3dView {
             camera: Camera3D::default(),
             selection: ChemSelection::new(),
             style: Mol3dStyle::default(),
+            representations: RepresentationSet::default(),
+            color_scheme: ColorScheme::default(),
+            measurements: Vec::new(),
+            polyhedra: Vec::new(),
+            miller_planes: Vec::new(),
+            pore_points: Vec::new(),
+            ribbons: Vec::new(),
+            interactions: Vec::new(),
+            surfaces: Vec::new(),
+            spatial: None,
+            spatial_atoms: 0,
         };
         view.fit(Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(800.0, 600.0)));
         view
@@ -114,7 +185,6 @@ impl Mol3dView {
         let mut selection_changed = false;
         if response.clicked()
             && let Some(pointer) = pointer
-            && let Some(atom) = self.scene.pick(self.camera, viewport, pointer)
         {
             let before = self.selection.clone();
             let (shift, command) = ui.input(|input| (input.modifiers.shift, input.modifiers.command));
@@ -125,7 +195,11 @@ impl Mol3dView {
             } else {
                 SelectionMode::Replace
             };
-            self.selection.select_atom(atom, mode);
+            if let Some(atom) = self.scene.pick(self.camera, viewport, pointer) {
+                self.selection.select_atom(atom, mode);
+            } else if let Some(bond) = self.scene.pick_bond(self.camera, viewport, pointer, 7.0) {
+                self.selection.select_bond(bond, mode);
+            }
             selection_changed = self.selection != before;
         }
         if ui.input(|input| input.key_pressed(Key::Escape)) {
@@ -133,7 +207,20 @@ impl Mol3dView {
             selection_changed = true;
         }
 
-        self.paint(ui, viewport, hovered);
+        if self.scene.atoms.len() >= CULLING_THRESHOLD
+            && (self.spatial.is_none() || self.spatial_atoms != self.scene.atoms.len())
+        {
+            let extent = self.scene.bounds().map_or(8.0, |bounds| {
+                Vec3::new(bounds[3] - bounds[0], bounds[4] - bounds[1], bounds[5] - bounds[2]).length()
+            });
+            self.spatial = Some(SpatialGrid::build(&self.scene, (extent / 24.0).max(0.5)));
+            self.spatial_atoms = self.scene.atoms.len();
+        }
+        let visible = self
+            .spatial
+            .as_ref()
+            .map(|grid| grid.visible(&self.scene, self.camera, viewport));
+        self.paint(ui, viewport, hovered, visible.as_deref());
         Mol3dResponse {
             response,
             hovered,
@@ -141,89 +228,89 @@ impl Mol3dView {
         }
     }
 
-    fn paint(&self, ui: &Ui, viewport: Rect, hovered: Option<AtomId>) {
-        let painter = ui.painter_at(viewport);
-        let visuals = ui.visuals();
-        painter.rect_filled(viewport, 0.0, self.style.background.unwrap_or(visuals.extreme_bg_color));
-        if self.style.show_cell {
-            for [a, b] in self.scene.cell_edges() {
-                if let (Some((a, _)), Some((b, _))) =
-                    (self.camera.project(a, viewport), self.camera.project(b, viewport))
-                {
-                    painter.line_segment([a, b], Stroke::new(1.0, visuals.weak_text_color()));
-                }
-            }
-        }
+    /// Measure the distance between two atoms and draw it.
+    pub fn measure_distance(&mut self, a: AtomId, b: AtomId) -> Option<f64> {
+        let measurement = Measurement::Distance { a, b };
+        let value = measurement.evaluate(&self.scene)?;
+        self.measurements.push(measurement);
+        Some(value.value)
+    }
 
-        let bond_color = visuals.text_color().gamma_multiply(0.7);
-        for bond in &self.scene.bonds {
-            let (Some(a), Some(b)) = (self.scene.atom(bond.a), self.scene.atom(bond.b)) else {
-                continue;
-            };
-            let (Some((start, _)), Some((end, _))) = (
-                self.camera.project(a.position, viewport),
-                self.camera.project(b.position, viewport),
-            ) else {
-                continue;
-            };
-            let selected = self.selection.bonds().contains(&bond.id);
-            let color = if selected {
-                visuals.selection.stroke.color
-            } else {
-                bond_color
-            };
-            let width = self.style.bond_width * f32::from(bond.order.strokes().max(1));
-            painter.line_segment([start, end], Stroke::new(width, color));
-        }
+    /// Measure the bond angle at `b` and draw it.
+    pub fn measure_angle(&mut self, a: AtomId, b: AtomId, c: AtomId) -> Option<f64> {
+        let measurement = Measurement::Angle { a, b, c };
+        let value = measurement.evaluate(&self.scene)?;
+        self.measurements.push(measurement);
+        Some(value.value)
+    }
 
-        let mut atoms = self
-            .scene
-            .atoms
-            .iter()
-            .filter_map(|atom| {
-                self.camera
-                    .project(atom.position, viewport)
-                    .map(|(screen, depth)| (atom, screen, depth))
-            })
-            .collect::<Vec<_>>();
-        atoms.sort_by(|a, b| b.2.total_cmp(&a.2));
-        let min_depth = atoms.iter().map(|(_, _, depth)| *depth).fold(f64::INFINITY, f64::min);
-        let max_depth = atoms
-            .iter()
-            .map(|(_, _, depth)| *depth)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let span = (max_depth - min_depth).max(1.0e-6);
-        for (atom, screen, depth) in atoms {
-            let radius = self
-                .camera
-                .project_radius(atom.position, atom.radius * self.style.atom_scale, viewport);
-            if radius <= 0.2 {
-                continue;
-            }
-            let [r, g, b] = atom.element.cpk_color();
-            let mut color = Color32::from_rgb(r, g, b);
-            if self.style.depth_cue {
-                let normalized = ((depth - min_depth) / span) as f32;
-                color = color.gamma_multiply(1.0 - 0.3 * normalized);
-            }
-            let selected = self.selection.atoms().contains(&atom.id);
-            let stroke = if selected {
-                Stroke::new(2.5, visuals.selection.stroke.color)
-            } else if hovered == Some(atom.id) {
-                Stroke::new(2.0, visuals.strong_text_color())
-            } else {
-                Stroke::new(1.0, visuals.widgets.noninteractive.bg_stroke.color)
-            };
-            painter.circle(screen, radius, color, stroke);
-            if selected || hovered == Some(atom.id) {
-                painter.text(
-                    screen,
-                    Align2::CENTER_CENTER,
-                    atom.element.symbol(),
-                    FontId::proportional((radius * 0.9).clamp(8.0, 16.0)),
-                    Color32::WHITE,
-                );
-            }
+    /// Measure the dihedral `a-b-c-d` and draw it.
+    pub fn measure_dihedral(&mut self, a: AtomId, b: AtomId, c: AtomId, d: AtomId) -> Option<f64> {
+        let measurement = Measurement::Dihedral { a, b, c, d };
+        let value = measurement.evaluate(&self.scene)?;
+        self.measurements.push(measurement);
+        Some(value.value)
+    }
+
+    /// The mean plane of the selected atoms, or `None` when they are missing.
+    pub fn add_plane(&mut self, atoms: Vec<AtomId>) -> Option<()> {
+        let value = Measurement::Plane { atoms: atoms.clone() }.evaluate(&self.scene)?;
+        self.measurements.push(Measurement::Plane { atoms });
+        let _ = value;
+        Some(())
+    }
+
+    /// Expand the current scene into a supercell, replacing it.
+    pub fn expand_supercell(&mut self, na: usize, nb: usize, nc: usize) {
+        self.scene = self.scene.supercell(na, nb, nc);
+        self.polyhedra.clear();
+        self.measurements.clear();
+    }
+
+    /// Detect coordination polyhedra around the given metal symbols.
+    pub fn toggle_polyhedra(&mut self, metals: &[&str], cutoff: f64) {
+        self.polyhedra = self.scene.coordination_polyhedra(metals, cutoff);
+    }
+
+    /// Add a Miller plane, or remove it when it is already shown.
+    pub fn toggle_miller_plane(&mut self, h: i32, k: i32, l: i32) {
+        if let Some(index) = self.miller_planes.iter().position(|plane| *plane == (h, k, l)) {
+            self.miller_planes.remove(index);
+        } else {
+            self.miller_planes.push((h, k, l));
+        }
+    }
+
+    /// Sample accessible pore points with a probe radius and grid spacing.
+    pub fn highlight_pores(&mut self, probe_radius: f64, spacing: f64) {
+        self.pore_points = self.scene.pore_points(probe_radius, spacing);
+    }
+
+    /// Build cartoon ribbons from the current CA traces.
+    pub fn show_cartoon(&mut self) {
+        self.ribbons = crate::biomol::ribbon_meshes(&self.scene);
+    }
+
+    /// Detect and draw non-covalent interactions.
+    pub fn show_interactions(&mut self) {
+        self.interactions = crate::biomol::detect_interactions(&self.scene);
+    }
+
+    /// Add a translucent surface layer.
+    pub fn add_surface(&mut self, mesh: SurfaceMesh, color: [u8; 4]) {
+        self.surfaces.push(SurfaceLayer { mesh, color });
+    }
+
+    /// Sample and display a hydrogen-like orbital isosurface.
+    pub fn show_orbital(&mut self, kind: crate::volume::OrbitalKind, center: Vec3, isovalue: f64, resolution: usize) {
+        let grid = crate::volume::orbital_grid(kind, center, 7.0, resolution);
+        let positive = crate::volume::isosurface(&grid, isovalue);
+        let negative = crate::volume::isosurface(&grid, -isovalue);
+        if !positive.triangles.is_empty() {
+            self.add_surface(positive, [80, 140, 255, 70]);
+        }
+        if !negative.triangles.is_empty() {
+            self.add_surface(negative, [255, 90, 80, 70]);
         }
     }
 

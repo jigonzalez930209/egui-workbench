@@ -1250,9 +1250,14 @@ dependencies = [
 name = "egui-workbench-mol3d"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
+ "eframe",
  "egui",
+ "egui-wgpu",
  "egui-workbench-chem-core",
+ "image",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
