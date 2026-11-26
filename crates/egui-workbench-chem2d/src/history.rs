@@ -132,6 +132,7 @@ impl Command {
                 for atom in atoms {
                     document.molecule.remove_atom(atom);
                 }
+                document.prune_superatoms();
                 selection.clear();
             }
             Self::SetBondOrder { bond, order } => {
@@ -286,7 +287,14 @@ impl History {
             document: document.clone(),
             selection: selection.clone(),
         };
-        command.apply(document, selection)?;
+        if let Err(error) = command.apply(document, selection) {
+            // A command can fail after changing some atoms (a rotation of a list with one
+            // unknown id); put everything back instead of leaving a half-applied edit that
+            // has no undo entry.
+            *document = before.document;
+            *selection = before.selection;
+            return Err(error);
+        }
         self.undo.push(before);
         if let Some(limit) = self.limit
             && self.undo.len() > limit
