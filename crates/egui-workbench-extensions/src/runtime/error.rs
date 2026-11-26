@@ -23,6 +23,8 @@ pub enum ExtensionError {
         /// Module value.
         actual: String,
     },
+    /// The manifest carries a signature that no verifier accepted.
+    Signature(String),
     /// Required capabilities were not granted.
     MissingCapabilities(Vec<String>),
     /// The module trapped or is malformed.
@@ -39,6 +41,7 @@ impl std::fmt::Display for ExtensionError {
             Self::Duplicate(id) => write!(formatter, "`{id}` is already installed"),
             Self::Unknown(id) => write!(formatter, "`{id}` is not installed"),
             Self::Checksum { expected, actual } => write!(formatter, "checksum {actual} does not match {expected}"),
+            Self::Signature(reason) => write!(formatter, "signature check failed: {reason}"),
             Self::MissingCapabilities(capabilities) => write!(formatter, "missing capabilities: {capabilities:?}"),
             Self::Runtime(error) => formatter.write_str(error),
             Self::Init(code) => write!(formatter, "init returned {code}"),
