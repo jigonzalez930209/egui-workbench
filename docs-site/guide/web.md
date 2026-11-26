@@ -98,6 +98,12 @@ values (`get_spec`, `apply_patch`, `run_command`, `set_data`, `reload`). `Remote
 binds `127.0.0.1` by default. Put authentication and TLS in front of it before exposing
 it; the host does not invent either.
 
+The server protects itself against idle and oversized clients: a client has 10 seconds to
+finish the upgrade, writes time out after 30 seconds, at most 32 connections run at once,
+and a frame is capped at 64 MiB and read as it arrives. Client frames must be masked, and
+control frames carry at most 125 bytes. A patch the host rejects returns an error message
+and keeps the connection open.
+
 The binary `egui-workbench-remote --spec app.json --addr 127.0.0.1:31337` serves a spec
 with no command handlers. Use the library when commands must change state.
 
