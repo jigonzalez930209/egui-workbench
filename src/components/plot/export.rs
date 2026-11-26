@@ -296,6 +296,9 @@ pub(super) fn svg(scene: &Scene, canvas: Option<Color32>) -> String {
     out
 }
 
+/// Most pixels a PNG export may allocate (about 400 MB of RGBA).
+const MAX_PIXELS: u64 = 100_000_000;
+
 /// Rasterize an SVG produced by [`svg`] at `scale` pixels per point, with egui's
 /// default fonts registered for the text.
 pub(super) fn png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
@@ -312,6 +315,10 @@ pub(super) fn png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
     let scale = scale.clamp(0.25, 8.0);
     let width = (size.width() * scale).round().max(1.0) as u32;
     let height = (size.height() * scale).round().max(1.0) as u32;
+    // `width * scale` is caller-controlled; 8x of a 100000-point export is 640 gigapixels.
+    if u64::from(width) * u64::from(height) > MAX_PIXELS {
+        return Err("the image is too large".to_owned());
+    }
     let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).ok_or("the image is too large")?;
     resvg::render(
         &tree,
