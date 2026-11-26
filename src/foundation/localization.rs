@@ -43,8 +43,18 @@ impl Localizer {
     /// # Errors
     /// When the file exists but cannot be read.
     pub fn load(directory: impl AsRef<Path>, locale: &str) -> Result<Self, LocalizationError> {
+        // The locale often comes from settings or the environment; `../../x` must not
+        // choose which file is read.
+        let plain = !locale.is_empty()
+            && locale.len() <= 32
+            && locale
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_');
+        if !plain {
+            return Ok(Self::builtin("en"));
+        }
         let path = directory.as_ref().join(format!("{locale}.ftl"));
-        if path.exists() {
+        if path.is_file() {
             let text = std::fs::read_to_string(&path).map_err(|error| LocalizationError::Io(error.to_string()))?;
             let mut messages = Self::builtin(locale).messages;
             messages.extend(parse(&text));
@@ -190,10 +200,31 @@ fn parse(text: &str) -> BTreeMap<String, String> {
 }
 
 fn interpolate(text: &str, args: &[(&str, &str)]) -> String {
-    let mut result = text.to_owned();
-    for (name, value) in args {
-        result = result.replace(&format!("{{ ${name} }}"), value);
+    // One pass over the template: replacing argument by argument let a value that
+    // contains `{ $other }` be expanded again by a later argument.
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("{ $") {
+        result.push_str(&rest[..start]);
+        let after = &rest[start + 3..];
+        let replaced = after.find(" }").and_then(|end| {
+            let name = &after[..end];
+            args.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (end + 2, *value))
+        });
+        match replaced {
+            Some((consumed, value)) => {
+                result.push_str(value);
+                rest = &after[consumed..];
+            }
+            None => {
+                result.push_str("{ $");
+                rest = after;
+            }
+        }
     }
+    result.push_str(rest);
     result
 }
 
