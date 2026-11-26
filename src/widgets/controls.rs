@@ -181,7 +181,9 @@ pub fn numeric_stepper(
         }
         icons.paint(ui, icon, rect.center(), ICON_SMALL, ui.visuals().weak_text_color());
         if enabled && response.clicked() {
-            *value = (*value + delta).clamp(*range.start(), *range.end());
+            // `clamp` panics on an inverted range.
+            let (low, high) = (*range.start(), *range.end());
+            *value = (*value + delta).clamp(low.min(high), low.max(high));
             changed = true;
         }
     }
