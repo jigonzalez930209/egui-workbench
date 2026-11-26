@@ -21,7 +21,7 @@ impl Mol3dView {
         let gpu_atoms = false;
         #[cfg(feature = "gpu")]
         if self.style.renderer == Renderer3D::Gpu {
-            gpu_atoms = crate::gpu::paint_atoms(
+            gpu_atoms = crate::gpu::paint_scene(
                 ui,
                 viewport,
                 self.camera,
@@ -29,6 +29,8 @@ impl Mol3dView {
                 self.style.atom_scale,
                 &self.representations,
                 self.color_scheme,
+                &self.style,
+                self.gpu_pick.request(),
             );
         }
         if self.style.show_cell {

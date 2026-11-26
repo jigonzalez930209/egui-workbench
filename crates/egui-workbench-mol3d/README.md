@@ -7,8 +7,12 @@ the shared `egui-workbench-chem-core` model.
 
 - Arcball `Camera3D` with no gimbal lock, perspective/orthographic switching, pan, cursor
   zoom, whole-scene fit, selection focus, and direct/reciprocal axis alignment.
-- Analytic GPU sphere impostors through `egui::PaintCallback` and `egui-wgpu` (feature
-  `gpu`), with far-to-near sorting and a CPU painter reference/fallback.
+- Analytic GPU sphere and capsule/cylinder impostors through `egui::PaintCallback` and
+  `egui-wgpu` (feature `gpu`), rendered into an offscreen color+depth target with exact
+  fragment depth and composited into egui. The CPU painter remains the reference/fallback.
+- GPU ID-buffer picking: a depth-tested `R32Uint` pass selects atoms and bonds, reads back
+  the texel under the pointer synchronously on native, and falls back to CPU ray picking
+  on WASM, orthographic cameras, or stalled readbacks.
 - Per-selection representations: ball & stick, licorice, space filling (van der Waals),
   and wireframe, with multiple and dative/coordination bonds.
 - Color schemes: CPK, Jmol, chain, residue, partial charge, and B-factor.
@@ -54,9 +58,11 @@ the shared `egui-workbench-chem-core` model.
   `capture_png`.
 - Native and WASM builds (`cargo check --target wasm32-unknown-unknown`).
 
-The interactive GPU path implements sphere impostors; bond cylinders, GPU ID-buffer
-picking, and depth attachment remain painter/CPU fallbacks so the viewport works on every
-egui backend. The offscreen renderer is the reference for regression images.
+The interactive GPU path renders spheres and bond cylinders with analytic ray hits and an
+exact depth buffer, then composites through a fullscreen texture pass; the ID-buffer pick
+runs in the same geometry with `frag_depth`. WASM and orthographic cameras use the CPU
+painter/ray-picking fallback. The offscreen software renderer remains the reference for
+regression images.
 
 ## Examples
 
