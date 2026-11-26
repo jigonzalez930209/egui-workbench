@@ -85,9 +85,15 @@ impl RingTemplate {
                 (3, 4, BondOrder::Single),
                 (4, 0, BondOrder::Single),
             ],
-            Self::Pyrrole => (0..5)
-                .map(|index| (index, (index + 1) % 5, BondOrder::Aromatic))
-                .collect(),
+            // Kekulé form, so the nitrogen has two single bonds and one implicit hydrogen
+            // (N-H). Aromatic bonds would give it valence 3 and hide the hydrogen.
+            Self::Pyrrole => vec![
+                (0, 1, BondOrder::Single),
+                (1, 2, BondOrder::Double),
+                (2, 3, BondOrder::Single),
+                (3, 4, BondOrder::Double),
+                (4, 0, BondOrder::Single),
+            ],
             Self::Cyclohexane | Self::Chair | Self::Boat => (0..6)
                 .map(|index| (index, (index + 1) % 6, BondOrder::Single))
                 .collect(),
@@ -114,20 +120,27 @@ pub fn add_ring(molecule: &mut Molecule2D, template: RingTemplate, center: [f64;
     ids
 }
 
+/// Most atoms one chain command adds.
+const MAX_CHAIN: usize = 1_000;
+
 /// Add a zig-zag carbon chain starting at `start`.
 pub fn add_chain(molecule: &mut Molecule2D, start: [f64; 2], count: usize, angle: f64) -> Vec<AtomId> {
-    let count = count.max(1);
+    // A request for a billion carbons would allocate until the process dies.
+    let count = count.clamp(1, MAX_CHAIN);
     let carbon = Element::from_symbol("C").expect("carbon");
     let step = 1.5;
     let mut ids = Vec::with_capacity(count);
+    // Zigzag: every bond is `step` long and leans 30 degrees to one side of `angle`, then
+    // the other, which gives the 120 degree bond angle of an alkane. Placing atom `i` at
+    // `i * step` along alternating rays made the bonds between them uneven.
+    let mut position = start;
     for index in 0..count {
-        let bend = if index.is_multiple_of(2) { 0.5 } else { -0.5 };
-        let direction = angle + bend;
-        let position = [
-            start[0] + (index as f64 * step * direction.cos()),
-            start[1] + (index as f64 * step * direction.sin()),
-        ];
         ids.push(molecule.add_atom(carbon, [position[0], position[1], 0.0]));
+        let lean = if index.is_multiple_of(2) { 1.0 } else { -1.0 } * std::f64::consts::FRAC_PI_6;
+        position = [
+            position[0] + step * (angle + lean).cos(),
+            position[1] + step * (angle + lean).sin(),
+        ];
     }
     for pair in ids.windows(2) {
         let _ = molecule.add_bond(pair[0], pair[1], BondOrder::Single);
