@@ -17,7 +17,9 @@ bonds, selection, and document identity.
 - `ChemEvent` and `EventQueue`: structure, selection, geometry, conformer, and cell events.
 - `SciFormBridge` and `XtalBridge`: the integration boundary for the external engines.
 - `JobQueue`, `JobHandle`, `JobContext`, and `CancellationToken`: cooperative background
-  work with progress and cancellation.
+  work with progress and cancellation. `JobQueue::with_waker` and
+  `EventQueue::with_waker` call `egui::Context::request_repaint` on progress, completion,
+  or a new event.
 
 ## Example
 
