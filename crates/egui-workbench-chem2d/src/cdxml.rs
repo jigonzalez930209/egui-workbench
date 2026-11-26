@@ -44,15 +44,17 @@ pub fn to_cdxml(molecule: &Molecule2D) -> String {
 pub fn from_cdxml(text: &str) -> Result<Molecule2D, MolfileError> {
     let mut molecule = Molecule2D::new();
     let mut ids = Vec::new();
-    let mut by_xml = Vec::<(u32, usize)>::new();
+    let mut by_xml = std::collections::HashMap::<u32, usize>::new();
     for tag in tags(text, "n") {
         let Some(id) = attribute(&tag, "id").and_then(|value| value.parse::<u32>().ok()) else {
             return Err(error("CDXML atom without id"));
         };
-        let Some(element) = attribute(&tag, "Element")
-            .and_then(|value| value.parse::<u8>().ok())
-            .and_then(Element::new)
-        else {
+        // ChemDraw omits `Element` on carbon atoms; only a present, invalid value is an error.
+        let element = match attribute(&tag, "Element") {
+            None => Element::new(6),
+            Some(value) => value.parse::<u8>().ok().and_then(Element::new),
+        };
+        let Some(element) = element else {
             return Err(error("CDXML atom without a valid element"));
         };
         let point = attribute(&tag, "p");
@@ -70,7 +72,7 @@ pub fn from_cdxml(text: &str) -> Result<Molecule2D, MolfileError> {
             entry.charge = charge;
         }
         ids.push(atom);
-        by_xml.push((id, ids.len() - 1));
+        by_xml.insert(id, ids.len() - 1);
     }
     for tag in tags(text, "b") {
         let a = attribute(&tag, "B").and_then(|value| value.parse::<u32>().ok());
@@ -87,8 +89,8 @@ pub fn from_cdxml(text: &str) -> Result<Molecule2D, MolfileError> {
         let (Some(a), Some(b)) = (a, b) else {
             continue;
         };
-        let a = by_xml.iter().find(|(id, _)| *id == a).map(|(_, index)| *index);
-        let b = by_xml.iter().find(|(id, _)| *id == b).map(|(_, index)| *index);
+        let a = by_xml.get(&a).copied();
+        let b = by_xml.get(&b).copied();
         if let (Some(a), Some(b)) = (a, b)
             && let (Some(a), Some(b)) = (ids.get(a), ids.get(b))
         {
@@ -118,8 +120,17 @@ fn tags(text: &str, name: &str) -> Vec<String> {
 
 fn attribute(tag: &str, name: &str) -> Option<String> {
     let key = format!("{name}=\"");
-    let start = tag.find(&key)? + key.len();
-    let end = tag[start..].find('"')? + start;
+    // Match whole attribute names: `B="` must not be found inside `LabelB="`.
+    let mut from = 0;
+    let start = loop {
+        let found = from + tag.get(from..)?.find(&key)?;
+        let boundary = tag[..found].chars().next_back().is_none_or(char::is_whitespace);
+        if boundary {
+            break found + key.len();
+        }
+        from = found + key.len();
+    };
+    let end = tag.get(start..)?.find('"')? + start;
     Some(tag[start..end].to_owned())
 }
 
