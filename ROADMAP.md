@@ -17,7 +17,7 @@ Where egui-workbench is going, from 0.3 to 1.0.0. Discussion and proposals: GitH
 - There are more 0.x releases than a typical crate has on purpose: each one is small
   enough to finish, test, and document properly before the next starts.
 
-## Where we are: 1.2.0
+## Where we are: 1.3.0
 
 egui-workbench is a desktop shell plus content components for egui 0.37: nine themes, an
 undecorated window with title bar and menus, tabs, explorer tree, dialogs, command
@@ -103,6 +103,11 @@ Windows and macOS with a byte-for-byte comparison, and adds the `wgpu-renderer` 
 
 1.1.0 added plot analysis: the ruler and area measurement tools, curve-versus-chord
 areas, the analysis menu (smoothing filters and transforms), and the tool ribbon.
+
+1.3.0 completes the ChemDraw/MolView 2D editor workflow: drag/click bond drawing,
+atom hotkeys and charge editing, attached rings and SMILES fragments, a selection box with
+move and rotate handles, a grouped chemistry library, vector tool icons, a canonical
+idempotent 2D layout, and skeletal rendering with aromatic-circle/Kekulé consistency.
 
 1.2.0 publishes the chemistry plugins as companion crates versioned with the library:
 `egui-workbench-chem-core` (the shared document model, selection bus, events, and

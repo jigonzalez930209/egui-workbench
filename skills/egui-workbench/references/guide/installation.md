@@ -17,7 +17,7 @@
 
 ```toml
 [dependencies]
-egui-workbench = "1.0"
+egui-workbench = "1.3"
 ```
 
 ## Python
@@ -49,8 +49,8 @@ in the [Extensions guide](../guide/extensions.md).
 
 ```toml
 [dependencies]
-egui-workbench-chem2d = "1.2"   # 2D structure editor
-egui-workbench-mol3d = "1.2"    # 3D molecular and crystal viewer
+egui-workbench-chem2d = "1.3"   # 2D structure editor
+egui-workbench-mol3d = "1.3"    # 3D molecular and crystal viewer
 ```
 
 `egui-workbench-chem-core` comes in through either one. The library does not depend on

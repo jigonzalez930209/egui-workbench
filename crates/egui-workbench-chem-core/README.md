@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-egui-workbench-chem-core = "1.2"
+egui-workbench-chem-core = "1.3"
 ```
 
 The shared foundation for the chemistry crates: an egui-free molecular document model,

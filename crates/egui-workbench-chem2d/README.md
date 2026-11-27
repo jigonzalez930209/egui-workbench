@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-egui-workbench-chem2d = "1.2"
+egui-workbench-chem2d = "1.3"
 ```
 
 A vector 2D chemistry editor built on `egui::Painter` and the shared

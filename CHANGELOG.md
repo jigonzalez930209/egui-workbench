@@ -7,6 +7,8 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-26
+
 ### Added
 
 - **Chemistry 2D editing, ChemDraw/MolView workflow.** The `chem2d` bond tool now draws
@@ -1013,7 +1015,8 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.0.2...v1.0.4

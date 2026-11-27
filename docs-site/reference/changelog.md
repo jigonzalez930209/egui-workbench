@@ -15,6 +15,8 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-26
+
 ### Added
 
 - **Chemistry 2D editing, ChemDraw/MolView workflow.** The `chem2d` bond tool now draws
@@ -364,235 +366,406 @@ whole workspace. Upgrade notes are at the end of this section.
 
 ### Changed
 
-- Probe crate separated from dev-dependencies, hosted headless rendering, byte-for-byte
-  pixel verification, three-runner groups, and the wgpu renderer feature.
+- The platform probe is a standalone crate: it no longer inherits the root
+  `egui_kittest`/`criterion`/wgpu test dependencies, cutting hosted Windows compile time
+  from hours to about a minute.
+- Hosted Windows and macOS run the headless wgpu probe; a verify job fails when the three
+  Windows, three macOS, or two X11 images differ byte-for-byte.
+- Platform groups run at most three runners and are capped at 20 minutes.
+- New `wgpu-renderer` feature for eframe's D3D12/Metal/Vulkan renderer.
 
 ## [1.0.1] - 2026-11-25
 
 ### Fixed
 
-- Windows undecorated frame reassertion for pointer alignment.
+- Windows: reassert `ViewportCommand::Decorations(false)` once per viewport, removing a
+  native frame above the custom title bar that shifted pointer hit tests on some Windows
+  builds.
 
 ### Added
 
-- Manual platform pixel workflow and probe, plus the support boundary.
+- `platform_probe` example and the manual `Platform pixels` workflow: native screenshots
+  and pointer reports on hosted Windows/macOS/X11/Wayland runners and self-hosted legacy
+  desktops and Linux compositors.
+- Platform support boundary documentation, including the Windows 7/8.1 and old macOS
+  toolchain limitation.
 
 ## [1.0.0] - 2026-11-24
 
 ### Stable
 
-SemVer promise, egui/MSRV policy, independent spec/protocol/extension versions, and the
-versioning/support guides.
+No new features. The release states the promise: Semantic Versioning for every crate and
+package, egui 0.37 plus one following minor, MSRV 1.95, and independently versioned spec
+(1), protocol (1), and extension ABI (0.15).
+
+- `VERSIONING.md`, `SUPPORT.md`, and the versioning guide.
+- The single tag release flow publishes crates, docs, npm, PyPI wheels, the C ABI, and the
+  GitHub release from one cached run.
+- The accessibility report and migration guide are part of the documentation.
 
 ## [0.17.0] - 2026-11-24
 
 ### Changed
 
-- Feature freeze, deprecated radius removal, migration guide, security policy, and the
-  single tag release flow.
+- Feature freeze: no new user-facing features.
+- Removed the deprecated `Theme::radius()`; radii come from the style tokens.
+- Added the migration guide from 0.3, `SECURITY.md`, and the accessiblity report as
+  release documentation.
+- The release workflow is a single tag-driven flow: basic checks on one OS, docs, npm,
+  crates, C artifact, Linux x86_64/aarch64 wheels, macOS universal2, Windows amd64, PyPI,
+  npm, and the GitHub release, all from one run with shared caches. CI is manual only.
 
 ### Migration
 
-The extension ABI and host spec remain compatible.
+See the [migration guide](/reference/migration). The extension ABI stays at `0.15` and
+the host spec stays at version 1.
 
 ## [0.16.0] - 2026-11-24
 
 ### Added
 
-- Theme Studio, VS Code import/export, high contrast, localization, fonts, and the
-  accessibility report.
-- Theme Studio and global guide.
+- Theme Studio: VS Code color-theme import with automatic WCAG AA adjustment, JSON and
+  CSS variable export, and a high-contrast theme derivation.
+- Fluent-shaped localization with built-in English and Spanish dictionaries, plural
+  rules, placeholders, runtime locale switching, `.ftl` overrides, and RTL detection.
+- A font loading API with named CJK, emoji, and math fallback families.
+- The accessibility report with automated contrast, focus, and spec-audit results plus
+  the manual screen-reader checklist and known gaps.
 
 ### Migration
 
-Additive.
+Additive. Localization and fonts are new foundation modules; Theme Studio is additive to
+the 0.14 DevTools theme tab.
 
 ## [0.15.0] - 2026-11-24
 
 ### Added
 
-- Sandboxed WebAssembly extensions, versioned manifest, capabilities, manager view, hot
-  reload, and C/Rust examples.
-- Extensions guide.
+- `egui-workbench-extensions`: a sandboxed WebAssembly runtime behind the default `wasm`
+  feature, a versioned manifest, capability grants, checksum verification, and hot
+  reload.
+- A host API for logging, command/panel/viewer contributions, dataset row metadata,
+  selection, and prefix-scoped filesystem reads; no WASI, network, or ambient filesystem.
+- An extension manager view that lists versions, grants, contributions, and enable,
+  disable, and reload actions.
+- C and no_std Rust example extensions that register commands and panels through the same
+  ABI, with install/grant/enable/invoke/reload tests.
+- The Extensions guide.
 
 ### Migration
 
-Additive; the extension runtime is feature-gated.
+Additive. The extension crate is new; applications that do not use extensions can build
+it with `default-features = false`.
 
 ## [0.14.0] - 2026-11-24
 
 ### Added
 
-- MCP server, permissions, accessibility tree, automation replay, agent panel, and the
-  expanded DevTools.
-- Agent threat model and guide.
+- `egui-workbench-agent`: an MCP stdio server with tools for the spec, state, commands,
+  accessibility tree, patches, activity, and command execution.
+- A permission model: read-only by default, command allow-lists, confirmation tokens for
+  destructive commands, and an audited activity log.
+- An accessibility tree generated from the spec (roles and names) and headless automation
+  replay for commands and patches.
+- The agent panel component: streaming Markdown, tool-call cards, and diff approval.
+- DevTools tabs for the widget inspector, live theme tokens with WCAG checks, frame-time
+  and repaint diagnostics, and an accessibility audit.
+- The agent threat model and the Agents and DevTools guide.
 
 ### Migration
 
-Additive; DevTools state gained defaults.
+Additive. DevTools gains state fields and labels; the default constructor keeps working.
 
 ## [0.13.0] - 2026-11-24
 
 ### Added
 
-- WebAssembly host and npm package with ESM and schema-generated TypeScript types.
-- Remote UI server over WebSocket with the 0.11 protocol.
-- C ABI, header, and Go/C conformance clients.
-- Browser and remote tests plus the web guide.
+- npm package `egui-workbench`: a WebAssembly host mounted on a canvas, an ESM wrapper
+  (`createWorkbench`, `connectRemote`), and TypeScript declarations generated from the
+  host JSON Schema.
+- `egui-workbench-remote`: a WebSocket server that carries the 0.11 messages, binds
+  localhost by default, and exposes an `on_command` hook.
+- The C ABI `libegui_workbench_c` with `include/egui_workbench.h` for C, C++, Go, Zig,
+  and C#.
+- Reference clients in Go (sidecar protocol) and C (C ABI) checked against the shared
+  conformance fixture.
+- Browser tests: wasm host tests in headless Chrome and a full canvas/remote test that
+  renders the spec and applies a patch.
+- Web, remote, C ABI, and reference-client documentation.
 
 ### Migration
 
-Additive; new crates and the npm package use the 0.13 spec.
+Additive. The wasm, remote, and C crates are new; the npm package and the Python package
+share the 0.13 spec.
 
 ## [0.12.0] - 2026-11-24
 
 ### Added
 
-- `pip install egui-workbench`: PyO3/maturin abi3 wheels, Pythonic `Workbench` and
-  widgets, event handlers, `app.post`, asyncio, NumPy/pandas/Polars/PyArrow data, and
-  headless `app.step`.
-- Python guide and CI wheel workflow.
+- PyPI package `egui-workbench`: a PyO3/maturin extension built for abi3 on CPython 3.9+
+  with wheels for Linux x86_64/aarch64, macOS universal2, and Windows, plus an sdist.
+- The Pythonic layer: `Workbench`, `Command`, dataclass widgets, `@app.on(...)`,
+  `app.run()`, `app.emit()`, `app.save()`, `app.schema()`, and `app.step()` for headless
+  tests.
+- Event handlers on the UI thread with a `Context` for JSON-pointer patches, toasts,
+  title changes, quit, and local command dispatch.
+- Thread-safe `app.post(callback)` and asyncio integration, including `async` handlers
+  and `await app.run_async()`.
+- Data ingestion from NumPy, pandas, Polars, PyArrow tables/record batches/arrays through
+  the Arrow C data interface, plus mappings and row dictionaries.
+- `py.typed`, `_native.pyi`, and the host JSON Schema exposed to Python.
+- A Python guide, CI wheel builds, and a PyPI wheel workflow with Trusted Publishing.
 
 ### Migration
 
-Additive; Python is a separate package on the same 0.12 host spec.
+Additive. The Python package is published separately from the Rust crates; it pins the
+same 0.12 host spec.
 
 ## [0.11.0] - 2026-11-24
 
 ### Added
 
-- `egui-workbench-host` crate: versioned spec and schema, host runtime, patches, data
-  buffers, protocol/frames, sidecar binary, custom widgets, and conformance fixtures.
-- Native hot reload and a headless render test.
+- New crate `egui-workbench-host`: a versioned `HostSpec` with window, theme, commands,
+  menus, explorer, editor groups, panels, status bar, widget tree, dialogs, and toasts;
+  JSON Schema generated from the Rust types.
+- `Host` runtime: `new`, `load`, `apply`, `poll_events`, `set_dataset`, `register_custom`,
+  `reload_if_changed`, and `run`, with native hot reload.
+- JSON-pointer patches (`set`, `replace`, `remove`, `append`, `batch`) validated before
+  they replace the spec.
+- A transport-agnostic protocol with `Hello`, `Request`, `Response`, `Event`, `Patch`,
+  `Data`, and `Error` messages, plus four-byte length-prefixed frames for stdio, sockets,
+  and WebSocket binary messages.
+- The `egui-workbench` sidecar binary: run a spec, speak `--stdio`, print `--schema`, and
+  hot reload.
+- Native `CustomWidget` escape hatch and data buffers that feed `Dataset` without a spec
+  copy.
+- Language-neutral `conformance/basic.json` fixture, runtime tests, and a headless wgpu
+  render test.
 
 ### Migration
 
-Additive; the host is a separate crate published from the same tag.
+0.11 is additive for `egui-workbench`. The host is a new crate; the release workflow
+publishes both crates from the same tag.
 
 ## [0.10.0] - 2026-11-24
 
 ### Added
 
-- Histogram/density, box, violin, hexbin, contour, polar, and Smith families.
-- Analysis tools, FFT/spectrum, fits with errors, and selection statistics.
-- Colormaps, colorbars, annotations/regions, math text, vector PDF, export presets.
-- GPU filled surfaces for `Plot3D` and 2D/3D headless GPU tests.
+- Chart families: histogram and density histogram, box, violin, hexbin/2D density,
+  contour, polar, and Smith charts; `Plot::series_all` for multi-series families.
+- Analysis tools: peak detection, rolling baseline removal, Savitzky–Golay smoothing and
+  derivative, derivative/integral, radix-2 FFT and spectrum, resampling, Gauss–Newton
+  fits with standard errors and RMSE, and selection statistics.
+- `Colormap` with perceptually uniform, diverging, and color-blind-safe categorical
+  palettes; heatmap `colormap` and a matching colorbar; standalone `show_colorbar`.
+- `PlotAnnotation` text, arrows, x/y spans, rectangles, ellipses, and polygons in
+  `PlotState`, serialized and included in exports.
+- Math text: a LaTeX subset (Greek, scripts, fractions, roots, units) in titles, axis
+  labels, legend names, and annotations.
+- Vector PDF export (`Plot::to_pdf`, `ExportFormat::Pdf`) from the same scene, plus
+  `ExportPreset` sizes (`Screen`, `HalfPage`, `Letter`, `Journal`).
+- `Plot3DConfig::renderer`/`Plot3D::renderer`: GPU filled surfaces, bars, and primitives
+  through the `egui_wgpu` triangle pipeline; axes, lines, text, legend, and hover stay on
+  the CPU reference.
+- 2D and 3D GPU headless tests.
 
 ### Migration
 
-Additive; CPU remains the default renderer.
+0.10 is additive. `Renderer::Cpu` remains the default, and existing titles/annotations are
+plain text until they use the math subset.
 
 ## [0.9.0] - 2026-11-24
 
 ### Added
 
-- Optional `gpu` renderer for line/scatter data layers through `egui_wgpu`, with
-  `Renderer::Gpu` and `set_output_format`.
-- `MinMaxPyramid` for lazy min/max tiles over paged sources.
-- `StreamingSeries` with live/frozen modes, rolling windows, and triggers.
-- `Scale::SymmetricLog`, `Scale::Time`, and `Scale::Category`.
-- The Plot engine guide.
+- Feature `gpu`: a line/scatter renderer through an `egui_wgpu` paint callback, selected
+  per plot with `Renderer::Gpu`. `set_output_format` configures the surface format;
+  `tests/gpu_plot.rs` renders through a real headless wgpu device. Charts, axes, legend,
+  hover, selection, and export remain on the CPU reference painter.
+- `data::MinMaxPyramid`: lazily built min/max tiles over a paged `DataSource`, a tile
+  cache, level selection for a query budget, `range()` and `polyline()`.
+- `data::StreamingSeries`: live/frozen modes, capacity, a rolling x window, revisions, and
+  rising/falling `Trigger`s.
+- `Scale::SymmetricLog`, `Scale::Time` (calendar ticks in UTC), and `Scale::Category` with
+  `AxisConfig::categories`.
+- The Plot engine guide and the `gpu` feature build in CI.
 
 ### Migration
 
-0.9 is additive; the CPU renderer remains the default.
+0.9 is additive. `PlotConfig::renderer` defaults to `Renderer::Cpu`, so existing plots and
+snapshots are unchanged. A host that selects `Renderer::Gpu` enables the `gpu` feature and
+calls `set_output_format` once at startup.
 
 ## [0.8.1] - 2026-11-24
 
 ### Fixed
 
-- `Dataset::rows_in_bounds` is gated behind `plot`, restoring the minimal feature builds.
+- `Dataset::rows_in_bounds` is behind the `plot` feature, so
+  `cargo check --no-default-features` and the other feature builds compile again.
 
 ## [0.8.0] - 2026-11-24
 
 ### Added
 
-- `LinkHub` selection bus with Highlight/Filter/Isolate modes, predicates, and revisions.
-- Dataset-bound plots (`Plot::from_dataset(...).x(...).y(...).color_by(...)`), brush
-  publishing, and `DataGrid::link`.
-- `PlotGrid` with a shared state and `ViewHistory` back/forward zoom.
-- `examples/linked` and the Linked views guide.
+- `data::LinkHub`, `LinkSelection`, and `LinkMode` (Highlight, Filter, Isolate): one
+  selection bus per dataset with a revision, a publisher name, and an optional predicate.
+- `Plot::from_dataset(&data).x("t").y("v").color_by("state")`, with `scatter`, `title`,
+  and `height`; a text/category `color_by` becomes one colored series per value.
+- `DatasetPlot::show_linked`, which maps a plot brush back to dataset rows and publishes
+  them; Filter/Isolate modes hide the points outside the selection.
+- `PlotGrid`: rows × columns of plots sharing one `PlotState` for linked pan, zoom,
+  hidden series, and selection.
+- `DataGrid::link(&hub)`: table filtering/isolating and highlight from a linked
+  selection.
+- `ViewHistory`: bounded back/forward zoom levels and `PlotState::view()`.
+- `examples/linked`: a colored scatter, a line/scatter grid, and a linked table over one
+  dataset.
 
 ### Migration
 
-0.8 is additive; the linked methods are opt-in.
+0.8 is additive. `Plot` and `DataGrid` keep their existing constructors; the linked
+methods are opt-in.
 
 ## [0.7.0] - 2026-11-24
 
 ### Added
 
-- Typed `Dataset`/`Column` model with validity, units, metadata, slices, statistics, and
-  `xy_pairs`.
-- Paged `DataSource` and CSV, workbook, Arrow IPC, Parquet, SQLite, ring, and channel
-  connectors behind features.
-- Safe query language with positioned errors and bound column indices.
-- `DataGrid` with sort, filter, search, hidden columns, selection, statistics, and
-  TSV/Markdown/JSON copy.
-- `ViewerRegistry` for tables, JSON/YAML/TOML, PNG/JPEG, SVG, Markdown, logs, code, hex,
-  and text.
-- The one-million-row CSV budget probe.
+- `data::Dataset` and `Column`: typed columns (float, int, bool, text, date, time,
+  category), validity masks, units, metadata, zero-copy-backed `Arc` storage, slices,
+  `take`, statistics, and `xy_pairs`.
+- `DataSource`, a synchronous paged trait with `schema`, `row_count`, `read_range`,
+  `revision`, and `cancel`.
+- Connectors behind features: CSV/TSV (`csv`), spreadsheet sheets (`workbook`), Arrow IPC
+  (`arrow`), Parquet (`parquet`, Arrow-backed), SQLite (`sqlite`), the in-memory ring
+  buffer (`ring`), and channel snapshots (`channel`). `csv`, `workbook`, `ring`, and
+  `channel` are in the default set; `arrow`, `parquet`, and `sqlite` are opt-in.
+- The safe query language: comparisons, `&&`, `||`, `!`, parentheses, `in 2..5`,
+  `in [1, 4]`, strings, booleans, numbers, and null, with positioned errors and
+  once-per-query column binding.
+- `components::DataGrid`: typed virtualized rows, sort, query filter, quick search,
+  hidden columns, row/cell selection, header statistics, and TSV/Markdown/JSON copy.
+- `ViewerRegistry`: extension and content detection for tables, JSON, YAML, TOML,
+  PNG/JPEG, SVG, Markdown, logs with level filters, code, hex, and text, all through one
+  `show` call.
+- `Series::from_dataset(&data, "t", "v")`.
+- `tests/data_budget.rs`, the ignored release probe for the one-million-row CSV.
+
+### Changed
+
+- The `viewer` feature now includes `viewer-formats` (JSON/YAML/TOML trees, Markdown, and
+  PNG/JPEG); the image and tree dependencies are optional behind it.
+- The default build adds the dependency-free CSV, ring, and channel connectors and the
+  workbook connector.
 
 ### Migration
 
-0.7 is additive. Enable `viewer` for the registry and the connector feature you use;
-`arrow`, `parquet`, and `sqlite` are opt-in.
+0.7 is additive. A `default-features = false` build that wants the viewer must enable
+`viewer`; a build that wants a data connector enables its feature. The 0.6 `FileViewer`
+stays available, and `DataGrid` is the typed successor for new tables.
 
 ## [0.6.0] - 2026-11-24
 
 ### Added
 
-- `Layout`/`LayoutNode` editor-group tree, splits, tabs, pinned/preview tabs, and the
-  closed-tab stack.
-- `LayoutAction` keyboard equivalents, named layouts, and layout persistence in
-  `Workspace`.
-- `ActivityBar`, `examples/workspace`, and the Workspace guide.
+- `Layout` and `LayoutNode`: a serializable tree of editor groups and horizontal or
+  vertical splits, with tabs, pinned and preview tabs, active indices, and a 20-tab
+  closed stack.
+- Group and tab operations: split, close and promote the sibling, move a tab between
+  groups, close and reopen, pin, maximize, and Zen mode.
+- `LayoutAction`: keyboard equivalents for every split, focus, tab-move, close, maximize,
+  Zen, and reopen operation.
+- Named layouts stored in `Workspace` (`layout`, `named_layouts`, `active_layout`) and
+  switched from the palette; a 0.5 workspace migrates to a single empty group.
+- `ActivityBar` with icons, an active marker, badges, tooltips, and AccessKit `Tab` roles.
+- `examples/workspace`: three editor groups from one layout, a floating panel, and a
+  native detached viewport.
+- The Workspace guide page.
+
+### Changed
+
+- `Workspace` gained the layout fields; `serde(default)` keeps older files loading.
+- `show_workbench` and `WorkbenchApp` keep their one-group behavior; the layout API is
+  additive.
 
 ### Migration
 
-No removed items. A 0.5 workspace loads with a single empty group.
+No removed or renamed items. A 0.5 `workspace.json` loads with one empty editor group and
+the new fields defaulted.
 
 ## [0.5.0] - 2026-11-24
 
 ### Added
 
-- `History<S>` undo tree with coalescing groups and the History panel.
-- `CommandJournal`, macros recorded from a journal range, and deterministic replay.
-- `Workspace` persistence, atomic writes, version migration, and plot views.
-- `Stash`, `HotExit`, and crash recovery with warnings for corrupt files.
-- DevTools F12: journal viewer and JSON state inspector.
-- `examples/session` and the starter's journal/DevTools integration.
+- `History<S>`: transactional undo/redo over a tree, not a stack. Undoing and then
+  editing keeps the abandoned branch; `begin_group` coalesces typing and drags; `jump_to`
+  time-travels. The History panel renders the tree.
+- `CommandJournal`: an append-only, versioned, serializable log of every command with its
+  arguments and timestamp, with atomic save/load.
+- Macros: record a journal range as a named `macro.<name>` command, register it in a
+  registry, and replay the recorded `(command, args)` sequence deterministically.
+- `Workspace` persistence: open documents, active tab, explorer expansion, panel sizes and
+  visibility, theme preferences, and plot views in one versioned file. Writes are atomic;
+  version 0 migrates through `serde(default)` and newer versions are rejected.
+- Hot exit and crash recovery: `Stash` captures unsaved buffers, `HotExit` writes the
+  workspace, stash, and journal on a timer and on close, and `recover` restores what
+  parses and reports corrupt files as warnings.
+- DevTools, first slice: F12 opens the journal viewer and a JSON state inspector.
+- `examples/session`: a runnable history/journal/workspace/DevTools application.
+- The starter application journals every command and opens DevTools with F12.
+
+### Changed
+
+- The web build enables `plot`, `plot3d`, `viewer`, and `serde` explicitly, so the
+  documentation scenes keep rendering with the new feature gates.
 
 ### Migration
 
-0.5 is additive; existing 0.4 calls keep working. See
-[History, journal, and sessions](/app/history-and-session).
+0.5 is additive: existing 0.4 calls keep working. Put `workspace.json`, `stash.json`, and
+`journal.json` in one session directory (or keep your own paths) and use the new
+`app::Workspace`, `app::Stash`, and `app::CommandJournal` types.
 
 ## [0.4.0] - 2026-11-24
 
 ### Added
 
-- `CommandRegistry` with stable namespaced ids, titles, categories, icons, default
-  shortcuts, enabled/checked state, an optional argument schema, and one source for
+- `commands::CommandRegistry`: stable namespaced ids, title, category, icon, default
+  shortcut, enabled and checked state, an optional argument schema, and one source for
   menus, the palette, the title bar, the keyboard menu, and context menus.
-- `When`/`WhenContext` with the standard keys and `!`, `&&`, `||`, parentheses.
-- Rebindable keys, conflict detection, chords, the versioned keybindings JSON file, VS
-  Code import, and a keybindings editor built from the registry.
-- Palette v2 fuzzy ranking, recent commands, prefix modes, and background `PaletteFeed`.
-- Feature `serde`: stable event names and JSON round-trips for every built-in state.
-- Features `plot`, `plot3d`, `viewer`, and `svg`; `calamine` and `resvg`/`usvg` optional.
-- Registry views for menus, the keyboard menu, and the command palette.
+- `commands::When` / `WhenContext`: the `editorFocus`, `hasSelection`, `dialogOpen`,
+  `paletteOpen`, `readOnly`, and `dirty` keys with `!`, `&&`, `||`, and parentheses.
+- Rebindable keys: conflict detection, chord sequences (`Ctrl+K Ctrl+S`), the versioned
+  keybindings JSON file, VS Code `keybindings.json` import, and a keybindings editor
+  built from the registry.
+- Palette v2: fuzzy ranking, recent commands, the `>`/`:`/`@` prefix modes, and
+  `PaletteFeed` for background results that never block the frame.
+- Feature `serde`: stable snake_case event names and `Serialize`/`Deserialize` for every
+  built-in state, including `ThemeState`, `Documents`, `TreeState`, `PaletteState`,
+  `PlotState`, `PlotConfig`, `Plot3DState`, the viewer data, and the event types.
+- Cargo features `plot`, `plot3d`, `viewer`, and `svg`, with `calamine` and
+  `resvg`/`usvg` optional. The default set matches 0.3.
+- `show_command_menu`, `command_menu_groups`, `command_palette_items`, and
+  `show_command_palette` as registry views.
+- `docs/MIGRATION_0.4.md` and the command/keybinding guide.
 
 ### Changed
 
-- The starter application's chrome reads one registry.
-- Public enums are `#[non_exhaustive]`.
-- `PaletteState` gained `recent`; the palette ranks and records choices.
+- The starter application's chrome reads one `CommandRegistry`; menus, the palette, the
+  keyboard menu, and shortcuts no longer each carry their own table.
+- Public enums are `#[non_exhaustive]`; exhaustive matches outside the crate need a
+  wildcard arm.
+- `PaletteState` has a `recent` list, and `show_palette` ranks matches and records the
+  chosen row.
+- The starter template enables `plot`, `plot3d`, `viewer`, and `serde` explicitly.
 
 ### Migration
 
-- Add the features a `default-features = false` build uses; all are on by default.
-- Prefer `CommandRegistry` over `Keymap`; construct `PaletteState` with
-  `..PaletteState::default()`; add wildcard arms for non-exhaustive enums.
+- Add the features a `default-features = false` build uses (`plot`, `plot3d`, `viewer`,
+  `serde`); all are on by default.
+- Replace `Keymap<C>` with `CommandRegistry` and map the returned `CommandId` to your
+  handler. `Keymap` remains available for simple applications.
+- Construct `PaletteState` with `..PaletteState::default()`; it gained `recent`.
+- Add `_` arms to exhaustive matches on the public enums.
+- See `docs/MIGRATION_0.4.md` for the full list.
 
 ## [0.3.2] - 2026-11-24
 
@@ -600,18 +773,27 @@ No removed items. A 0.5 workspace loads with a single empty group.
 
 - CI on three desktops: the full suite (including pixel snapshots) stays on Linux, and
   macOS and Windows run the unit and behavior tests, including `tests/ime_hidpi.rs`.
-- `cargo-semver-checks` in CI against the previous release tag.
-- A criterion baseline for plot decimation, a large tree, a one-million-row CSV, and
-  palette filtering; the weekly `Benchmarks` workflow uploads the samples.
-- `tests/ime_hidpi.rs`, `docs/PLATFORMS.md`, `docs/EGUI_UPGRADE.md`, and
+- `cargo-semver-checks` in CI against the previous release tag, so every public change
+  is visible in review.
+- A criterion baseline for plot decimation (1M points), a 10k-row explorer tree, a
+  1M-row × 20-column CSV (open and first frame), and palette filtering. The weekly
+  `Benchmarks` workflow uploads the samples; the recorded numbers are in
   `docs/BENCHMARKS.md`.
-- `cargo generate` support for the starter template, with an optional local-checkout
-  path; `cargo xtask new` keeps working for contributors.
+- `tests/ime_hidpi.rs`: IME pre-edit/commit composition and a 2× pixels-per-point frame,
+  run on Linux, macOS, and Windows.
+- `docs/PLATFORMS.md`: the repeatable IME and HiDPI pass for each desktop, with the
+  automated coverage listed next to each manual step.
+- `docs/EGUI_UPGRADE.md`: the egui upgrade policy for 0.x and the 1.0 promise.
+- `cargo generate` support: `templates/app` is a cargo-generate template with an
+  optional local-checkout path, so a new application can start from the published
+  template without cloning the repository. `cargo xtask new` keeps working for
+  contributors.
+- Documentation pages for the desktop matrix and the benchmark baseline.
 
 ### Changed
 
-- The starter depends on `egui-workbench` 0.3 from crates.io when no checkout path is
-  given, and on the checkout when `cargo xtask new` creates it.
+- The starter template now depends on `egui-workbench` 0.3 from crates.io when no
+  checkout path is given, and on the checkout when `cargo xtask new` creates it.
 
 ## [0.3.1] - 2026-11-24
 
@@ -841,7 +1023,11 @@ needs Rust 1.95 or newer.
 - Guide with live demos: every visual page runs the real library in the browser through
   WebAssembly (<https://jigonzalez930209.github.io/egui-workbench/>).
 
-[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.0.4...v1.1.0
+[1.0.4]: https://github.com/jigonzalez930209/egui-workbench/compare/v1.0.2...v1.0.4
 [0.3.1]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/jigonzalez930209/egui-workbench/compare/v0.2.2...v0.2.3

@@ -184,8 +184,8 @@ See the [Extensions guide](https://jigonzalez930209.github.io/egui-workbench/gui
 
 ```toml
 [dependencies]
-egui-workbench-chem2d = "1.2"   # 2D structure editor, SMILES and molfile, SVG/PNG export
-egui-workbench-mol3d = "1.2"    # 3D molecular and crystal viewer, offscreen renderer
+egui-workbench-chem2d = "1.3"   # 2D structure editor, SMILES and molfile, SVG/PNG export
+egui-workbench-mol3d = "1.3"    # 3D molecular and crystal viewer, offscreen renderer
 ```
 
 Three optional crates published with the library: `egui-workbench-chem-core` (the shared
@@ -237,7 +237,7 @@ See the [host guide](https://jigonzalez930209.github.io/egui-workbench/app/host.
 
 ```toml
 [dependencies]
-egui-workbench = "1.0"
+egui-workbench = "1.3"
 # or the latest main:
 # egui-workbench = { git = "https://github.com/jigonzalez930209/egui-workbench" }
 ```

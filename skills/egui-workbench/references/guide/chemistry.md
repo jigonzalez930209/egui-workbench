@@ -15,8 +15,8 @@ your own `Command` enum, and leave the rest out. They share the library's versio
 
 ```toml
 [dependencies]
-egui-workbench-chem2d = "1.2"   # also brings egui-workbench-chem-core
-egui-workbench-mol3d = "1.2"    # add the `gpu` feature for the wgpu renderer
+egui-workbench-chem2d = "1.3"   # also brings egui-workbench-chem-core
+egui-workbench-mol3d = "1.3"    # add the `gpu` feature for the wgpu renderer
 ```
 
 `chem2d` and `mol3d` use the same atoms, bonds, selection, and document id, so a 2D editor

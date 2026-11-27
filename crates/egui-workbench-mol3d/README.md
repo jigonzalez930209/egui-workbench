@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-egui-workbench-mol3d = "1.2"
+egui-workbench-mol3d = "1.3"
 ```
 
 A 3D molecular, biomolecular, and crystallographic viewport for `egui-workbench`, built on

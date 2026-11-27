@@ -7,7 +7,7 @@ Every published crate and package follows Semantic Versioning:
 - `egui-workbench`, `egui-workbench-host`, `egui-workbench-agent`,
   `egui-workbench-remote`, `egui-workbench-extensions`, the chemistry plugins
   (`egui-workbench-chem-core`, `egui-workbench-chem2d`, and `egui-workbench-mol3d`), and the
-  Python and npm packages share the release version (`1.2.x`). The chemistry plugins were
+  Python and npm packages share the release version (`1.3.x`). The chemistry plugins were
   unpublished 0.1.0 workspace members before 1.2.0.
 - A major version changes when a public Rust API, the host spec, the protocol, or the
   extension ABI breaks incompatibly.

@@ -58,8 +58,8 @@ impl Permissions {
 
     /// Require confirmation for these commands without configuring a value.
     ///
-    /// Every call is refused with [`ToolError::ConfirmationRequired`] until a token is
-    /// configured, which is the safe default for `--read-write` without a secret.
+    /// Every call is refused with [`crate::mcp::ToolError::ConfirmationRequired`] until a
+    /// token is configured, which is the safe default for `--read-write` without a secret.
     pub fn require_confirmation<I, S>(mut self, commands: I) -> Self
     where
         I: IntoIterator<Item = S>,
