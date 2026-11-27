@@ -327,6 +327,14 @@ mod tests {
             counter.fetch_add(1, Ordering::SeqCst);
         });
         assert_eq!(queue.spawn(Add(2, 2)).wait().expect("result"), 4);
+        // `wait` returns as soon as the result arrives, while the completion wake runs on
+        // the job thread just after the send. Give that thread a moment to schedule it.
+        for _ in 0..100 {
+            if wakes.load(Ordering::SeqCst) >= 2 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert!(wakes.load(Ordering::SeqCst) >= 2, "progress and completion wake");
     }
 }
