@@ -120,10 +120,15 @@ pub fn atom_label(molecule: &Molecule2D, id: AtomId) -> String {
     };
     let hydrogens = implicit_hydrogens(molecule, id);
     let charge = charge_suffix(atom.charge);
-    if atom.element == Element::UNKNOWN && atom.label.is_none() {
+    if let Some(label) = atom.label.as_deref().map(str::trim).filter(|label| !label.is_empty()) {
+        // A custom label is the whole group (`COOH`, `Ph`, a residue name); drawing the
+        // element symbol and implicit hydrogens next to it would duplicate the group.
+        return format!("{label}{charge}");
+    }
+    if atom.element == Element::UNKNOWN {
         return format!("?{charge}");
     }
-    if atom.element.atomic_number() == 6 && atom.charge == 0 && atom.label.is_none() {
+    if atom.element.atomic_number() == 6 && atom.charge == 0 {
         return String::new();
     }
     let hydrogen = match hydrogens {
@@ -279,6 +284,20 @@ mod tests {
             .add_bond(oxygen, carbon, BondOrder::Single)
             .expect("bond");
         assert_eq!(atom_label(&document.molecule, oxygen), "HO");
+    }
+
+    #[test]
+    fn a_custom_label_is_the_whole_atom_label() {
+        let mut document = ChemDocument::new(DocumentId::new(5), "groups");
+        let pseudo = document.molecule.add_atom(Element::UNKNOWN, [0.0, 0.0, 0.0]);
+        document.molecule.atom_mut(pseudo).expect("atom").label = Some("COOH".to_owned());
+        assert_eq!(atom_label(&document.molecule, pseudo), "COOH");
+        document.molecule.atom_mut(pseudo).expect("atom").charge = 1;
+        assert_eq!(atom_label(&document.molecule, pseudo), "COOH+");
+        document.molecule.atom_mut(pseudo).expect("atom").element = Element::from_symbol("C").expect("C");
+        assert_eq!(atom_label(&document.molecule, pseudo), "COOH+");
+        document.molecule.atom_mut(pseudo).expect("atom").label = None;
+        assert_eq!(atom_label(&document.molecule, pseudo), "CH3+");
     }
 
     #[test]

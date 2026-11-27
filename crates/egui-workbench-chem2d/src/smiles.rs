@@ -311,28 +311,38 @@ impl SmilesGraph {
     /// Add the parsed graph at `center` and return its atom ids.
     pub fn insert(&self, document: &mut ChemDocument, center: [f64; 2]) -> Vec<egui_workbench_chem_core::AtomId> {
         let molecule = self.to_molecule();
-        let mut ids = Vec::new();
-        for atom in &molecule.atoms {
-            let id = document.molecule.add_atom(
-                atom.element,
-                [atom.position[0] + center[0], atom.position[1] + center[1], 0.0],
-            );
-            if let Some(target) = document.molecule.atom_mut(id) {
-                target.charge = atom.charge;
-            }
-            ids.push(id);
-        }
-        for bond in &molecule.bonds {
-            let a = molecule.atoms.iter().position(|atom| atom.id == bond.a);
-            let b = molecule.atoms.iter().position(|atom| atom.id == bond.b);
-            if let (Some(a), Some(b)) = (a, b)
-                && let (Some(a), Some(b)) = (ids.get(a), ids.get(b))
-            {
-                let _ = document.molecule.add_bond(*a, *b, bond.order);
-            }
-        }
-        ids
+        insert_molecule(document, &molecule, center)
     }
+}
+
+/// Copy a laid-out molecule into a document, offset by `offset`.
+pub(crate) fn insert_molecule(
+    document: &mut ChemDocument,
+    molecule: &Molecule2D,
+    offset: [f64; 2],
+) -> Vec<egui_workbench_chem_core::AtomId> {
+    let mut ids = Vec::new();
+    for atom in &molecule.atoms {
+        let id = document.molecule.add_atom(
+            atom.element,
+            [atom.position[0] + offset[0], atom.position[1] + offset[1], 0.0],
+        );
+        if let Some(target) = document.molecule.atom_mut(id) {
+            target.charge = atom.charge;
+            target.label.clone_from(&atom.label);
+        }
+        ids.push(id);
+    }
+    for bond in &molecule.bonds {
+        let a = molecule.atoms.iter().position(|atom| atom.id == bond.a);
+        let b = molecule.atoms.iter().position(|atom| atom.id == bond.b);
+        if let (Some(a), Some(b)) = (a, b)
+            && let (Some(a), Some(b)) = (ids.get(a), ids.get(b))
+        {
+            let _ = document.molecule.add_bond(*a, *b, bond.order);
+        }
+    }
+    ids
 }
 
 /// Write a SMILES string for `molecule`.

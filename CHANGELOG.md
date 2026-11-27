@@ -7,6 +7,66 @@ release may change the API, and each entry says how to migrate.
 
 ## [Unreleased]
 
+### Added
+
+- **Chemistry 2D editing, ChemDraw/MolView workflow.** The `chem2d` bond tool now draws
+  the first bond when the canvas is clicked, sprouts the next bond at 120° when an atom is
+  clicked, and follows an explicit direction when dragged (30° snapping, ghost endpoint).
+  Clicking a single bond with the single tool makes it double. A click or drag creates all
+  the atoms it needs as one undo step. `EditorTool::Charge` adds the MolView `e+`/`e−`
+  tools, and `clear_document` is the trash tool. The editor types element symbols onto a
+  selection or hovered atom (including two-letter symbols), adjusts formal charge with
+  `+`/`-`, sets the order of a selected or hovered bond with `1`–`4`, sets wedge/hash with
+  `W`/`H`, nudges with the arrow keys, selects all with `Ctrl+A`, opens atom
+  element/charge/label fields on double-click, and inserts clipboard SMILES with `Ctrl+V`.
+  `Chem2dEditor::execute` and the `set_selected_*` helpers expose the same edits to a
+  toolbar.
+- **Attached fragments.** `Command::AttachRing` and `Command::AttachSmiles`,
+  `Chem2dEditor::attach_ring`, `attach_smiles`, and `EditorTool::AttachFragment` attach a
+  ring or a whole SMILES fragment to a clicked atom as one undo step. The fragment is
+  oriented outward so it does not grow over the existing molecule. Ring tools now attach
+  when clicked on an atom, and `Ctrl+V` over an atom attaches clipboard SMILES.
+- **Vector icons and chemistry libraries.** The `editor` example uses custom
+  `egui::Painter` icons for every tool, including bonds, stereo, rings, chains, charges,
+  amino acids, sugars, and functional groups; no icon font or asset registration is
+  required. The new `library` module groups amino acids and their side chains, sugars, nucleobases, rings
+  and heterocycles, functional groups, solvents, ligands/chelators, and lipids. Every entry
+  carries SMILES; clicking one arms `EditorTool::AttachFragment`, then an atom click
+  attaches it and an empty-canvas click places it.
+- **MolView-style example.** The `editor` example has a utility bar, bond/ring/chain
+  palette on the left, atom palette plus a periodic table on the right, and a status bar.
+
+### Changed
+
+- **Skeletal 2D rendering.** Carbon vertices are unlabelled, heteroatoms keep their CPK
+  colour, and the SVG export is skeletal instead of drawing a coloured circle on every
+  atom. Aromatic rings use one circle instead of a circle plus dashed parallel bonds.
+- **2D geometry optimizer.** `layout::optimize_layout` (used by `Command::CleanLayout`)
+  builds a deterministic canonical layout: 1.5 Å bonds, 120° chain angles, ring-specific
+  interior angles, fused-ring placement, branch clearance, and packed components. It
+  preserves the drawing centroid and orientation, and a second call is a no-op.
+- **Selection box.** A non-empty selection draws a dashed bounding box; dragging inside
+  it translates the whole selected part, and the round handle above it rotates around the
+  selection centroid. Both are single undo steps, and clicking inside the box no longer
+  clears the selection.
+- **Visual detail.** Bonds stop at heteroatom labels, labels and stroke widths scale with
+  camera zoom, double bonds have a real gap and put the inner line inside a ring, the grid
+  has minor/major/origin lines, and aromatic circles use the bond colour. Aromatic ring
+  bonds are drawn as single lines when their circle is shown, so Kekulé structures no
+  longer display circles and double bonds together; SVG/PNG export follows the same rule.
+
+### Fixed
+
+- **PNG labels.** PNG export rasterized from an empty `usvg` font database, so every
+  heteroatom label disappeared. The `resvg` text and system-font features are enabled and
+  the platform font database is loaded once and cached.
+- **Double bonds.** A chain double bond used to draw three nearly overlapping lines, and a
+  ring double bond put its second line only 2.5 points from the edge. They are now two
+  lines with a clear gap, and the second line of a ring bond goes inside the ring.
+- **Chemistry 2D labels.** A custom atom label (`Ph`, `COOH`, a residue name) is now the
+  whole label in the editor and in SVG/PNG export; it used to be ignored in favor of the
+  element symbol and implicit hydrogens.
+
 ## [1.2.0] - 2026-11-26
 
 This release publishes the chemistry crates as plugins of the library and hardens the

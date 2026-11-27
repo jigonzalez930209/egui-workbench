@@ -1,5 +1,7 @@
 //! Publication SVG and PNG export for a 2D document.
 
+use std::sync::{Arc, OnceLock};
+
 use egui_workbench_chem_core::BondOrder;
 
 use crate::document::ChemDocument;
@@ -76,13 +78,22 @@ pub fn to_svg(document: &ChemDocument, options: ExportOptions) -> String {
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">\n<rect width=\"100%\" height=\"100%\" fill=\"{background}\"/>\n",
         options.width, options.height, options.width, options.height
     );
+    let aromatic_rings = document.molecule.aromatic_rings();
+    let mut circle_bonds = std::collections::BTreeSet::new();
+    for ring in &aromatic_rings {
+        for bond in &ring.bonds {
+            circle_bonds.insert(*bond);
+        }
+    }
     for bond in &document.molecule.bonds {
         let (Some(a), Some(b)) = (document.molecule.atom(bond.a), document.molecule.atom(bond.b)) else {
             continue;
         };
         let (x1, y1) = map(a.position[0], a.position[1]);
         let (x2, y2) = map(b.position[0], b.position[1]);
-        let width = if bond.order == BondOrder::Double || bond.order == BondOrder::Aromatic {
+        let width = if circle_bonds.contains(&bond.id) {
+            1.6
+        } else if bond.order == BondOrder::Double || bond.order == BondOrder::Aromatic {
             3.0
         } else {
             1.6
@@ -91,17 +102,35 @@ pub fn to_svg(document: &ChemDocument, options: ExportOptions) -> String {
             "<line x1=\"{x1:.2}\" y1=\"{y1:.2}\" x2=\"{x2:.2}\" y2=\"{y2:.2}\" stroke=\"{bond_color}\" stroke-width=\"{width}\" stroke-linecap=\"round\"/>\n"
         ));
     }
+    for ring in &aromatic_rings {
+        let Some(centroid) = ring.centroid(&document.molecule) else {
+            continue;
+        };
+        let (cx, cy) = map(centroid[0], centroid[1]);
+        let radius = ring
+            .atoms
+            .iter()
+            .filter_map(|id| document.molecule.atom(*id))
+            .map(|atom| {
+                let (x, y) = map(atom.position[0], atom.position[1]);
+                (x - cx).hypot(y - cy)
+            })
+            .fold(f32::INFINITY, f32::min)
+            * 0.55;
+        if radius > 2.0 {
+            output.push_str(&format!(
+                "<circle cx=\"{cx:.2}\" cy=\"{cy:.2}\" r=\"{radius:.2}\" fill=\"none\" stroke=\"{bond_color}\" stroke-width=\"1.2\"/>\n"
+            ));
+        }
+    }
     for atom in &document.molecule.atoms {
         let (x, y) = map(atom.position[0], atom.position[1]);
-        let radius = 4.0 + atom.element.covalent_radius() as f32 * 3.0;
-        let [r, g, b] = atom.element.cpk_color();
-        output.push_str(&format!(
-            "<circle cx=\"{x:.2}\" cy=\"{y:.2}\" r=\"{radius:.2}\" fill=\"#{r:02x}{g:02x}{b:02x}\" stroke=\"{bond_color}\" stroke-width=\"0.8\"/>\n"
-        ));
         let label = atom_label(&document.molecule, atom.id);
         if !label.is_empty() {
+            // The background-coloured stroke masks the bond ends under a heteroatom
+            // label, so the export stays skeletal instead of drawing atom circles.
             output.push_str(&format!(
-                "<text x=\"{x:.2}\" y=\"{y:.2}\" font-family=\"sans-serif\" font-size=\"11\" fill=\"{text}\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+                "<text x=\"{x:.2}\" y=\"{y:.2}\" font-family=\"sans-serif\" font-size=\"13\" font-weight=\"600\" fill=\"{text}\" stroke=\"{background}\" stroke-width=\"4\" paint-order=\"stroke\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
                 escape(&label)
             ));
         }
@@ -130,6 +159,17 @@ const MAX_PIXELS: u64 = 100_000_000;
 
 /// Render the document as a PNG at `dpi` (96 DPI is 1x).
 ///
+fn system_fonts() -> Arc<resvg::usvg::fontdb::Database> {
+    static FONTS: OnceLock<Arc<resvg::usvg::fontdb::Database>> = OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let mut database = resvg::usvg::fontdb::Database::new();
+            database.load_system_fonts();
+            Arc::new(database)
+        })
+        .clone()
+}
+
 /// # Errors
 /// When the SVG cannot be rasterized or encoded.
 pub fn to_png(document: &ChemDocument, options: ExportOptions, dpi: u32) -> Result<Vec<u8>, String> {
@@ -138,6 +178,9 @@ pub fn to_png(document: &ChemDocument, options: ExportOptions, dpi: u32) -> Resu
     // The SVG is generated here, but its labels come from the document: never let one pull
     // in a file through an `href`.
     usvg_options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+    // `usvg::Options::default` ships an empty font database, so heteroatom labels used to
+    // disappear from the PNG. Load the platform fonts once and reuse the database.
+    usvg_options.fontdb = system_fonts();
     let tree = resvg::usvg::Tree::from_str(&svg, &usvg_options).map_err(|error| error.to_string())?;
     // `dpi` and the size are caller-controlled: u32::MAX would ask for terapixels.
     let scale = dpi.clamp(72, 1_200) as f32 / 96.0;

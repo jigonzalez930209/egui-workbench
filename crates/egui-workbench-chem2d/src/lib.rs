@@ -24,6 +24,7 @@ pub mod export;
 pub mod history;
 pub mod interact;
 pub mod layout;
+pub mod library;
 pub mod molfile;
 pub mod paint;
 pub mod properties;
@@ -46,13 +47,14 @@ pub use egui_workbench_chem_core::{
 pub use export::{ExportOptions, ExportStyle, to_png, to_svg};
 pub use history::{Command, History};
 pub use interact::{Hit, implicit_hydrogens};
-pub use layout::relax;
+pub use layout::{optimize_layout, relax};
+pub use library::{LIBRARY, LibraryEntry, LibraryGroup, LibraryKind, find as find_library_entry};
 pub use molfile::{MolfileError, from_molfile, from_rxn, from_sdf, from_v3000, to_rxn, to_sdf, to_v2000, to_v3000};
 pub use properties::{MolecularProperties, StereoDescriptor, properties, stereo_descriptors};
 pub use rings::{Ring, aromatic_rings, cycle_basis, ring_for_bond};
 pub use smiles::{SmilesError, SmilesGraph, parse_smiles};
 pub use superatom::{Superatom, SuperatomGroup, library as superatom_library};
-pub use templates::{RingTemplate, add_chain, add_ring, snap_angle};
+pub use templates::{RingTemplate, add_chain, add_ring, attach_ring, snap_angle};
 
 /// Why a 2D editing or chemistry operation failed.
 #[derive(Clone, Debug, PartialEq, Eq)]
