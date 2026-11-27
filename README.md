@@ -1,5 +1,9 @@
 # egui-workbench
 
+> **Archived.** This is the original `egui-workbench` repository. Development
+> continues at [Crisol](https://github.com/jigonzalez930209/crisol). The last
+> release here is v1.3.0. See [ARCHIVED.md](ARCHIVED.md) for why we moved.
+
 [![crates.io](https://img.shields.io/crates/v/egui-workbench.svg)](https://crates.io/crates/egui-workbench)
 [![docs.rs](https://img.shields.io/docsrs/egui-workbench)](https://docs.rs/egui-workbench)
 [![CI](https://github.com/jigonzalez930209/egui-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/jigonzalez930209/egui-workbench/actions/workflows/ci.yml)
